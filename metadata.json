@@ -1,0 +1,5 @@
+{
+  "name": "Rika AI - Pixel Animator",
+  "description": "A professional retro-style pixel animation generation dashboard. Create smooth 16-frame pixel art animations from reference images with a dedicated playback and history tracking system.",
+  "requestFramePermissions": []
+}
