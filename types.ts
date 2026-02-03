@@ -14,6 +14,7 @@ export interface GenerationParams {
   scale_factor: number;
   fix_seed: boolean;
   length: number;
+  use_padding: boolean;
 }
 
 export interface Job {

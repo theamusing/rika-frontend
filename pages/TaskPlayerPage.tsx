@@ -3,21 +3,24 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { apiService } from '../services/apiService';
 import { Job } from '../types';
 import { PixelButton, PixelCard } from '../components/PixelComponents';
-import { sliceSpriteSheet } from '../utils/imageUtils';
+import { sliceSpriteSheet, reconstructSpriteSheet } from '../utils/imageUtils';
 
 interface TaskPlayerPageProps {
   selectedJobId: string | null;
   onJobSelected: (id: string) => void;
+  onRegenerate: (job: Job) => void;
 }
 
-const TaskPlayerPage: React.FC<TaskPlayerPageProps> = ({ selectedJobId, onJobSelected }) => {
+const TaskPlayerPage: React.FC<TaskPlayerPageProps> = ({ selectedJobId, onJobSelected, onRegenerate }) => {
   const [history, setHistory] = useState<Job[]>([]);
   const [currentJob, setCurrentJob] = useState<Job | null>(null);
   const [frames, setFrames] = useState<string[]>([]);
+  const [excludedFrames, setExcludedFrames] = useState<Set<number>>(new Set());
   const [currentFrameIndex, setCurrentFrameIndex] = useState(0);
   const [isPlaying, setIsPlaying] = useState(true);
   const [fps, setFps] = useState(12);
   const [loading, setLoading] = useState(false);
+  const [isExporting, setIsExporting] = useState(false);
 
   const playbackRef = useRef<number | null>(null);
   const isMounted = useRef(true);
@@ -63,6 +66,7 @@ const TaskPlayerPage: React.FC<TaskPlayerPageProps> = ({ selectedJobId, onJobSel
 
     if (isMounted.current && !outputUrl) {
         setFrames(initialFrames);
+        setExcludedFrames(new Set());
     }
 
     if (job.status === 'succeeded' && outputUrl) {
@@ -70,6 +74,7 @@ const TaskPlayerPage: React.FC<TaskPlayerPageProps> = ({ selectedJobId, onJobSel
         const sliced = await sliceSpriteSheet(outputUrl, apiLength);
         if (isMounted.current) {
           setFrames(sliced);
+          setExcludedFrames(new Set());
           lastSlicedUrl.current = outputUrl;
         }
       } catch (err) {
@@ -100,13 +105,10 @@ const TaskPlayerPage: React.FC<TaskPlayerPageProps> = ({ selectedJobId, onJobSel
     }
   }, [updateFramesFromJob]);
 
-  // Handle 5s history polling in player
   useEffect(() => {
     isMounted.current = true;
-    
     fetchHistory();
     const pollInterval = setInterval(fetchHistory, 5000);
-
     return () => {
       isMounted.current = false;
       clearInterval(pollInterval);
@@ -118,6 +120,7 @@ const TaskPlayerPage: React.FC<TaskPlayerPageProps> = ({ selectedJobId, onJobSel
       setCurrentFrameIndex(0);
       setLoading(true);
       setFrames([]);
+      setExcludedFrames(new Set());
       lastSlicedUrl.current = null;
       
       fetchJobDetails(selectedJobId, true).finally(() => {
@@ -136,15 +139,43 @@ const TaskPlayerPage: React.FC<TaskPlayerPageProps> = ({ selectedJobId, onJobSel
         }
       }
     };
-
     pollJob();
     return () => clearTimeout(timer);
   }, [currentJob?.status, currentJob?.gen_id, fetchJobDetails]);
 
+  const toggleFrameExclusion = (e: React.MouseEvent, index: number) => {
+    e.stopPropagation();
+    const newSet = new Set(excludedFrames);
+    if (newSet.has(index)) {
+      newSet.delete(index);
+    } else {
+      newSet.add(index);
+      // If we exclude the currently showing frame, jump immediately to the next
+      if (currentFrameIndex === index) {
+        jumpToNextFrame(newSet);
+      }
+    }
+    setExcludedFrames(newSet);
+  };
+
+  const jumpToNextFrame = (excludedSet: Set<number>) => {
+    if (frames.length === 0 || excludedSet.size >= frames.length) return;
+    
+    setCurrentFrameIndex((prev) => {
+      let next = (prev + 1) % frames.length;
+      let count = 0;
+      while (excludedSet.has(next) && count < frames.length) {
+        next = (next + 1) % frames.length;
+        count++;
+      }
+      return next;
+    });
+  };
+
   useEffect(() => {
-    if (isPlaying && frames.length > 0 && frames.some(f => f !== '')) {
+    if (isPlaying && frames.length > 0 && frames.some(f => f !== '') && excludedFrames.size < frames.length) {
       playbackRef.current = window.setInterval(() => {
-        setCurrentFrameIndex((prev) => (prev + 1) % frames.length);
+        jumpToNextFrame(excludedFrames);
       }, 1000 / fps);
     } else {
       if (playbackRef.current) clearInterval(playbackRef.current);
@@ -152,16 +183,34 @@ const TaskPlayerPage: React.FC<TaskPlayerPageProps> = ({ selectedJobId, onJobSel
     return () => {
       if (playbackRef.current) clearInterval(playbackRef.current);
     };
-  }, [isPlaying, frames, fps]);
+  }, [isPlaying, frames, fps, excludedFrames]);
 
-  const handleDownload = () => {
-    if (!currentJob?.output_images?.[0]) return;
-    const link = document.createElement('a');
-    link.href = currentJob.output_images[0].url;
-    link.download = `rika_${currentJob.gen_id}.png`;
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
+  const handleDownload = async () => {
+    if (frames.length === 0) return;
+    setIsExporting(true);
+
+    try {
+      const activeFrames = frames.filter((_, idx) => !excludedFrames.has(idx));
+      
+      if (activeFrames.length === 0) {
+        alert("Cannot export empty animation. Please include at least one frame.");
+        return;
+      }
+
+      const reconstructedB64 = await reconstructSpriteSheet(activeFrames);
+      
+      const link = document.createElement('a');
+      link.href = reconstructedB64;
+      link.download = `rika_custom_${currentJob?.gen_id || 'anim'}.png`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+    } catch (err) {
+      console.error("Export failed:", err);
+      alert("Failed to reconstruct spritesheet. Check console for details.");
+    } finally {
+      setIsExporting(false);
+    }
   };
 
   const totalFrames = frames.length;
@@ -222,13 +271,13 @@ const TaskPlayerPage: React.FC<TaskPlayerPageProps> = ({ selectedJobId, onJobSel
                 )}
 
                 {totalFrames > 0 && (
-                  <div className="absolute top-4 right-4 bg-black/80 px-2 py-1 border border-[#306230] text-[8px]">
+                  <div className="absolute top-4 right-4 bg-black/80 px-2 py-1 border border-[#306230] text-[8px] z-10">
                     FPS: {fps} | POS: {currentFrameIndex + 1}/{totalFrames}
                   </div>
                 )}
                 
                 {currentJob?.status !== 'succeeded' && currentJob?.status && (
-                  <div className="absolute top-4 left-4 bg-yellow-900/80 px-2 py-1 border border-yellow-500 text-yellow-500 text-[8px] animate-pulse">
+                  <div className="absolute top-4 left-4 bg-yellow-900/80 px-2 py-1 border border-yellow-500 text-yellow-500 text-[8px] animate-pulse z-10">
                     COMPUTING: {currentJob.status.toUpperCase()}
                   </div>
                 )}
@@ -236,21 +285,21 @@ const TaskPlayerPage: React.FC<TaskPlayerPageProps> = ({ selectedJobId, onJobSel
 
               {totalFrames > 0 && (
                 <div className="w-full mt-8 overflow-x-auto bg-[#0f380f]/20 p-4 pixel-border border-[#306230]">
-                  <div className="flex gap-3 min-w-max">
+                  <div className="flex gap-3 min-w-max pb-2">
                     {frames.map((src, idx) => {
                       const isStart = idx === 0;
                       const isMid = idx === midIdx;
                       const isEnd = idx === endIdx;
                       const isControl = isStart || isMid || isEnd;
                       const isCurrent = currentFrameIndex === idx;
+                      const isExcluded = excludedFrames.has(idx);
                       
                       return (
                         <div 
                           key={idx}
                           onClick={() => { setCurrentFrameIndex(idx); setIsPlaying(false); }}
                           className={`relative w-14 h-14 pixel-border border-2 flex-shrink-0 cursor-pointer overflow-hidden transition-all duration-75
-                            ${isCurrent ? 'border-[#8bac0f] scale-110 z-20 shadow-[0_0_10px_rgba(139,172,15,0.5)]' : 'border-[#306230] opacity-60 hover:opacity-100'}
-                            ${isControl && !isCurrent ? 'ring-2 ring-yellow-400 ring-offset-2 ring-offset-[#0f171e]' : ''}
+                            ${isCurrent ? 'border-[#8bac0f] scale-110 z-20 shadow-[0_0_10px_rgba(139,172,15,0.5)]' : 'border-[#306230] opacity-80 hover:opacity-100'}
                           `}
                         >
                           {src ? (
@@ -261,6 +310,21 @@ const TaskPlayerPage: React.FC<TaskPlayerPageProps> = ({ selectedJobId, onJobSel
                                <span className="text-[6px] opacity-30 mt-1">GEN...</span>
                             </div>
                           )}
+                          
+                          {/* Excluded Frame Overlay */}
+                          {isExcluded && (
+                            <div className="absolute inset-0 bg-red-600/40 flex items-center justify-center z-10">
+                               <div className="text-[20px] font-bold text-white drop-shadow-md">X</div>
+                            </div>
+                          )}
+
+                          {/* Top Right "X" Button */}
+                          <button 
+                            onClick={(e) => toggleFrameExclusion(e, idx)}
+                            className={`absolute top-0 right-0 w-4 h-4 bg-red-900 border-b border-l border-red-500 flex items-center justify-center z-20 hover:bg-red-700 active:scale-90 transition-all ${isExcluded ? 'bg-green-900 border-green-500' : ''}`}
+                          >
+                            <span className="text-[6px] font-bold text-white">{isExcluded ? '+' : '×'}</span>
+                          </button>
                           
                           {isControl && (
                             <div className={`absolute top-0 left-0 text-[5px] text-white px-1 font-bold ${isStart ? 'bg-blue-600' : isMid ? 'bg-purple-600' : 'bg-red-600'}`}>
@@ -310,7 +374,7 @@ const TaskPlayerPage: React.FC<TaskPlayerPageProps> = ({ selectedJobId, onJobSel
                    </div>
                    <div className="p-3 bg-black/40 border-l-2 border-[#306230]">
                       <p className="opacity-40 mb-1">Frames</p>
-                      <p className="font-bold">{totalFrames || '-'}</p>
+                      <p className="font-bold">{totalFrames - excludedFrames.size} / {totalFrames}</p>
                    </div>
                    <div className="p-3 bg-black/40 border-l-2 border-[#306230]">
                       <p className="opacity-40 mb-1">Seed</p>
@@ -318,10 +382,19 @@ const TaskPlayerPage: React.FC<TaskPlayerPageProps> = ({ selectedJobId, onJobSel
                    </div>
                 </div>
 
-                {currentJob?.status === 'succeeded' && (
-                  <div className="pt-2">
-                    <PixelButton className="w-full h-14" onClick={handleDownload}>
-                      EXTRACT SPRITESHEET DATA (.PNG)
+                {currentJob && (
+                  <div className="flex flex-col gap-3 pt-2">
+                    {currentJob.status === 'succeeded' && (
+                      <PixelButton className="w-full h-14" onClick={handleDownload} disabled={isExporting || frames.length === 0 || excludedFrames.size === frames.length}>
+                        {isExporting ? 'RECONSTRUCTING...' : 'EXTRACT SPRITESHEET (4-COL GRID)'}
+                      </PixelButton>
+                    )}
+                    <PixelButton 
+                      variant="secondary" 
+                      className="w-full h-14" 
+                      onClick={() => onRegenerate(currentJob)}
+                    >
+                      RE-GENERATE (LOAD PARAMS)
                     </PixelButton>
                   </div>
                 )}

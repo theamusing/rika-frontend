@@ -119,6 +119,7 @@ const App: React.FC = () => {
           <TaskPlayerPage 
             selectedJobId={selectedJobId} 
             onJobSelected={setSelectedJobId}
+            onRegenerate={handleRegenerate}
           />
         )}
         {activeTab === 'history' && (

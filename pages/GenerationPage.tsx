@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import { PixelButton, PixelCard, PixelInput } from '../components/PixelComponents';
-import { processImage } from '../utils/imageUtils';
+import { processImage, unprocessImage } from '../utils/imageUtils';
 import { apiService } from '../services/apiService';
 import { MOTION_TYPES, PIXEL_SIZES } from '../constants';
 import { GenerationParams, MotionType, PixelSize } from '../types';
@@ -36,10 +36,12 @@ const GenerationPage: React.FC<GenerationPageProps> = ({ onJobCreated, initialPa
     use_end_image: false,
     scale_factor: 4, 
     fix_seed: false,
-    length: 25 
+    length: 25,
+    use_padding: false
   });
 
-  // Handle defaults based on animation type
+  // Handle default frame lengths based on motion type
+  // Padding is now purely manual or derived from regeneration, not motion type defaults.
   useEffect(() => {
     if (!initialParams) {
       const isAttack = params.motion_type === 'attack';
@@ -49,15 +51,15 @@ const GenerationPage: React.FC<GenerationPageProps> = ({ onJobCreated, initialPa
       setUiLength(defaultUiLength);
       setParams(prev => ({ ...prev, length: 2 * defaultUiLength + 1 }));
       
-      // Toggle padding: Attack defaults to true, others false
-      setUsePadding(isAttack);
+      // Requirement: "取消attack的默认padding，现在所有动作默认padding都是false。"
+      // So we do not setUsePadding(true) here for attack anymore.
     }
   }, [params.motion_type, initialParams]);
 
   useEffect(() => {
     const reprocessAll = async () => {
       let changed = false;
-      let hasError = false;
+      let processingError = '';
       const newImages = [...images];
       
       for (let i = 0; i < sourceFiles.length; i++) {
@@ -69,9 +71,9 @@ const GenerationPage: React.FC<GenerationPageProps> = ({ onJobCreated, initialPa
               newImages[i] = b64;
               changed = true;
             }
-          } catch (err) {
-            console.error(`Failed to process source at index ${i}:`, err);
-            hasError = true;
+          } catch (err: any) {
+            console.error(`[IMAGE PROCESSOR] Error at index ${i}:`, err);
+            processingError = err.message || "Asset processing failed.";
           }
         } else {
           if (newImages[i] !== null) {
@@ -82,15 +84,20 @@ const GenerationPage: React.FC<GenerationPageProps> = ({ onJobCreated, initialPa
       }
       
       if (changed) setImages(newImages);
-      if (hasError) setError("Image processing failed. Check CORS or file format.");
-      else if (error === "Image processing failed. Check CORS or file format.") setError('');
+      if (processingError) {
+        setError(processingError);
+      } else if (error && (error.includes("Asset") || error.includes("CORS"))) {
+        setError('');
+      }
     };
 
     reprocessAll();
   }, [usePadding, sourceFiles]);
 
   useEffect(() => {
-    if (initialParams) {
+    const loadInitial = async () => {
+      if (!initialParams) return;
+
       const job = initialParams;
       const jobParams = job.input_params;
       const inputImgs = job.input_images || [];
@@ -99,42 +106,49 @@ const GenerationPage: React.FC<GenerationPageProps> = ({ onJobCreated, initialPa
       const calculatedUiLength = (apiLength - 1) / 2;
       setUiLength(calculatedUiLength);
 
-      // Try to restore padding state from job context
-      const currentScale = jobParams.scale_factor || 4;
-      const pixelVal = parseInt(jobParams.pixel_size || "128");
-      // If scale * pixel_size is closer to 384 than 512, it was probably padded
-      const wasPadded = Math.abs(currentScale * pixelVal - 384) < Math.abs(currentScale * pixelVal - 512);
+      // Requirement: "点击regenerate后，如果usepadding是true，则默认勾选padding。"
+      const wasPadded = jobParams.use_padding === true;
       setUsePadding(wasPadded);
 
       setParams({
         ...params,
         ...jobParams,
-        pixel_size: String(pixelVal) as PixelSize
+        pixel_size: String(parseInt(jobParams.pixel_size || "128")) as PixelSize
       });
 
       const newFiles: (File | string | null)[] = [null, null, null];
       if (inputImgs.length > 0) {
-        newFiles[0] = inputImgs[0].url;
-        
-        let nextIdx = 1;
-        if (jobParams.use_mid_image && inputImgs[nextIdx]) {
-          newFiles[1] = inputImgs[nextIdx].url;
-          nextIdx++;
-          setExpandImages(true);
-        }
-        if (jobParams.use_end_image && inputImgs[nextIdx]) {
-          newFiles[2] = inputImgs[nextIdx].url;
-          setExpandImages(true);
-        }
-        
-        if (newFiles[0] === newFiles[2] && jobParams.use_end_image) {
-          setLoopAnimation(true);
+        const processUrl = async (url: string) => wasPadded ? await unprocessImage(url) : url;
+
+        try {
+          newFiles[0] = await processUrl(inputImgs[0].url);
+          
+          let nextIdx = 1;
+          if (jobParams.use_mid_image && inputImgs[nextIdx]) {
+            newFiles[1] = await processUrl(inputImgs[nextIdx].url);
+            nextIdx++;
+            setExpandImages(true);
+          }
+          if (jobParams.use_end_image && inputImgs[nextIdx]) {
+            newFiles[2] = await processUrl(inputImgs[nextIdx].url);
+            setExpandImages(true);
+          }
+          
+          if (newFiles[0] === newFiles[2] && jobParams.use_end_image) {
+            setLoopAnimation(true);
+          }
+          
+          setSourceFiles(newFiles);
+        } catch (err: any) {
+          console.error("Failed to unprocess historical images:", err);
+          setError("History Load Error: " + (err.message || "CORS restriction"));
         }
       }
 
-      setSourceFiles(newFiles);
       onConsumed?.();
-    }
+    };
+
+    loadInitial();
   }, [initialParams, onConsumed]);
 
   const handleImageUpload = (index: number, file: File) => {
@@ -160,8 +174,9 @@ const GenerationPage: React.FC<GenerationPageProps> = ({ onJobCreated, initialPa
       const payloadImages: string[] = [];
       const finalParams = { ...params };
       finalParams.length = 2 * uiLength + 1;
+      finalParams.use_padding = usePadding;
       
-      // Padding scale logic: 384px if padded, 512px if standard
+      // Calculate scale based on padded area vs standard area
       finalParams.scale_factor = (usePadding ? 384 : 512) / parseInt(params.pixel_size);
       
       if (!params.fix_seed) {
@@ -284,7 +299,7 @@ const GenerationPage: React.FC<GenerationPageProps> = ({ onJobCreated, initialPa
                 {usePadding && <>[ASSET] Padding mode: active (768x768 | 384px content)<br/></>}
                 {params.use_mid_image && images[1] && <>[ASSET] Mid frame active<br/></>}
                 {params.use_end_image && images[2] && <>[ASSET] End frame active<br/></>}
-                {error && <span className="text-red-500">[ERROR] {error}</span>}
+                {error && <span className="text-red-500 font-bold">[ERROR] {error}</span>}
             </div>
         </PixelCard>
       </div>

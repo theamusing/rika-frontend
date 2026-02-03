@@ -1,32 +1,63 @@
 
+/**
+ * Helper to fetch a remote image and return an object URL.
+ * Includes cache busting and handles CORS errors gracefully.
+ */
+const fetchAsObjectUrl = async (url: string): Promise<string> => {
+  if (url.startsWith('data:')) return url;
+
+  const separator = url.includes('?') ? '&' : '?';
+  const finalUrl = `${url}${separator}t=${Date.now()}`;
+  
+  try {
+    const response = await fetch(finalUrl, { 
+      mode: 'cors',
+      credentials: 'omit'
+    });
+    
+    if (!response.ok) {
+      throw new Error(`Asset server returned ${response.status}`);
+    }
+    
+    const blob = await response.blob();
+    if (!blob) throw new Error("Received empty blob from server");
+    return URL.createObjectURL(blob);
+  } catch (err) {
+    console.error("CORS/Network error fetching asset:", url);
+    throw new Error("Failed to fetch image. Ensure the server allows CORS for this origin.");
+  }
+};
+
 export const processImage = async (source: File | string, padding: boolean = false): Promise<string> => {
   return new Promise(async (resolve, reject) => {
     let objectUrl: string | null = null;
+    let isDataUrl = false;
 
     try {
-      if (typeof source === 'string') {
-        const separator = source.includes('?') ? '&' : '?';
-        const finalUrl = `${source}${separator}t=${Date.now()}`;
-        
-        const response = await fetch(finalUrl, { mode: 'cors' });
-        if (!response.ok) throw new Error(`HTTP fetch error! status: ${response.status}`);
-        const blob = await response.blob();
-        if (!blob) throw new Error("Failed to fetch image blob");
-        objectUrl = URL.createObjectURL(blob);
-      } else {
+      if (source instanceof File) {
         objectUrl = URL.createObjectURL(source);
+      } else if (typeof source === 'string') {
+        if (source.startsWith('data:')) {
+          objectUrl = source;
+          isDataUrl = true;
+        } else {
+          objectUrl = await fetchAsObjectUrl(source);
+        }
       }
 
+      if (!objectUrl) return reject('Invalid image source');
+
       const img = new Image();
+      if (!isDataUrl) img.crossOrigin = "anonymous";
+
       img.onload = () => {
         const canvas = document.createElement('canvas');
-        // Canvas is 768 for padding mode, 512 for standard.
         canvas.width = padding ? 768 : 512;
         canvas.height = padding ? 768 : 512;
         
         const ctx = canvas.getContext('2d');
         if (!ctx) {
-          if (objectUrl) URL.revokeObjectURL(objectUrl);
+          if (objectUrl && !isDataUrl) URL.revokeObjectURL(objectUrl);
           return reject('No context');
         }
 
@@ -35,7 +66,7 @@ export const processImage = async (source: File | string, padding: boolean = fal
         tempCanvas.height = img.height;
         const tempCtx = tempCanvas.getContext('2d');
         if (!tempCtx) {
-          if (objectUrl) URL.revokeObjectURL(objectUrl);
+          if (objectUrl && !isDataUrl) URL.revokeObjectURL(objectUrl);
           return reject('No temp context');
         }
         tempCtx.drawImage(img, 0, 0);
@@ -60,7 +91,6 @@ export const processImage = async (source: File | string, padding: boolean = fal
         ctx.fillStyle = bgColor;
         ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-        // Content sizing logic: 384 for padding mode, 512 for standard.
         const contentDim = padding ? 384 : 512;
         const scale = Math.min(contentDim / img.width, contentDim / img.height);
         const x = (canvas.width - img.width * scale) / 2;
@@ -69,36 +99,71 @@ export const processImage = async (source: File | string, padding: boolean = fal
         ctx.imageSmoothingEnabled = false;
         ctx.drawImage(img, x, y, img.width * scale, img.height * scale);
 
-        if (objectUrl) URL.revokeObjectURL(objectUrl);
+        if (objectUrl && !isDataUrl) URL.revokeObjectURL(objectUrl);
         resolve(canvas.toDataURL('image/png'));
       };
 
       img.onerror = () => {
-        if (objectUrl) URL.revokeObjectURL(objectUrl);
+        if (objectUrl && !isDataUrl) URL.revokeObjectURL(objectUrl);
         reject('Image rendering failed');
       };
 
       img.src = objectUrl;
 
     } catch (err) {
-      if (objectUrl) URL.revokeObjectURL(objectUrl);
+      if (objectUrl && !isDataUrl) URL.revokeObjectURL(objectUrl);
       reject(err instanceof Error ? err.message : 'Unknown image load error');
     }
   });
 };
 
-export const sliceSpriteSheet = async (url: string, apiLength: number = 25): Promise<string[]> => {
+export const unprocessImage = async (url: string): Promise<string> => {
   try {
-    const separator = url.includes('?') ? '&' : '?';
-    const finalUrl = `${url}${separator}t=${Date.now()}`;
-    
-    const response = await fetch(finalUrl, { mode: 'cors' });
-    if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
-    const blob = await response.blob();
-    const objectUrl = URL.createObjectURL(blob);
+    const objectUrl = await fetchAsObjectUrl(url);
+    const isDataUrl = objectUrl.startsWith('data:');
 
     return new Promise((resolve, reject) => {
       const img = new Image();
+      if (!isDataUrl) img.crossOrigin = "anonymous";
+      
+      img.onload = () => {
+        const canvas = document.createElement('canvas');
+        canvas.width = 512;
+        canvas.height = 512;
+        const ctx = canvas.getContext('2d');
+        if (!ctx) {
+          if (!isDataUrl) URL.revokeObjectURL(objectUrl);
+          return reject('No context');
+        }
+        
+        ctx.imageSmoothingEnabled = false;
+        ctx.drawImage(img, 192, 192, 384, 384, 0, 0, 512, 512);
+        
+        if (!isDataUrl) URL.revokeObjectURL(objectUrl);
+        resolve(canvas.toDataURL('image/png'));
+      };
+      
+      img.onerror = () => {
+        if (!isDataUrl) URL.revokeObjectURL(objectUrl);
+        reject('Failed to load image for unprocessing');
+      };
+      
+      img.src = objectUrl;
+    });
+  } catch (err) {
+    throw err;
+  }
+};
+
+export const sliceSpriteSheet = async (url: string, apiLength: number = 25): Promise<string[]> => {
+  try {
+    const objectUrl = await fetchAsObjectUrl(url);
+    const isDataUrl = objectUrl.startsWith('data:');
+
+    return new Promise((resolve, reject) => {
+      const img = new Image();
+      if (!isDataUrl) img.crossOrigin = "anonymous";
+
       img.onload = () => {
         try {
           const frames: string[] = [];
@@ -135,21 +200,69 @@ export const sliceSpriteSheet = async (url: string, apiLength: number = 25): Pro
             }
           }
           
-          URL.revokeObjectURL(objectUrl);
+          if (!isDataUrl) URL.revokeObjectURL(objectUrl);
           resolve(frames);
         } catch (e) {
-          URL.revokeObjectURL(objectUrl);
+          if (!isDataUrl) URL.revokeObjectURL(objectUrl);
           reject(e);
         }
       };
       img.onerror = () => {
-        URL.revokeObjectURL(objectUrl);
+        if (!isDataUrl) URL.revokeObjectURL(objectUrl);
         reject(new Error("Image rendering failed"));
       };
       img.src = objectUrl;
     });
   } catch (err) {
     console.error("Sprite sheet fetch error:", err);
+    throw err;
+  }
+};
+
+/**
+ * Reconstructs a sprite sheet from a list of frame Data URLs.
+ * Arranges active frames in a 4-column grid.
+ */
+export const reconstructSpriteSheet = async (frames: string[]): Promise<string> => {
+  if (frames.length === 0) throw new Error("No frames provided");
+
+  const loadImage = (src: string): Promise<HTMLImageElement> => {
+    return new Promise((resolve, reject) => {
+      const img = new Image();
+      img.onload = () => resolve(img);
+      img.onerror = reject;
+      img.src = src;
+    });
+  };
+
+  try {
+    const imgObjects = await Promise.all(frames.map(loadImage));
+    const frameWidth = imgObjects[0].width;
+    const frameHeight = imgObjects[0].height;
+
+    const cols = 4;
+    const rows = Math.ceil(imgObjects.length / cols);
+
+    const canvas = document.createElement('canvas');
+    canvas.width = cols * frameWidth;
+    canvas.height = rows * frameHeight;
+
+    const ctx = canvas.getContext('2d');
+    if (!ctx) throw new Error("Could not create reconstruction context");
+
+    // Fill with transparent black (explicitly)
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+    imgObjects.forEach((img, idx) => {
+      const col = idx % cols;
+      const row = Math.floor(idx / cols);
+      ctx.imageSmoothingEnabled = false;
+      ctx.drawImage(img, col * frameWidth, row * frameHeight);
+    });
+
+    return canvas.toDataURL('image/png');
+  } catch (err) {
+    console.error("Reconstruction failed:", err);
     throw err;
   }
 };
