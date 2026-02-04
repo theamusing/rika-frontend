@@ -46,7 +46,8 @@ const TaskPlayerPage: React.FC<TaskPlayerPageProps> = ({ selectedJobId, onJobSel
     }
 
     const initialFrames = new Array(uiLength).fill('');
-    const midIdx = Math.floor((uiLength - 1) / 2);
+    // Adjusted: Mid frame is now one frame later to better align with generation keyframes
+    const midIdx = Math.floor(uiLength / 2);
     const endIdx = uiLength - 1;
 
     if (job.input_images && job.input_images.length > 0) {
@@ -214,7 +215,8 @@ const TaskPlayerPage: React.FC<TaskPlayerPageProps> = ({ selectedJobId, onJobSel
   };
 
   const totalFrames = frames.length;
-  const midIdx = Math.floor((totalFrames - 1) / 2);
+  // Adjusted: Marker for 'MID' frame shifted one frame later
+  const midIdx = Math.floor(totalFrames / 2);
   const endIdx = totalFrames - 1;
 
   return (

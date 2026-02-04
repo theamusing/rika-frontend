@@ -28,7 +28,7 @@ const fetchAsObjectUrl = async (url: string): Promise<string> => {
   }
 };
 
-export const processImage = async (source: File | string, padding: boolean = false): Promise<string> => {
+export const processImage = async (source: File | string, padding: boolean = false, flip: boolean = false): Promise<string> => {
   return new Promise(async (resolve, reject) => {
     let objectUrl: string | null = null;
     let isDataUrl = false;
@@ -97,7 +97,14 @@ export const processImage = async (source: File | string, padding: boolean = fal
         const y = (canvas.height - img.height * scale) / 2;
 
         ctx.imageSmoothingEnabled = false;
+
+        ctx.save();
+        if (flip) {
+          ctx.translate(canvas.width, 0);
+          ctx.scale(-1, 1);
+        }
         ctx.drawImage(img, x, y, img.width * scale, img.height * scale);
+        ctx.restore();
 
         if (objectUrl && !isDataUrl) URL.revokeObjectURL(objectUrl);
         resolve(canvas.toDataURL('image/png'));

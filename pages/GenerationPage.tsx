@@ -13,9 +13,18 @@ interface GenerationPageProps {
   refreshCredits: () => void;
 }
 
+const DEFAULT_PROMPTS: Record<MotionType, string> = {
+  idle: 'side-view, 2D game character standing in place, breathing motion,body sways up-and-down slightly, chest and shoulders rising and falling, head bob synchronized with breathing.',
+  attack: 'side-view, 2D game character raises weapon to perform a powerful strike forward.',
+  walk: 'side-view, 2D game character walks forward.',
+  hit: 'side-view, 2D game character getting hit and knocked backward.',
+  defeated: 'side-view 2D game character getting hit, kneel down and fall to the ground, lying motionlessly'
+};
+
 const GenerationPage: React.FC<GenerationPageProps> = ({ onJobCreated, initialParams, onConsumed, refreshCredits }) => {
   const [images, setImages] = useState<(string | null)[]>([null, null, null]);
   const [sourceFiles, setSourceFiles] = useState<(File | string | null)[]>([null, null, null]);
+  const [flipStates, setFlipStates] = useState<boolean[]>([false, false, false]);
   const [expandImages, setExpandImages] = useState(false);
   const [loopAnimation, setLoopAnimation] = useState(false);
   const [showAdvanced, setShowAdvanced] = useState(false);
@@ -41,7 +50,6 @@ const GenerationPage: React.FC<GenerationPageProps> = ({ onJobCreated, initialPa
   });
 
   // Handle default frame lengths based on motion type
-  // Padding is now purely manual or derived from regeneration, not motion type defaults.
   useEffect(() => {
     if (!initialParams) {
       const isAttack = params.motion_type === 'attack';
@@ -50,9 +58,6 @@ const GenerationPage: React.FC<GenerationPageProps> = ({ onJobCreated, initialPa
       const defaultUiLength = (isAttack || isDefeated) ? 16 : 12;
       setUiLength(defaultUiLength);
       setParams(prev => ({ ...prev, length: 2 * defaultUiLength + 1 }));
-      
-      // Requirement: "取消attack的默认padding，现在所有动作默认padding都是false。"
-      // So we do not setUsePadding(true) here for attack anymore.
     }
   }, [params.motion_type, initialParams]);
 
@@ -66,7 +71,7 @@ const GenerationPage: React.FC<GenerationPageProps> = ({ onJobCreated, initialPa
         const source = sourceFiles[i];
         if (source) {
           try {
-            const b64 = await processImage(source, usePadding);
+            const b64 = await processImage(source, usePadding, flipStates[i]);
             if (newImages[i] !== b64) {
               newImages[i] = b64;
               changed = true;
@@ -92,7 +97,7 @@ const GenerationPage: React.FC<GenerationPageProps> = ({ onJobCreated, initialPa
     };
 
     reprocessAll();
-  }, [usePadding, sourceFiles]);
+  }, [usePadding, sourceFiles, flipStates]);
 
   useEffect(() => {
     const loadInitial = async () => {
@@ -106,7 +111,6 @@ const GenerationPage: React.FC<GenerationPageProps> = ({ onJobCreated, initialPa
       const calculatedUiLength = (apiLength - 1) / 2;
       setUiLength(calculatedUiLength);
 
-      // Requirement: "点击regenerate后，如果usepadding是true，则默认勾选padding。"
       const wasPadded = jobParams.use_padding === true;
       setUsePadding(wasPadded);
 
@@ -139,6 +143,9 @@ const GenerationPage: React.FC<GenerationPageProps> = ({ onJobCreated, initialPa
           }
           
           setSourceFiles(newFiles);
+          // When reloading history, flip is already baked into the image from the server.
+          // We reset flip states to avoid double-flipping if the user toggles it later.
+          setFlipStates([false, false, false]);
         } catch (err: any) {
           console.error("Failed to unprocess historical images:", err);
           setError("History Load Error: " + (err.message || "CORS restriction"));
@@ -162,6 +169,12 @@ const GenerationPage: React.FC<GenerationPageProps> = ({ onJobCreated, initialPa
     setSourceFiles(newFiles);
   };
 
+  const handleFlipToggle = (index: number) => {
+    const newFlips = [...flipStates];
+    newFlips[index] = !newFlips[index];
+    setFlipStates(newFlips);
+  };
+
   const handleGenerate = async () => {
     if (!images[0]) {
         setError("Start Image is required!");
@@ -173,10 +186,14 @@ const GenerationPage: React.FC<GenerationPageProps> = ({ onJobCreated, initialPa
     try {
       const payloadImages: string[] = [];
       const finalParams = { ...params };
+      
+      // If prompt is empty, use the motion default
+      if (!finalParams.prompt.trim()) {
+        finalParams.prompt = DEFAULT_PROMPTS[params.motion_type];
+      }
+
       finalParams.length = 2 * uiLength + 1;
       finalParams.use_padding = usePadding;
-      
-      // Calculate scale based on padded area vs standard area
       finalParams.scale_factor = (usePadding ? 384 : 512) / parseInt(params.pixel_size);
       
       if (!params.fix_seed) {
@@ -237,12 +254,24 @@ const GenerationPage: React.FC<GenerationPageProps> = ({ onJobCreated, initialPa
                         onChange={(e) => e.target.files?.[0] && handleImageUpload(idx, e.target.files[0])}
                       />
                     </div>
+                    {sourceFiles[idx] && (
+                      <div className="flex justify-center">
+                        <label className="flex items-center gap-1 text-[8px] cursor-pointer hover:text-[#8bac0f] transition-colors">
+                          <input 
+                            type="checkbox" 
+                            checked={flipStates[idx]} 
+                            onChange={() => handleFlipToggle(idx)}
+                          />
+                          FLIP H
+                        </label>
+                      </div>
+                    )}
                   </div>
                 );
               })}
             </div>
             
-            <div className="flex items-center justify-between gap-4">
+            <div className="flex items-center justify-between gap-4 pt-2 border-t-2 border-[#306230]">
                <div className="flex gap-2">
                  <PixelButton variant="secondary" onClick={() => setExpandImages(!expandImages)}>
                    {expandImages ? 'COLLAPSE' : 'EXPAND TO 3 FRAMES'}
@@ -297,6 +326,7 @@ const GenerationPage: React.FC<GenerationPageProps> = ({ onJobCreated, initialPa
                 [SYSTEM] Status: Ready<br/>
                 {images[0] && <>[ASSET] Reference image active<br/></>}
                 {usePadding && <>[ASSET] Padding mode: active (768x768 | 384px content)<br/></>}
+                {flipStates.some(f => f) && <span className="text-yellow-500">[TRANSFORM] Active mirror transformation<br/></span>}
                 {params.use_mid_image && images[1] && <>[ASSET] Mid frame active<br/></>}
                 {params.use_end_image && images[2] && <>[ASSET] End frame active<br/></>}
                 {error && <span className="text-red-500 font-bold">[ERROR] {error}</span>}
@@ -308,10 +338,13 @@ const GenerationPage: React.FC<GenerationPageProps> = ({ onJobCreated, initialPa
         <PixelCard title="CORE PARAMETERS">
           <div className="space-y-4">
              <div className="space-y-2">
-                <label className="text-[10px] block">PROMPT</label>
+                <div className="flex justify-between items-end">
+                  <label className="text-[10px] block">PROMPT</label>
+                  {!params.prompt && <span className="text-[6px] text-yellow-500 mb-1">USING DEFAULT FOR {params.motion_type.toUpperCase()}</span>}
+                </div>
                 <textarea 
-                  className="w-full bg-[#0f171e] pixel-border border-[#306230] p-2 text-[#8bac0f] text-[10px] h-24 outline-none focus:border-[#8bac0f]"
-                  placeholder="A pixelated hero..."
+                  className="w-full bg-[#0f171e] pixel-border border-[#306230] p-2 text-[#8bac0f] text-[10px] h-24 outline-none focus:border-[#8bac0f] placeholder:opacity-30"
+                  placeholder={DEFAULT_PROMPTS[params.motion_type]}
                   value={params.prompt}
                   onChange={(e) => setParams({...params, prompt: e.target.value})}
                 />
