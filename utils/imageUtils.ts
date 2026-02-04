@@ -28,7 +28,12 @@ const fetchAsObjectUrl = async (url: string): Promise<string> => {
   }
 };
 
-export const processImage = async (source: File | string, padding: boolean = false, flip: boolean = false): Promise<string> => {
+export const processImage = async (
+  source: File | string, 
+  padding: boolean = false, 
+  flip: boolean = false,
+  pixelSize: string = '128'
+): Promise<string> => {
   return new Promise(async (resolve, reject) => {
     let objectUrl: string | null = null;
     let isDataUrl = false;
@@ -91,7 +96,12 @@ export const processImage = async (source: File | string, padding: boolean = fal
         ctx.fillStyle = bgColor;
         ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-        const contentDim = padding ? 384 : 512;
+        // New Logic: If padding, 64px uses 384 content size, 128/256 uses 512 content size.
+        let contentDim = 512;
+        if (padding) {
+            contentDim = (pixelSize === '64') ? 384 : 512;
+        }
+
         const scale = Math.min(contentDim / img.width, contentDim / img.height);
         const x = (canvas.width - img.width * scale) / 2;
         const y = (canvas.height - img.height * scale) / 2;
@@ -124,7 +134,7 @@ export const processImage = async (source: File | string, padding: boolean = fal
   });
 };
 
-export const unprocessImage = async (url: string): Promise<string> => {
+export const unprocessImage = async (url: string, pixelSize: string = '128'): Promise<string> => {
   try {
     const objectUrl = await fetchAsObjectUrl(url);
     const isDataUrl = objectUrl.startsWith('data:');
@@ -144,7 +154,16 @@ export const unprocessImage = async (url: string): Promise<string> => {
         }
         
         ctx.imageSmoothingEnabled = false;
-        ctx.drawImage(img, 192, 192, 384, 384, 0, 0, 512, 512);
+        
+        // New logic: Determine crop area based on pixelSize for padded images (768x768)
+        // If image is 512x512, this is a standard no-padding crop (which is just the whole image)
+        if (img.width === 768) {
+            const contentDim = (pixelSize === '64') ? 384 : 512;
+            const offset = (768 - contentDim) / 2;
+            ctx.drawImage(img, offset, offset, contentDim, contentDim, 0, 0, 512, 512);
+        } else {
+            ctx.drawImage(img, 0, 0, img.width, img.height, 0, 0, 512, 512);
+        }
         
         if (!isDataUrl) URL.revokeObjectURL(objectUrl);
         resolve(canvas.toDataURL('image/png'));

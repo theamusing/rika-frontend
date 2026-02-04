@@ -146,7 +146,8 @@ const TaskPlayerPage: React.FC<TaskPlayerPageProps> = ({ selectedJobId, onJobSel
 
   const toggleFrameExclusion = (e: React.MouseEvent, index: number) => {
     e.stopPropagation();
-    const newSet = new Set(excludedFrames);
+    // Fix: Explicitly type the Set as number to avoid inference as Set<unknown>
+    const newSet = new Set<number>(excludedFrames);
     if (newSet.has(index)) {
       newSet.delete(index);
     } else {

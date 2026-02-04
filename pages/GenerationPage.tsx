@@ -71,7 +71,7 @@ const GenerationPage: React.FC<GenerationPageProps> = ({ onJobCreated, initialPa
         const source = sourceFiles[i];
         if (source) {
           try {
-            const b64 = await processImage(source, usePadding, flipStates[i]);
+            const b64 = await processImage(source, usePadding, flipStates[i], params.pixel_size);
             if (newImages[i] !== b64) {
               newImages[i] = b64;
               changed = true;
@@ -97,7 +97,7 @@ const GenerationPage: React.FC<GenerationPageProps> = ({ onJobCreated, initialPa
     };
 
     reprocessAll();
-  }, [usePadding, sourceFiles, flipStates]);
+  }, [usePadding, sourceFiles, flipStates, params.pixel_size]);
 
   useEffect(() => {
     const loadInitial = async () => {
@@ -114,15 +114,17 @@ const GenerationPage: React.FC<GenerationPageProps> = ({ onJobCreated, initialPa
       const wasPadded = jobParams.use_padding === true;
       setUsePadding(wasPadded);
 
+      const loadedPixelSize = String(parseInt(jobParams.pixel_size || "128")) as PixelSize;
+
       setParams({
         ...params,
         ...jobParams,
-        pixel_size: String(parseInt(jobParams.pixel_size || "128")) as PixelSize
+        pixel_size: loadedPixelSize
       });
 
       const newFiles: (File | string | null)[] = [null, null, null];
       if (inputImgs.length > 0) {
-        const processUrl = async (url: string) => wasPadded ? await unprocessImage(url) : url;
+        const processUrl = async (url: string) => wasPadded ? await unprocessImage(url, loadedPixelSize) : url;
 
         try {
           newFiles[0] = await processUrl(inputImgs[0].url);
@@ -194,7 +196,15 @@ const GenerationPage: React.FC<GenerationPageProps> = ({ onJobCreated, initialPa
 
       finalParams.length = 2 * uiLength + 1;
       finalParams.use_padding = usePadding;
-      finalParams.scale_factor = (usePadding ? 384 : 512) / parseInt(params.pixel_size);
+
+      // Updated Scale Factor Logic
+      const pixelInt = parseInt(params.pixel_size);
+      if (usePadding) {
+          const contentDim = (params.pixel_size === '64') ? 384 : 512;
+          finalParams.scale_factor = contentDim / pixelInt;
+      } else {
+          finalParams.scale_factor = 512 / pixelInt;
+      }
       
       if (!params.fix_seed) {
         finalParams.seed = Math.floor(Math.random() * 1000000);
@@ -325,7 +335,7 @@ const GenerationPage: React.FC<GenerationPageProps> = ({ onJobCreated, initialPa
             <div className="h-24 overflow-y-auto text-[8px] font-mono leading-relaxed opacity-60">
                 [SYSTEM] Status: Ready<br/>
                 {images[0] && <>[ASSET] Reference image active<br/></>}
-                {usePadding && <>[ASSET] Padding mode: active (768x768 | 384px content)<br/></>}
+                {usePadding && <>[ASSET] Padding mode: active (768x768 | {params.pixel_size === '64' ? '384px' : '512px'} content)<br/></>}
                 {flipStates.some(f => f) && <span className="text-yellow-500">[TRANSFORM] Active mirror transformation<br/></span>}
                 {params.use_mid_image && images[1] && <>[ASSET] Mid frame active<br/></>}
                 {params.use_end_image && images[2] && <>[ASSET] End frame active<br/></>}
