@@ -96,11 +96,8 @@ export const processImage = async (
         ctx.fillStyle = bgColor;
         ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-        // New Logic: If padding, 64px uses 384 content size, 128/256 uses 512 content size.
-        let contentDim = 512;
-        if (padding) {
-            contentDim = (pixelSize === '64') ? 384 : 512;
-        }
+        // Reverted Logic: Uniform content dimension for padding mode
+        const contentDim = padding ? 384 : 512;
 
         const scale = Math.min(contentDim / img.width, contentDim / img.height);
         const x = (canvas.width - img.width * scale) / 2;
@@ -155,10 +152,9 @@ export const unprocessImage = async (url: string, pixelSize: string = '128'): Pr
         
         ctx.imageSmoothingEnabled = false;
         
-        // New logic: Determine crop area based on pixelSize for padded images (768x768)
-        // If image is 512x512, this is a standard no-padding crop (which is just the whole image)
+        // Reverted Logic: If image is 768px (padded), always crop the central 384px area.
         if (img.width === 768) {
-            const contentDim = (pixelSize === '64') ? 384 : 512;
+            const contentDim = 384;
             const offset = (768 - contentDim) / 2;
             ctx.drawImage(img, offset, offset, contentDim, contentDim, 0, 0, 512, 512);
         } else {

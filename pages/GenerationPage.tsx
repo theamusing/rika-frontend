@@ -197,11 +197,10 @@ const GenerationPage: React.FC<GenerationPageProps> = ({ onJobCreated, initialPa
       finalParams.length = 2 * uiLength + 1;
       finalParams.use_padding = usePadding;
 
-      // Updated Scale Factor Logic
+      // Reverted Scale Factor Logic: Uniform base 384 when padded
       const pixelInt = parseInt(params.pixel_size);
       if (usePadding) {
-          const contentDim = (params.pixel_size === '64') ? 384 : 512;
-          finalParams.scale_factor = contentDim / pixelInt;
+          finalParams.scale_factor = 384 / pixelInt;
       } else {
           finalParams.scale_factor = 512 / pixelInt;
       }
@@ -335,7 +334,7 @@ const GenerationPage: React.FC<GenerationPageProps> = ({ onJobCreated, initialPa
             <div className="h-24 overflow-y-auto text-[8px] font-mono leading-relaxed opacity-60">
                 [SYSTEM] Status: Ready<br/>
                 {images[0] && <>[ASSET] Reference image active<br/></>}
-                {usePadding && <>[ASSET] Padding mode: active (768x768 | {params.pixel_size === '64' ? '384px' : '512px'} content)<br/></>}
+                {usePadding && <>[ASSET] Padding mode: active (768x768 | 384px content)<br/></>}
                 {flipStates.some(f => f) && <span className="text-yellow-500">[TRANSFORM] Active mirror transformation<br/></span>}
                 {params.use_mid_image && images[1] && <>[ASSET] Mid frame active<br/></>}
                 {params.use_end_image && images[2] && <>[ASSET] End frame active<br/></>}
