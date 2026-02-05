@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { apiService } from '../services/apiService';
 import { Job } from '../types';
@@ -39,6 +38,8 @@ const TaskPlayerPage: React.FC<TaskPlayerPageProps> = ({ selectedJobId, onJobSel
   const [hoverPixel, setHoverPixel] = useState<{ x: number, y: number } | null>(null);
   const [selection, setSelection] = useState<Set<string>>(new Set());
   const [isLightBg, setIsLightBg] = useState(false);
+  const [isCtrlPressed, setIsCtrlPressed] = useState(false);
+  const [isQPressed, setIsQPressed] = useState(false);
   
   // Tool Parameters
   const [brushSize, setBrushSize] = useState(1);
@@ -50,11 +51,15 @@ const TaskPlayerPage: React.FC<TaskPlayerPageProps> = ({ selectedJobId, onJobSel
 
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const overlayRef = useRef<HTMLCanvasElement>(null);
+  const editorContainerRef = useRef<HTMLDivElement>(null);
   const playbackRef = useRef<number | null>(null);
   const isMounted = useRef(true);
   const lastMousePos = useRef({ x: 0, y: 0 });
 
   const isJobRunning = currentJob?.status === 'running' || currentJob?.status === 'queued';
+
+  // Derived active tool (overridden by Ctrl key)
+  const effectiveTool: Tool = isCtrlPressed ? 'move' : activeTool;
 
   const pushToHistory = (newFrames: string[]) => {
     setUndoStack(prev => [...prev.slice(-31), frames]);
@@ -62,21 +67,21 @@ const TaskPlayerPage: React.FC<TaskPlayerPageProps> = ({ selectedJobId, onJobSel
     setFrames([...newFrames]);
   };
 
-  const handleUndo = () => {
+  const handleUndo = useCallback(() => {
     if (undoStack.length === 0 || isJobRunning) return;
     const prev = undoStack[undoStack.length - 1];
     setRedoStack(prevRedo => [...prevRedo, frames]);
     setUndoStack(prevUndo => prevUndo.slice(0, -1));
     setFrames([...prev]);
-  };
+  }, [undoStack, frames, isJobRunning]);
 
-  const handleRedo = () => {
+  const handleRedo = useCallback(() => {
     if (redoStack.length === 0 || isJobRunning) return;
     const next = redoStack[redoStack.length - 1];
     setUndoStack(prevUndo => [...prevUndo, frames]);
     setRedoStack(prevRedo => prevRedo.slice(0, -1));
     setFrames([...next]);
-  };
+  }, [redoStack, frames, isJobRunning]);
 
   const deleteSelection = useCallback(() => {
     if (selection.size === 0 || isJobRunning) return;
@@ -92,24 +97,72 @@ const TaskPlayerPage: React.FC<TaskPlayerPageProps> = ({ selectedJobId, onJobSel
     const newFrames = [...frames];
     newFrames[currentFrameIndex] = canvas.toDataURL();
     pushToHistory(newFrames);
-    // Automatically clear selection after deletion
     setSelection(new Set());
   }, [selection, frames, currentFrameIndex, isJobRunning]);
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Delete' || e.key === 'Backspace') {
-        if (document.activeElement?.tagName !== 'INPUT' && document.activeElement?.tagName !== 'TEXTAREA') {
+      const key = e.key.toLowerCase();
+      
+      if (e.key === 'Control' || e.key === 'Meta') {
+        setIsCtrlPressed(true);
+      }
+      
+      if (key === 'q') {
+        setIsQPressed(true);
+      }
+
+      if (document.activeElement?.tagName === 'INPUT' || document.activeElement?.tagName === 'TEXTAREA') return;
+
+      if (e.ctrlKey || e.metaKey) {
+        if (key === 'z') {
           e.preventDefault();
-          deleteSelection();
+          handleUndo();
+        } else if (key === 'y') {
+          e.preventDefault();
+          handleRedo();
         }
+      }
+
+      if (e.key === 'Delete' || e.key === 'Backspace') {
+        e.preventDefault();
+        deleteSelection();
       } else if (e.key === 'Escape') {
         setSelection(new Set());
       }
     };
+
+    const handleKeyUp = (e: KeyboardEvent) => {
+      const key = e.key.toLowerCase();
+      if (e.key === 'Control' || e.key === 'Meta') {
+        setIsCtrlPressed(false);
+      }
+      if (key === 'q') {
+        setIsQPressed(false);
+      }
+    };
+
     window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [deleteSelection]);
+    window.addEventListener('keyup', handleKeyUp);
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown);
+      window.removeEventListener('keyup', handleKeyUp);
+    };
+  }, [deleteSelection, handleUndo, handleRedo]);
+
+  useEffect(() => {
+    const container = editorContainerRef.current;
+    if (!container) return;
+
+    const onWheel = (e: WheelEvent) => {
+      e.preventDefault();
+      const delta = e.deltaY > 0 ? 0.9 : 1.1;
+      setZoom(prev => Math.min(Math.max(prev * delta, 0.1), 8));
+    };
+
+    container.addEventListener('wheel', onWheel, { passive: false });
+    return () => container.removeEventListener('wheel', onWheel);
+  }, []);
 
   const updateFramesFromJob = useCallback(async (job: Job) => {
     const apiLength = job.input_params?.length || 33;
@@ -172,7 +225,6 @@ const TaskPlayerPage: React.FC<TaskPlayerPageProps> = ({ selectedJobId, onJobSel
     return () => { isMounted.current = false; };
   }, [selectedJobId, updateFramesFromJob]);
 
-  // Main Canvas Rendering
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas || !frames[currentFrameIndex]) return;
@@ -189,7 +241,6 @@ const TaskPlayerPage: React.FC<TaskPlayerPageProps> = ({ selectedJobId, onJobSel
     img.src = frames[currentFrameIndex];
   }, [frames, currentFrameIndex]);
 
-  // Overlay Canvas Rendering (Selection & Hover)
   useEffect(() => {
     const canvas = canvasRef.current;
     const overlay = overlayRef.current;
@@ -202,7 +253,6 @@ const TaskPlayerPage: React.FC<TaskPlayerPageProps> = ({ selectedJobId, onJobSel
     ctx.clearRect(0, 0, overlay.width, overlay.height);
     ctx.imageSmoothingEnabled = false;
 
-    // Draw Selection - Bright Orange
     if (selection.size > 0) {
       ctx.fillStyle = 'rgba(255, 102, 0, 0.4)';
       selection.forEach(key => {
@@ -217,14 +267,13 @@ const TaskPlayerPage: React.FC<TaskPlayerPageProps> = ({ selectedJobId, onJobSel
       });
     }
 
-    // Draw Hover Highlight
     if (hoverPixel && !isJobRunning) {
-      ctx.fillStyle = 'rgba(255, 255, 255, 0.4)';
-      const size = activeTool === 'brush' ? brushSize : activeTool === 'eraser' ? eraserSize : 1;
+      ctx.fillStyle = isQPressed ? 'rgba(0, 255, 255, 0.4)' : 'rgba(255, 255, 255, 0.4)';
+      const size = effectiveTool === 'brush' ? brushSize : effectiveTool === 'eraser' ? eraserSize : 1;
       const offset = Math.floor((size - 1) / 2);
       ctx.fillRect(hoverPixel.x - offset, hoverPixel.y - offset, size, size);
     }
-  }, [selection, hoverPixel, brushSize, eraserSize, activeTool, isJobRunning, frames]);
+  }, [selection, hoverPixel, brushSize, eraserSize, effectiveTool, isJobRunning, frames, isQPressed]);
 
   const getEventCoords = (e: React.MouseEvent | React.TouchEvent) => {
     const canvas = canvasRef.current;
@@ -243,13 +292,13 @@ const TaskPlayerPage: React.FC<TaskPlayerPageProps> = ({ selectedJobId, onJobSel
     const canvas = canvasRef.current;
     if (!canvas) return;
     const ctx = canvas.getContext('2d')!;
-    const size = activeTool === 'brush' ? brushSize : eraserSize;
+    const size = effectiveTool === 'brush' ? brushSize : eraserSize;
     const offset = Math.floor((size - 1) / 2);
 
-    if (activeTool === 'brush') {
+    if (effectiveTool === 'brush') {
       ctx.fillStyle = brushColor;
       ctx.fillRect(x - offset, y - offset, size, size);
-    } else if (activeTool === 'eraser') {
+    } else if (effectiveTool === 'eraser') {
       ctx.clearRect(x - offset, y - offset, size, size);
     }
   };
@@ -262,7 +311,7 @@ const TaskPlayerPage: React.FC<TaskPlayerPageProps> = ({ selectedJobId, onJobSel
     const { x, y } = getEventCoords(e);
     setHoverPixel({ x, y });
 
-    if (activeTool === 'move') {
+    if (effectiveTool === 'move') {
       if (isPanning) {
         const dx = e.clientX - lastMousePos.current.x;
         const dy = e.clientY - lastMousePos.current.y;
@@ -272,7 +321,7 @@ const TaskPlayerPage: React.FC<TaskPlayerPageProps> = ({ selectedJobId, onJobSel
       return;
     }
 
-    if (isDrawing) {
+    if (isDrawing && !isQPressed) {
       applyToolAtCoords(x, y);
     }
   };
@@ -327,9 +376,23 @@ const TaskPlayerPage: React.FC<TaskPlayerPageProps> = ({ selectedJobId, onJobSel
     lastMousePos.current = { x: e.clientX, y: e.clientY };
     const { x, y } = getEventCoords(e);
     
-    if (activeTool === 'move') {
+    // Pick color shortcut
+    if (isQPressed) {
+      const canvas = canvasRef.current;
+      if (canvas) {
+        const ctx = canvas.getContext('2d')!;
+        const pixelData = ctx.getImageData(x, y, 1, 1).data;
+        if (pixelData[3] > 0) {
+           const hex = "#" + ((1 << 24) + (pixelData[0] << 16) + (pixelData[1] << 8) + pixelData[2]).toString(16).slice(1);
+           setBrushColor(hex);
+        }
+      }
+      return;
+    }
+
+    if (effectiveTool === 'move') {
       setIsPanning(true);
-    } else if (activeTool === 'wand') {
+    } else if (effectiveTool === 'wand') {
       handleWandSelection(x, y);
     } else {
       setIsDrawing(true);
@@ -424,7 +487,7 @@ const TaskPlayerPage: React.FC<TaskPlayerPageProps> = ({ selectedJobId, onJobSel
     <div className="relative flex items-center group">
       <button 
         onClick={() => { setActiveTool(id); setIsPlaying(false); }}
-        className={`w-10 h-10 flex items-center justify-center text-lg pixel-border border-2 transition-all ${activeTool === id ? 'bg-[#8bac0f] text-[#0f380f] border-white' : 'bg-black/40 text-[#8bac0f] border-[#306230] hover:border-[#8bac0f]'}`}
+        className={`w-10 h-10 flex items-center justify-center text-lg pixel-border border-2 transition-all ${effectiveTool === id ? 'bg-[#8bac0f] text-[#0f380f] border-white' : 'bg-black/40 text-[#8bac0f] border-[#306230] hover:border-[#8bac0f]'}`}
         title={id.toUpperCase()}
       >
         {label}
@@ -484,7 +547,7 @@ const TaskPlayerPage: React.FC<TaskPlayerPageProps> = ({ selectedJobId, onJobSel
   );
 
   const darkChecker = `linear-gradient(45deg, #222 25%, transparent 25%), linear-gradient(-45deg, #222 25%, transparent 25%), linear-gradient(45deg, transparent 75%, #222 75%), linear-gradient(-45deg, transparent 75%, #222 75%)`;
-  const lightChecker = `linear-gradient(45deg, #ccc 25%, transparent 25%), linear-gradient(-45deg, #ccc 25%, transparent 25%), linear-gradient(45deg, transparent 75%, #ccc 75%), linear-gradient(-45deg, transparent 75%, #ccc 75%)`;
+  const lightChecker = `linear-gradient(45deg, #e1e1bc 25%, transparent 25%), linear-gradient(-45deg, #e1e1bc 25%, transparent 25%), linear-gradient(45deg, transparent 75%, #e1e1bc 75%), linear-gradient(-45deg, transparent 75%, #e1e1bc 75%)`;
 
   return (
     <div className="flex flex-col gap-6 w-full overflow-hidden">
@@ -516,7 +579,7 @@ const TaskPlayerPage: React.FC<TaskPlayerPageProps> = ({ selectedJobId, onJobSel
               />
               <button 
                 onClick={() => setIsLightBg(!isLightBg)}
-                className={`w-10 h-10 flex items-center justify-center text-[10px] pixel-border border-2 transition-all ${isLightBg ? 'bg-white text-black border-black' : 'bg-black text-white border-white'}`}
+                className={`w-10 h-10 flex items-center justify-center text-[10px] pixel-border border-2 transition-all ${isLightBg ? 'bg-[#f5f5dc] text-black border-black' : 'bg-black text-white border-white'}`}
                 title="TOGGLE BACKGROUND"
               >
                 {isLightBg ? '☀️' : '🌙'}
@@ -525,8 +588,9 @@ const TaskPlayerPage: React.FC<TaskPlayerPageProps> = ({ selectedJobId, onJobSel
         </div>
 
         <div className="flex flex-col gap-4 min-w-0 w-full overflow-hidden">
-          <PixelCard className={`relative p-0 overflow-hidden h-[512px] flex items-center justify-center transition-colors duration-300 ${isLightBg ? 'bg-[#eee]' : 'bg-[#050a05]'}`}>
+          <PixelCard className={`relative p-0 overflow-hidden h-[512px] flex items-center justify-center transition-colors duration-300 ${isLightBg ? 'bg-[#f5f5dc]' : 'bg-[#050a05]'}`}>
             <div 
+              ref={editorContainerRef}
               className="relative origin-center pointer-events-auto"
               style={{
                 width: '512px',
@@ -554,7 +618,7 @@ const TaskPlayerPage: React.FC<TaskPlayerPageProps> = ({ selectedJobId, onJobSel
               <canvas ref={canvasRef} className="w-full h-full block" style={{ imageRendering: 'pixelated' }} />
               <canvas 
                 ref={overlayRef} 
-                className={`absolute inset-0 w-full h-full pointer-events-none block ${isJobRunning ? '' : activeTool === 'move' ? (isPanning ? 'cursor-grabbing' : 'cursor-grab') : 'cursor-crosshair'}`}
+                className={`absolute inset-0 w-full h-full pointer-events-none block ${isJobRunning ? '' : isQPressed ? 'cursor-help' : effectiveTool === 'move' ? (isPanning ? 'cursor-grabbing' : 'cursor-grab') : 'cursor-crosshair'}`}
                 style={{ imageRendering: 'pixelated' }} 
               />
             </div>
@@ -611,8 +675,8 @@ const TaskPlayerPage: React.FC<TaskPlayerPageProps> = ({ selectedJobId, onJobSel
 
            <PixelCard title="HISTORY">
               <div className={`grid grid-cols-2 gap-2 pt-2 ${isJobRunning ? 'opacity-30 pointer-events-none' : ''}`}>
-                <PixelButton variant="secondary" onClick={handleUndo} disabled={undoStack.length === 0} className="text-[10px]">UNDO</PixelButton>
-                <PixelButton variant="secondary" onClick={handleRedo} disabled={redoStack.length === 0} className="text-[10px]">REDO</PixelButton>
+                <PixelButton variant="secondary" onClick={handleUndo} disabled={undoStack.length === 0} className="text-[10px]" title="Ctrl+Z">UNDO</PixelButton>
+                <PixelButton variant="secondary" onClick={handleRedo} disabled={redoStack.length === 0} className="text-[10px]" title="Ctrl+Y">REDO</PixelButton>
               </div>
            </PixelCard>
 
@@ -623,12 +687,13 @@ const TaskPlayerPage: React.FC<TaskPlayerPageProps> = ({ selectedJobId, onJobSel
                  </PixelButton>
                  <div className="space-y-2">
                    <div className="flex justify-between text-[8px] opacity-60"><span>FPS: {fps}</span></div>
-                   <input type="range" min="1" max="60" value={fps} onChange={e => setFps(parseInt(e.target.value))} className="w-full accent-[#8bac0f]" disabled={isJobRunning} />
+                   <input type="range" min="1" max="24" value={fps} onChange={e => setFps(parseInt(e.target.value))} className="w-full accent-[#8bac0f]" disabled={isJobRunning} />
                  </div>
                  <div className="space-y-2">
                    <div className="flex justify-between text-[8px] opacity-60"><span>VIEW ZOOM</span></div>
                    <input type="range" min="0.1" max="8" step="0.1" value={zoom} onChange={e => setZoom(parseFloat(e.target.value))} className="w-full accent-[#8bac0f]" />
                  </div>
+                 <p className="text-[7px] text-center opacity-40 uppercase">Scroll: Zoom | Ctrl: Pan | Q+Click: Pick Color</p>
               </div>
            </PixelCard>
 
