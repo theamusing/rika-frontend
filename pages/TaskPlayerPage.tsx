@@ -1,9 +1,11 @@
+
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { apiService } from '../services/apiService.ts';
 import { Job } from '../types.ts';
 import { PixelButton, PixelCard } from '../components/PixelComponents.tsx';
 import { sliceSpriteSheet, reconstructSpriteSheet, processImage } from '../utils/imageUtils.ts';
 import { floodFill, RGB, colorDistance } from '../utils/editorUtils.ts';
+import { saveSpriteToCache, getSpriteFromCache, CachedSprite } from '../utils/dbUtils.ts';
 
 type Tool = 'brush' | 'eraser' | 'move' | 'wand';
 type WandMode = 'select' | 'add' | 'remove';
@@ -75,13 +77,6 @@ const TaskPlayerPage: React.FC<TaskPlayerPageProps> = ({ selectedJobId, onJobSel
     setFrames([...prev]);
   }, [undoStack, frames, isJobRunning]);
 
-  const handleUndoKey = useCallback((e: KeyboardEvent) => {
-    if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'z') {
-      e.preventDefault();
-      handleUndo();
-    }
-  }, [handleUndo]);
-
   const handleRedo = useCallback(() => {
     if (redoStack.length === 0 || isJobRunning) return;
     const next = redoStack[redoStack.length - 1];
@@ -89,6 +84,24 @@ const TaskPlayerPage: React.FC<TaskPlayerPageProps> = ({ selectedJobId, onJobSel
     setRedoStack(prevRedo => prevRedo.slice(0, -1));
     setFrames([...next]);
   }, [redoStack, frames, isJobRunning]);
+
+  // IndexedDB 保存逻辑
+  const handleSaveToCache = useCallback(async () => {
+    if (!selectedJobId || frames.length === 0 || isJobRunning) return;
+    try {
+      const spriteSheet = await reconstructSpriteSheet(frames);
+      const cacheData: CachedSprite = {
+        gen_id: selectedJobId,
+        spriteSheet,
+        excludedIndices: Array.from(excludedFrames),
+        updatedAt: Date.now()
+      };
+      await saveSpriteToCache(cacheData);
+      console.log(`[LOCAL SAVE] Job ${selectedJobId} progress stored in IndexedDB.`);
+    } catch (err) {
+      console.error("Failed to sync to local cache:", err);
+    }
+  }, [selectedJobId, frames, excludedFrames, isJobRunning]);
 
   const deleteSelection = useCallback(() => {
     if (selection.size === 0 || isJobRunning) return;
@@ -128,6 +141,10 @@ const TaskPlayerPage: React.FC<TaskPlayerPageProps> = ({ selectedJobId, onJobSel
         } else if (key === 'y') {
           e.preventDefault();
           handleRedo();
+        } else if (key === 's') {
+          // Ctrl + S 手动保存到 IndexedDB
+          e.preventDefault();
+          handleSaveToCache();
         }
       }
 
@@ -155,7 +172,17 @@ const TaskPlayerPage: React.FC<TaskPlayerPageProps> = ({ selectedJobId, onJobSel
       window.removeEventListener('keydown', handleKeyDown);
       window.removeEventListener('keyup', handleKeyUp);
     };
-  }, [deleteSelection, handleUndo, handleRedo]);
+  }, [deleteSelection, handleUndo, handleRedo, handleSaveToCache]);
+
+  // 每10秒自动保存
+  useEffect(() => {
+    const interval = setInterval(() => {
+      if (!isJobRunning && frames.length > 0) {
+        handleSaveToCache();
+      }
+    }, 10000);
+    return () => clearInterval(interval);
+  }, [handleSaveToCache, isJobRunning, frames.length]);
 
   useEffect(() => {
     const container = editorContainerRef.current;
@@ -173,6 +200,28 @@ const TaskPlayerPage: React.FC<TaskPlayerPageProps> = ({ selectedJobId, onJobSel
 
   const updateFramesFromJob = useCallback(async (job: Job) => {
     const apiLength = job.input_params?.length || 33;
+
+    // 首先检查 IndexedDB 缓存
+    try {
+      const cached = await getSpriteFromCache(job.gen_id);
+      if (cached) {
+        console.log(`[CACHE HIT] Restoring local state for ${job.gen_id}`);
+        const sliced = await sliceSpriteSheet(cached.spriteSheet, apiLength);
+        if (isMounted.current) {
+          setFrames([...sliced]);
+          setInitialFrames([...sliced]);
+          setExcludedFrames(new Set(cached.excludedIndices || []));
+          setUndoStack([]);
+          setRedoStack([]);
+          setPan({ x: 0, y: 0 });
+          setSelection(new Set());
+          return; // 成功加载缓存后退出，不再请求远程资源
+        }
+      }
+    } catch (err) {
+      console.warn("Local cache access failed or corrupted, falling back to network.", err);
+    }
+
     const outputUrl = job.output_images?.[0]?.url;
 
     if (job.status === 'succeeded' && outputUrl) {
@@ -564,9 +613,11 @@ const TaskPlayerPage: React.FC<TaskPlayerPageProps> = ({ selectedJobId, onJobSel
           <span className="text-white/50">MODE: <span className="text-[#8bac0f] uppercase">{currentJob?.input_params?.motion_type}</span></span>
           <span className="text-white/50 uppercase">STATUS: <span className={`${currentJob?.status === 'succeeded' ? 'text-[#8bac0f]' : 'text-yellow-500'}`}>{currentJob?.status}</span></span>
         </div>
-        <div className="flex items-center gap-2">
-          <div className={`w-3 h-3 rounded-full ${isJobRunning ? 'bg-yellow-500' : 'bg-red-500'} animate-pulse`} />
-          <span className="text-[10px]">{isJobRunning ? 'SYNC: GENERATING ASSETS' : 'REC: EDITOR ACTIVE'}</span>
+        <div className="flex items-center gap-4">
+          <div className="flex items-center gap-2">
+            <div className={`w-3 h-3 rounded-full ${isJobRunning ? 'bg-yellow-500' : 'bg-red-500'} animate-pulse`} />
+            <span className="text-[10px]">{isJobRunning ? 'SYNC: GENERATING ASSETS' : 'REC: EDITOR ACTIVE'}</span>
+          </div>
         </div>
       </div>
 
