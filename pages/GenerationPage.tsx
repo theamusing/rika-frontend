@@ -1,10 +1,9 @@
-
 import React, { useState, useEffect, useRef } from 'react';
-import { PixelButton, PixelCard, PixelInput } from '../components/PixelComponents';
-import { processImage, unprocessImage } from '../utils/imageUtils';
-import { apiService } from '../services/apiService';
-import { MOTION_TYPES, PIXEL_SIZES } from '../constants';
-import { GenerationParams, MotionType, PixelSize } from '../types';
+import { PixelButton, PixelCard, PixelInput } from '../components/PixelComponents.tsx';
+import { processImage, unprocessImage } from '../utils/imageUtils.ts';
+import { apiService } from '../services/apiService.ts';
+import { MOTION_TYPES, PIXEL_SIZES } from '../constants.ts';
+import { GenerationParams, MotionType, PixelSize } from '../types.ts';
 
 interface GenerationPageProps {
   onJobCreated: (id: string) => void;

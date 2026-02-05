@@ -1,14 +1,13 @@
-
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { createClient } from '@supabase/supabase-js';
-import { SUPABASE_URL, SUPABASE_ANON_KEY } from './constants';
-import { apiService } from './services/apiService';
-import { AuthUser, Job } from './types';
-import LoginPage from './pages/LoginPage';
-import GenerationPage from './pages/GenerationPage';
-import TaskPlayerPage from './pages/TaskPlayerPage';
-import HistoryPage from './pages/HistoryPage';
-import { PixelButton } from './components/PixelComponents';
+import { SUPABASE_URL, SUPABASE_ANON_KEY } from './constants.ts';
+import { apiService } from './services/apiService.ts';
+import { AuthUser, Job } from './types.ts';
+import LoginPage from './pages/LoginPage.tsx';
+import GenerationPage from './pages/GenerationPage.tsx';
+import TaskPlayerPage from './pages/TaskPlayerPage.tsx';
+import HistoryPage from './pages/HistoryPage.tsx';
+import { PixelButton } from './components/PixelComponents.tsx';
 
 const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 

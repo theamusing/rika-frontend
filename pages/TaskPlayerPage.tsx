@@ -1,9 +1,9 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { apiService } from '../services/apiService';
-import { Job } from '../types';
-import { PixelButton, PixelCard } from '../components/PixelComponents';
-import { sliceSpriteSheet, reconstructSpriteSheet, processImage } from '../utils/imageUtils';
-import { floodFill, RGB, colorDistance } from '../utils/editorUtils';
+import { apiService } from '../services/apiService.ts';
+import { Job } from '../types.ts';
+import { PixelButton, PixelCard } from '../components/PixelComponents.tsx';
+import { sliceSpriteSheet, reconstructSpriteSheet, processImage } from '../utils/imageUtils.ts';
+import { floodFill, RGB, colorDistance } from '../utils/editorUtils.ts';
 
 type Tool = 'brush' | 'eraser' | 'move' | 'wand';
 type WandMode = 'select' | 'add' | 'remove';
@@ -74,6 +74,13 @@ const TaskPlayerPage: React.FC<TaskPlayerPageProps> = ({ selectedJobId, onJobSel
     setUndoStack(prevUndo => prevUndo.slice(0, -1));
     setFrames([...prev]);
   }, [undoStack, frames, isJobRunning]);
+
+  const handleUndoKey = useCallback((e: KeyboardEvent) => {
+    if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'z') {
+      e.preventDefault();
+      handleUndo();
+    }
+  }, [handleUndo]);
 
   const handleRedo = useCallback(() => {
     if (redoStack.length === 0 || isJobRunning) return;

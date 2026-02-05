@@ -1,8 +1,7 @@
-
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { apiService } from '../services/apiService';
-import { Job } from '../types';
-import { PixelButton, PixelCard } from '../components/PixelComponents';
+import { apiService } from '../services/apiService.ts';
+import { Job } from '../types.ts';
+import { PixelButton, PixelCard } from '../components/PixelComponents.tsx';
 
 interface HistoryPageProps {
   onJobSelected: (id: string) => void;

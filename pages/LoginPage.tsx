@@ -1,8 +1,7 @@
-
 import React, { useState } from 'react';
 import { createClient } from '@supabase/supabase-js';
-import { SUPABASE_URL, SUPABASE_ANON_KEY } from '../constants';
-import { PixelButton, PixelCard, PixelInput } from '../components/PixelComponents';
+import { SUPABASE_URL, SUPABASE_ANON_KEY } from '../constants.ts';
+import { PixelButton, PixelCard, PixelInput } from '../components/PixelComponents.tsx';
 
 const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 

@@ -7,7 +7,9 @@ export const PixelButton: React.FC<{
   variant?: 'primary' | 'secondary' | 'danger';
   className?: string;
   disabled?: boolean;
-}> = ({ onClick, children, variant = 'primary', className = '', disabled }) => {
+  /* Add title prop for native accessibility and tooltips */
+  title?: string;
+}> = ({ onClick, children, variant = 'primary', className = '', disabled, title }) => {
   const variantStyles = {
     primary: 'bg-[#8bac0f] text-[#0f380f]',
     secondary: 'bg-[#306230] text-[#8bac0f]',
@@ -18,6 +20,7 @@ export const PixelButton: React.FC<{
     <button
       onClick={onClick}
       disabled={disabled}
+      title={title}
       className={`pixel-btn px-4 py-2 pixel-border font-bold uppercase transition-all flex items-center justify-center gap-2 ${variantStyles[variant]} ${disabled ? 'opacity-50 grayscale' : ''} ${className}`}
       style={{ fontSize: '12px' }}
     >

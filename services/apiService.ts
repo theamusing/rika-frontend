@@ -1,6 +1,5 @@
-
-import { API_BASE } from '../constants';
-import { Job } from '../types';
+import { API_BASE } from '../constants.ts';
+import { Job } from '../types.ts';
 
 class ApiService {
   private token: string | null = null;
