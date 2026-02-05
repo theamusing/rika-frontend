@@ -52,7 +52,7 @@ const HistoryPage: React.FC<HistoryPageProps> = ({ onJobSelected, onRegenerate }
 
     const pollInterval = setInterval(() => {
       fetchHistory(false);
-    }, 15000); // Increased polling interval to 15s for Dashboard to save on rate limits
+    }, 15000); 
 
     return () => {
       isMounted.current = false;
@@ -62,7 +62,7 @@ const HistoryPage: React.FC<HistoryPageProps> = ({ onJobSelected, onRegenerate }
 
   const handleManualRefresh = () => {
     const now = Date.now();
-    if (now - lastRefreshTime.current < 2000) return; // 2s throttle
+    if (now - lastRefreshTime.current < 2000) return; 
     lastRefreshTime.current = now;
     fetchHistory(false);
   };
@@ -95,7 +95,7 @@ const HistoryPage: React.FC<HistoryPageProps> = ({ onJobSelected, onRegenerate }
                   <div className="space-y-2">
                       <div className="flex justify-between items-start">
                           <p className="text-[10px] font-bold truncate pr-4">{job.input_params?.prompt || 'Untitled Job'}</p>
-                          <span className={`text-[6px] px-1 border ${job.status === 'succeeded' ? 'border-green-500 text-green-500' : 'border-yellow-500 text-yellow-500'}`}>
+                          <span className={`text-[6px] px-1 border ${job.status === 'succeeded' ? 'border-green-500 text-green-500' : job.status === 'failed' ? 'border-red-500 text-red-500' : 'border-yellow-500 text-yellow-500'}`}>
                               {job.status.toUpperCase()}
                           </span>
                       </div>
@@ -148,7 +148,7 @@ const HistoryPage: React.FC<HistoryPageProps> = ({ onJobSelected, onRegenerate }
                           </div>
 
                           <div className="flex flex-col gap-3">
-                              <PixelButton variant="primary" onClick={() => onJobSelected(selectedJob.gen_id)}>
+                              <PixelButton variant="primary" onClick={() => onJobSelected(selectedJob.gen_id)} disabled={selectedJob.status === 'failed'}>
                                   View In Player
                               </PixelButton>
                               <PixelButton variant="secondary" onClick={() => onRegenerate(selectedJob)}>
