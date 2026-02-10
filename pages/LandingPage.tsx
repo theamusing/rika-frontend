@@ -82,19 +82,19 @@ const LandingPage: React.FC<LandingPageProps> = ({ onGetStarted }) => {
               num: "01", 
               title: "Input & Context", 
               desc: "Upload your pixel character, select motions, and write prompts.",
-              img: `${CDN_BASE}origin.png`
+              img: `/assets/origin.png`
             },
             { 
               num: "02", 
               title: "AI Animation Generation", 
               desc: "Click generate, and the AI automatically produces pixel-perfect frame-by-frame animations.",
-              img: `${CDN_BASE}generated.png`
+              img: `/assets/generated.png`
             },
             { 
               num: "03", 
               title: "Edit Frame Sequence", 
               desc: "Modify and export generated frame sequences, or choose to regenerate.",
-              img: `${CDN_BASE}spritesheet.png`
+              img: `/assets/spritesheet.png`
             }
           ].map((step, index) => (
             <React.Fragment key={step.num}>
