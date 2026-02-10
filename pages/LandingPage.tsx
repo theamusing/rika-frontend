@@ -6,17 +6,21 @@ interface LandingPageProps {
   onGetStarted: () => void;
 }
 
-// 14 display GIFs from assets/display/
-const DISPLAY_GIFS = Array.from({ length: 14 }, (_, i) => `./assets/display/${i + 1}.gif`);
-const FALLBACK_IMAGE = "./assets/display/1.gif";
+// Centralized CDN base path
+const CDN_BASE = "https://cdn.rika-ai.com/assets/frontpage/";
+const GIF_BASE = `${CDN_BASE}gifs/`;
+
+// 14 display GIFs from CDN subfolder
+const DISPLAY_GIFS = Array.from({ length: 14 }, (_, i) => `${GIF_BASE}${i + 1}.gif`);
+const FALLBACK_IMAGE = `${GIF_BASE}1.gif`;
 
 const LandingPage: React.FC<LandingPageProps> = ({ onGetStarted }) => {
   // Randomly select one of the three hero images from the CDN on component initialization
   const heroImage = useMemo(() => {
     const images = [
-      "https://cdn.rika-ai.com/assets/frontpage/image1.gif",
-      "https://cdn.rika-ai.com/assets/frontpage/image2.gif",
-      "https://cdn.rika-ai.com/assets/frontpage/image3.gif"
+      `${CDN_BASE}image1.gif`,
+      `${CDN_BASE}image2.gif`,
+      `${CDN_BASE}image3.gif`
     ];
     return images[Math.floor(Math.random() * images.length)];
   }, []);
@@ -71,49 +75,49 @@ const LandingPage: React.FC<LandingPageProps> = ({ onGetStarted }) => {
           <p className="text-[8px] text-white/30 uppercase tracking-[0.4em] text-pretty">End-to-End Motion Synthesis Pipeline</p>
         </div>
 
-        <div className="max-w-6xl mx-auto flex flex-col md:flex-row items-center justify-center gap-4 w-full">
+        <div className="max-w-6xl mx-auto flex flex-col md:flex-row items-center justify-center gap-6 w-full">
           {[
             { 
               num: "01", 
               title: "Input & Context", 
               desc: "Upload your pixel character, select motions, and write prompts.",
-              img: "./assets/create.png",
+              img: `${CDN_BASE}create.png`,
               stage: "STAGE 01"
             },
             { 
               num: "02", 
               title: "AI Animation Generation", 
               desc: "Click generate, and the AI automatically produces pixel-perfect frame-by-frame animations.",
-              img: "./assets/archive.png",
+              img: `${CDN_BASE}archive.png`,
               stage: "STAGE 02"
             },
             { 
               num: "03", 
               title: "Edit Frame Sequence", 
               desc: "Modify and export generated frame sequences, or choose to regenerate.",
-              img: "./assets/player.png",
+              img: `${CDN_BASE}player.png`,
               stage: "STAGE 03"
             }
           ].map((step, index) => (
             <React.Fragment key={step.num}>
-              <div className="flex-1 min-w-[280px] p-8 border border-[#5a2d9c] bg-[#121212]/30 flex flex-col items-center text-center relative group hover:border-[#f7d51d] transition-colors">
-                <span className="text-4xl font-bold text-[#5a2d9c] mb-6 opacity-60 group-hover:text-[#f7d51d] group-hover:opacity-100 transition-all">{step.num}</span>
-                <h3 className="text-[10px] md:text-[12px] font-bold uppercase text-white mb-4 tracking-wider text-pretty">{step.title}</h3>
-                <p className="text-[8px] text-white/40 leading-relaxed mb-8 uppercase tracking-wider text-pretty h-12 flex items-center">
+              <div className="flex-1 min-w-[300px] p-6 border border-[#5a2d9c] bg-[#121212]/30 flex flex-col items-center text-center relative group hover:border-[#f7d51d] transition-colors">
+                <span className="text-4xl font-bold text-[#5a2d9c] mb-4 opacity-60 group-hover:text-[#f7d51d] group-hover:opacity-100 transition-all">{step.num}</span>
+                <h3 className="text-[10px] md:text-[12px] font-bold uppercase text-white mb-3 tracking-wider text-pretty">{step.title}</h3>
+                <p className="text-[8px] text-white/40 leading-relaxed mb-6 uppercase tracking-wider text-pretty h-10 flex items-center">
                   {step.desc}
                 </p>
-                <div className="w-full aspect-[4/3] border border-[#5a2d9c]/40 bg-[#1e1e1e]/60 flex items-center justify-center relative overflow-hidden">
+                <div className="w-full aspect-[16/9] border border-[#5a2d9c]/40 bg-[#1e1e1e]/60 flex items-center justify-center relative overflow-hidden">
                   <img 
                     src={step.img} 
-                    className="w-[85%] h-[85%] object-contain z-10 opacity-80 group-hover:opacity-100 transition-opacity" 
+                    className="w-full h-full object-cover z-10 opacity-80 group-hover:opacity-100 transition-all duration-500" 
                     style={{ imageRendering: 'pixelated' }}
                     alt={step.title}
                     onError={(e) => {
                       e.currentTarget.style.opacity = '0.1';
                     }}
                   />
-                  <span className="absolute bottom-2 right-2 text-[8px] font-bold text-white/10 uppercase tracking-widest">{step.stage}</span>
-                  <div className="absolute inset-0 bg-gradient-to-t from-[#5a2d9c]/10 to-transparent"></div>
+                  <span className="absolute bottom-2 right-2 text-[8px] font-bold text-white/10 uppercase tracking-widest z-20 bg-black/40 px-1">{step.stage}</span>
+                  <div className="absolute inset-0 bg-gradient-to-t from-[#5a2d9c]/20 to-transparent z-10 pointer-events-none"></div>
                 </div>
               </div>
               {index < 2 && (
@@ -132,7 +136,7 @@ const LandingPage: React.FC<LandingPageProps> = ({ onGetStarted }) => {
               Live Preview
             </div>
             <video 
-              src="./assets/tutorial.mp4" 
+              src={`${CDN_BASE}tutorial.mp4`} 
               autoPlay 
               loop 
               muted 
@@ -154,25 +158,25 @@ const LandingPage: React.FC<LandingPageProps> = ({ onGetStarted }) => {
           <p className="text-[8px] text-white/30 uppercase tracking-[0.4em] text-pretty">Advanced Frame Editor & Asset Management</p>
         </div>
 
-        <div className="max-w-5xl mx-auto grid grid-cols-1 md:grid-cols-3 gap-6 w-full">
+        <div className="max-w-6xl mx-auto grid grid-cols-1 md:grid-cols-3 gap-8 w-full">
           {[
-            { title: "Background Removal", img: "./assets/bgremove.gif" },
-            { title: "Pixel Editing", img: "./assets/edit.gif" },
-            { title: "Sprite Sheet Export", img: "./assets/export.gif" }
+            { title: "Background Removal", img: `${CDN_BASE}bgremove.gif` },
+            { title: "Pixel Editing", img: `${CDN_BASE}edit.gif` },
+            { title: "Sprite Sheet Export", img: `${CDN_BASE}export.gif` }
           ].map((feature) => (
-            <div key={feature.title} className="p-6 border border-[#5a2d9c] bg-[#121212]/30 flex flex-col items-center gap-5 group hover:border-[#f7d51d] transition-all">
-              <h3 className="text-[9px] font-bold uppercase tracking-[0.2em] text-white/60 group-hover:text-white transition-colors text-pretty">{feature.title}</h3>
-              <div className="w-full aspect-square bg-black/10 border border-[#5a2d9c]/20 overflow-hidden flex items-center justify-center relative group-hover:border-[#5a2d9c]/50">
+            <div key={feature.title} className="p-4 border-2 border-[#5a2d9c] bg-[#121212]/30 flex flex-col items-center gap-4 group hover:border-[#f7d51d] transition-all">
+              <h3 className="text-[10px] font-bold uppercase tracking-[0.2em] text-white/60 group-hover:text-white transition-colors text-pretty">{feature.title}</h3>
+              <div className="w-full aspect-square bg-black/20 border border-[#5a2d9c]/20 overflow-hidden flex items-center justify-center relative group-hover:border-[#5a2d9c]/50">
                  <img 
                    src={feature.img} 
-                   className="w-[80%] h-[80%] object-contain opacity-60 group-hover:opacity-100 group-hover:scale-105 transition-all" 
+                   className="w-full h-full object-contain opacity-70 group-hover:opacity-100 group-hover:scale-[1.02] transition-all" 
                    style={{ imageRendering: 'pixelated' }} 
                    alt={feature.title}
                    onError={(e) => {
                      e.currentTarget.src = FALLBACK_IMAGE;
                    }}
                  />
-                 <div className="absolute inset-0 bg-gradient-to-t from-[#5a2d9c]/5 to-transparent"></div>
+                 <div className="absolute inset-0 bg-gradient-to-t from-[#5a2d9c]/10 to-transparent pointer-events-none"></div>
               </div>
             </div>
           ))}
