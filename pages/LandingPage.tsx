@@ -6,16 +6,16 @@ interface LandingPageProps {
   onGetStarted: () => void;
 }
 
-// Centralized CDN base path
-const CDN_BASE = "https://cdn.rika-ai.com/assets/frontpage/";
+// Updated to use local public/assets directory
+const CDN_BASE = "/assets/";
 const GIF_BASE = `${CDN_BASE}gifs/`;
 
-// 14 display GIFs from CDN subfolder
+// 14 display GIFs from local subfolder
 const DISPLAY_GIFS = Array.from({ length: 14 }, (_, i) => `${GIF_BASE}${i + 1}.gif`);
 const FALLBACK_IMAGE = `${GIF_BASE}1.gif`;
 
 const LandingPage: React.FC<LandingPageProps> = ({ onGetStarted }) => {
-  // Randomly select one of the three hero images from the CDN on component initialization
+  // Randomly select one of the three hero images from the local assets
   const heroImage = useMemo(() => {
     const images = [
       `${CDN_BASE}image1.gif`,
@@ -82,24 +82,24 @@ const LandingPage: React.FC<LandingPageProps> = ({ onGetStarted }) => {
               num: "01", 
               title: "Input & Context", 
               desc: "Upload your pixel character, select motions, and write prompts.",
-              img: `/assets/origin.png`
+              img: `${CDN_BASE}origin.png`
             },
             { 
               num: "02", 
               title: "AI Animation Generation", 
               desc: "Click generate, and the AI automatically produces pixel-perfect frame-by-frame animations.",
-              img: `/assets/generated.png`
+              img: `${CDN_BASE}generated.png`
             },
             { 
               num: "03", 
               title: "Edit Frame Sequence", 
               desc: "Modify and export generated frame sequences, or choose to regenerate.",
-              img: `/assets/spritesheet.png`
+              img: `${CDN_BASE}spritesheet.png`
             }
           ].map((step, index) => (
             <React.Fragment key={step.num}>
               <div className="flex-1 flex flex-col border-2 border-[#5a2d9c] bg-[#121212]/30 relative group hover:border-[#f7d51d] transition-colors overflow-hidden min-w-[300px]">
-                  {/* Top Text Content - Increased padding and separation */}
+                  {/* Top Text Content */}
                   <div className="p-10 pb-0 w-full flex flex-col items-center text-center">
                     <span className="text-5xl font-bold text-[#5a2d9c] mb-6 opacity-40 group-hover:text-[#f7d51d] group-hover:opacity-100 transition-all">{step.num}</span>
                     <h3 className="text-[11px] md:text-[13px] font-bold uppercase text-white mb-4 tracking-wider text-pretty">{step.title}</h3>
@@ -108,7 +108,7 @@ const LandingPage: React.FC<LandingPageProps> = ({ onGetStarted }) => {
                     </p>
                   </div>
 
-                  {/* Image Container - 4:3 Aspect Ratio, hitting horizontal edges (no padding) */}
+                  {/* Image Container */}
                   <div className="w-full mt-auto aspect-[4/3] border-t border-[#5a2d9c]/40 bg-[#1e1e1e]/60 flex items-center justify-center relative overflow-hidden">
                     <img 
                       src={step.img} 
