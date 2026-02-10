@@ -151,32 +151,49 @@ const LandingPage: React.FC<LandingPageProps> = ({ onGetStarted }) => {
         </div>
       </section>
 
-      {/* SECTION 3: SPRITE PLAYER */}
-      <section className="min-h-[70vh] flex flex-col justify-center py-20 px-6 lg:px-24">
-        <div className="text-center mb-16 space-y-2">
-          <h2 className="text-xl md:text-2xl font-bold uppercase tracking-tight text-[#f7d51d] text-pretty">Sprite Player</h2>
-          <p className="text-[8px] text-white/30 uppercase tracking-[0.4em] text-pretty">Advanced Frame Editor & Asset Management</p>
+      {/* SECTION 3: SPRITE PLAYER (Enhanced Window Layout with 4:3 Aspect Ratio) */}
+      <section className="min-h-[70vh] flex flex-col justify-center py-20 px-6 lg:px-24 bg-[#0d0221]">
+        <div className="text-center mb-16 space-y-4">
+          <h2 className="text-xl md:text-3xl font-bold uppercase tracking-tight text-white text-pretty">Sprite Player Features</h2>
+          <p className="text-[9px] md:text-[10px] text-white/40 uppercase tracking-[0.2em] max-w-2xl mx-auto text-pretty">
+            Professional workflow tools including background removal, pixel-perfect frame editing, and smart export.
+          </p>
         </div>
 
-        <div className="max-w-6xl mx-auto grid grid-cols-1 md:grid-cols-3 gap-8 w-full">
+        <div className="max-w-7xl mx-auto grid grid-cols-1 md:grid-cols-3 gap-8 w-full items-stretch">
           {[
             { title: "Background Removal", img: `${CDN_BASE}bgremove.gif` },
             { title: "Pixel Editing", img: `${CDN_BASE}edit.gif` },
             { title: "Sprite Sheet Export", img: `${CDN_BASE}export.gif` }
           ].map((feature) => (
-            <div key={feature.title} className="p-4 border-2 border-[#5a2d9c] bg-[#121212]/30 flex flex-col items-center gap-4 group hover:border-[#f7d51d] transition-all">
-              <h3 className="text-[10px] font-bold uppercase tracking-[0.2em] text-white/60 group-hover:text-white transition-colors text-pretty">{feature.title}</h3>
-              <div className="w-full aspect-square bg-black/20 border border-[#5a2d9c]/20 overflow-hidden flex items-center justify-center relative group-hover:border-[#5a2d9c]/50">
+            <div key={feature.title} className="flex flex-col bg-[#1e1e1e] border-2 border-[#3a3a3a] shadow-[8px_8px_0px_#111] overflow-hidden group">
+              {/* Window Header */}
+              <div className="flex items-center justify-between px-3 py-2 bg-[#3a3a3a] border-b-2 border-[#4a4a4a]">
+                <span className="text-[9px] font-bold uppercase tracking-wider text-white/90">{feature.title}</span>
+                <div className="flex gap-1.5">
+                   <div className="w-3.5 h-3.5 border border-white/20 flex items-center justify-center cursor-default">
+                      <div className="w-2 h-[1px] bg-white/40"></div>
+                   </div>
+                   <div className="w-3.5 h-3.5 border border-white/20 flex items-center justify-center cursor-default">
+                      <span className="text-[7px] text-white/40 leading-none">×</span>
+                   </div>
+                </div>
+              </div>
+              {/* Window Body (Aspect-4/3 provides a better balance between 1:1 and 16:9) */}
+              <div className="w-full aspect-[4/3] relative bg-black flex items-center justify-center overflow-hidden">
                  <img 
                    src={feature.img} 
-                   className="w-full h-full object-contain opacity-70 group-hover:opacity-100 group-hover:scale-[1.02] transition-all" 
+                   className="w-full h-full object-cover group-hover:scale-[1.03] transition-transform duration-700" 
                    style={{ imageRendering: 'pixelated' }} 
                    alt={feature.title}
                    onError={(e) => {
                      e.currentTarget.src = FALLBACK_IMAGE;
                    }}
                  />
-                 <div className="absolute inset-0 bg-gradient-to-t from-[#5a2d9c]/10 to-transparent pointer-events-none"></div>
+                 {/* Subtle lighting overlay */}
+                 <div className="absolute inset-0 bg-gradient-to-b from-white/5 via-transparent to-transparent pointer-events-none"></div>
+                 {/* Scanline effect on hover */}
+                 <div className="absolute inset-0 opacity-0 group-hover:opacity-10 pointer-events-none transition-opacity bg-[linear-gradient(rgba(18,16,16,0)_50%,rgba(0,0,0,0.25)_50%),linear-gradient(90deg,rgba(255,0,0,0.06),rgba(0,255,0,0.02),rgba(0,0,255,0.06))] bg-[length:100%_2px,3px_100%]"></div>
               </div>
             </div>
           ))}
