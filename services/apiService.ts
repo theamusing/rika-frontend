@@ -1,3 +1,4 @@
+
 import { API_BASE } from '../constants.ts';
 import { Job } from '../types.ts';
 
@@ -6,8 +7,8 @@ class ApiService {
   private inFlight = new Map<string, Promise<any>>();
   private lastGlobalRequestTime = 0;
   
-  // Rate limit is 5 per 3 seconds -> ~600ms per request.
-  private readonly GLOBAL_MIN_INTERVAL = 750; 
+  // Reduced from 750ms to 200ms to allow faster sequential loading (e.g. credits + history)
+  private readonly GLOBAL_MIN_INTERVAL = 200; 
   private readonly MAX_RETRIES = 2;
 
   setToken(token: string) {
@@ -21,13 +22,10 @@ class ApiService {
   private async request(method: string, endpoint: string, body?: any, retryCount = 0): Promise<any> {
     const key = `${method}:${endpoint}:${JSON.stringify(body || '')}`;
     
-    // Ensure URL has a trailing slash. Many backends redirect /path to /path/ 
-    // and those redirects often fail the CORS preflight check.
     const baseUrl = API_BASE.endsWith('/') ? API_BASE : `${API_BASE}/`;
     const cleanEndpoint = endpoint.startsWith('/') ? endpoint.slice(1) : endpoint;
     let url = `${baseUrl}${cleanEndpoint}`;
     if (!url.endsWith('/')) {
-        // Only add slash if there are no query params
         if (!url.includes('?')) url += '/';
     }
 
@@ -60,8 +58,8 @@ class ApiService {
           method,
           headers,
           body: body ? JSON.stringify(body) : undefined,
-          mode: 'cors', // Explicitly set cors mode
-          credentials: 'omit', // Standard for bearer token APIs
+          mode: 'cors',
+          credentials: 'omit',
         });
 
         if (response.status === 429) {
@@ -80,14 +78,22 @@ class ApiService {
             const data = await response.json();
             errorDetail = data.detail || data.message || errorDetail;
           } catch (e) {}
+
+          const isClockSkewError = errorDetail.toLowerCase().includes('not yet valid') || errorDetail.toLowerCase().includes('iat');
+          if (isClockSkewError && retryCount < this.MAX_RETRIES) {
+            console.warn(`[API] Clock skew detected (iat). Retrying in 1.5s... (Attempt ${retryCount + 1})`);
+            await this.sleep(1500); 
+            this.inFlight.delete(key);
+            return this.request(method, endpoint, body, retryCount + 1);
+          }
+
           throw new Error(errorDetail);
         }
 
         return await response.json();
       } catch (error: any) {
-        // If the error message is "Failed to fetch", it's likely a CORS or Network issue
         if (error.message === 'Failed to fetch') {
-          console.error(`CORS or Network Error detected for ${url}. Ensure the backend handles OPTIONS requests and permits the current Origin.`);
+          console.error(`CORS or Network Error detected for ${url}.`);
         }
 
         if (error.message === 'Failed to fetch' && retryCount < this.MAX_RETRIES) {
@@ -118,8 +124,8 @@ class ApiService {
     return this.request('GET', `jobs/${genId}`);
   }
 
-  async getHistory(k: number = 20): Promise<{ jobs: Job[] }> {
-    return this.request('GET', `history?k=${k}`);
+  async getHistory(start: number = 0, k: number = 20): Promise<{ jobs: Job[] }> {
+    return this.request('GET', `history?start=${start}&k=${k}`);
   }
 }
 

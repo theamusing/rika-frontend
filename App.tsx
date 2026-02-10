@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { createClient } from '@supabase/supabase-js';
 import { SUPABASE_URL, SUPABASE_ANON_KEY } from './constants.ts';
@@ -7,6 +8,7 @@ import LoginPage from './pages/LoginPage.tsx';
 import GenerationPage from './pages/GenerationPage.tsx';
 import TaskPlayerPage from './pages/TaskPlayerPage.tsx';
 import HistoryPage from './pages/HistoryPage.tsx';
+import LandingPage from './pages/LandingPage.tsx';
 import { PixelButton } from './components/PixelComponents.tsx';
 
 const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
@@ -14,32 +16,43 @@ const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 const App: React.FC = () => {
   const [user, setUser] = useState<AuthUser | null>(null);
   const [credits, setCredits] = useState<number>(0);
-  const [activeTab, setActiveTab] = useState<'generate' | 'player' | 'history'>('generate');
+  const [activeTab, setActiveTab] = useState<'intro' | 'generate' | 'player' | 'history'>('intro');
+  const [pendingTab, setPendingTab] = useState<'generate' | 'player' | 'history' | null>(null);
   const [selectedJobId, setSelectedJobId] = useState<string | null>(null);
   const [initialParams, setInitialParams] = useState<any>(null);
+  const [isAuthChecking, setIsAuthChecking] = useState(true);
   
   const lastFetchTime = useRef<number>(0);
 
   const fetchCredits = useCallback(async () => {
-    // Prevent fetching more than once per second at the component level
-    if (Date.now() - lastFetchTime.current < 1000) return;
-    
+    if (Date.now() - lastFetchTime.current < 300) return;
     try {
       const res = await apiService.getCredits();
       setCredits(res.credits);
       lastFetchTime.current = Date.now();
-    } catch (err) {
+    } catch (err: any) {
       console.error("Failed to fetch credits", err);
     }
   }, []);
 
   useEffect(() => {
+    const checkUser = async () => {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (session?.user) {
+        setUser({ id: session.user.id, email: session.user.email || '' });
+        apiService.setToken(session.access_token);
+        fetchCredits();
+      }
+      setIsAuthChecking(false);
+    };
+    
+    checkUser();
+
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
       if (session?.user) {
         setUser({ id: session.user.id, email: session.user.email || '' });
         apiService.setToken(session.access_token);
-        // Only trigger fetch if we are actually signed in or session refreshed
-        if (event === 'SIGNED_IN' || event === 'INITIAL_SESSION' || event === 'TOKEN_REFRESHED') {
+        if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') {
           fetchCredits();
         }
       } else {
@@ -53,6 +66,32 @@ const App: React.FC = () => {
   const handleLogout = async () => {
     await supabase.auth.signOut();
     setUser(null);
+    setActiveTab('intro');
+    setPendingTab(null);
+  };
+
+  const navigateTo = (tab: 'intro' | 'generate' | 'player' | 'history') => {
+    if (tab === 'intro') {
+      setActiveTab('intro');
+      setPendingTab(null);
+      return;
+    }
+    
+    if (!user) {
+      const target = (tab === 'history') ? 'history' : 'generate';
+      setPendingTab(target);
+      setActiveTab(target); 
+      return;
+    }
+    
+    setActiveTab(tab);
+    setPendingTab(null);
+  };
+
+  const handleLoginSuccess = () => {
+    const target = pendingTab || 'generate';
+    setActiveTab(target);
+    setPendingTab(null);
   };
 
   const handleJobSelected = (jobId: string) => {
@@ -65,67 +104,96 @@ const App: React.FC = () => {
     setActiveTab('generate');
   };
 
-  if (!user) {
-    return <LoginPage onLogin={() => {}} />;
+  if (isAuthChecking) {
+    return <div className="min-h-screen flex items-center justify-center bg-[#0d0221] text-white uppercase text-xs">Loading OS...</div>;
   }
 
+  const showIntro = activeTab === 'intro';
+  const showLogin = !user && !showIntro;
+
   return (
-    <div className="min-h-screen flex flex-col bg-[#0f171e]">
-      <header className="sticky top-0 z-50 bg-[#0f380f] border-b-4 border-[#306230] p-4 flex flex-wrap items-center justify-between gap-4">
+    <div className="min-h-screen flex flex-col bg-[#0d0221]">
+      <header className="sticky top-0 z-50 bg-[#2d1b4e] border-b-4 border-[#5a2d9c] p-4 flex flex-wrap items-center justify-between gap-4">
         <div className="flex items-center gap-6">
-          <h1 className="text-xl font-bold tracking-tighter text-[#8bac0f] hidden md:block">RIKA AI</h1>
+          <h1 
+            className="text-xl font-bold tracking-tighter text-white cursor-pointer"
+            onClick={() => navigateTo('intro')}
+          >
+            RIKA AI
+          </h1>
           <nav className="flex gap-2">
-            <PixelButton 
-              variant={activeTab === 'generate' ? 'primary' : 'secondary'} 
-              onClick={() => setActiveTab('generate')}
+            <button 
+              onClick={() => navigateTo('generate')}
+              className={`px-4 py-2 text-[10px] font-bold uppercase transition-all ${activeTab === 'generate' ? 'text-white border-b-2 border-white' : 'text-white/40 hover:text-white'}`}
             >
               CREATE
-            </PixelButton>
-            <PixelButton 
-              variant={activeTab === 'player' ? 'primary' : 'secondary'} 
-              onClick={() => setActiveTab('player')}
+            </button>
+            <button 
+              onClick={() => navigateTo('player')}
+              className={`px-4 py-2 text-[10px] font-bold uppercase transition-all ${activeTab === 'player' ? 'text-white border-b-2 border-white' : 'text-white/40 hover:text-white'}`}
             >
               PLAYER
-            </PixelButton>
-            <PixelButton 
-              variant={activeTab === 'history' ? 'primary' : 'secondary'} 
-              onClick={() => setActiveTab('history')}
+            </button>
+            <button 
+              onClick={() => navigateTo('history')}
+              className={`px-4 py-2 text-[10px] font-bold uppercase transition-all ${activeTab === 'history' ? 'text-white border-b-2 border-white' : 'text-white/40 hover:text-white'}`}
             >
               DASHBOARD
-            </PixelButton>
+            </button>
           </nav>
         </div>
 
         <div className="flex items-center gap-4">
-          <div className="flex flex-col items-end">
-            <span className="text-[10px] opacity-70">CREDITS</span>
-            <span className="text-lg font-bold">{credits}</span>
-          </div>
-          <PixelButton variant="secondary" onClick={handleLogout} className="text-[10px] h-8">LOGOUT</PixelButton>
+          {user ? (
+            <>
+              <div className="flex flex-col items-end">
+                <span className="text-[8px] opacity-40 text-white">CREDITS</span>
+                <span className="text-sm font-bold text-[#f7d51d]">{credits}</span>
+              </div>
+              <button onClick={handleLogout} className="text-[10px] font-bold uppercase text-white/60 hover:text-white">LOGOUT</button>
+            </>
+          ) : (
+            <PixelButton 
+              variant="primary" 
+              onClick={() => navigateTo('generate')} 
+              className="text-[10px] h-8"
+            >
+              LOGIN
+            </PixelButton>
+          )}
         </div>
       </header>
 
       <main className="flex-1 container mx-auto p-4 max-w-7xl">
-        {activeTab === 'generate' && (
-          <GenerationPage 
-            onJobCreated={(id) => { setSelectedJobId(id); setActiveTab('player'); }} 
-            initialParams={initialParams}
-            onConsumed={() => setInitialParams(null)}
-            refreshCredits={fetchCredits}
-          />
-        )}
-        {activeTab === 'player' && (
-          <TaskPlayerPage 
-            selectedJobId={selectedJobId} 
-            onJobSelected={setSelectedJobId}
-            onRegenerate={handleRegenerate}
-          />
-        )}
-        {activeTab === 'history' && (
-          <HistoryPage 
-            onJobSelected={handleJobSelected} 
-            onRegenerate={handleRegenerate}
-          />
+        {showIntro ? (
+          <LandingPage onGetStarted={() => navigateTo('generate')} />
+        ) : showLogin ? (
+          <LoginPage onLogin={handleLoginSuccess} />
+        ) : (
+          <>
+            {activeTab === 'generate' && (
+              <GenerationPage 
+                onJobCreated={(id) => { setSelectedJobId(id); setActiveTab('player'); }} 
+                initialParams={initialParams}
+                onConsumed={() => setInitialParams(null)}
+                refreshCredits={fetchCredits}
+                credits={credits}
+              />
+            )}
+            {activeTab === 'player' && (
+              <TaskPlayerPage 
+                selectedJobId={selectedJobId} 
+                onJobSelected={setSelectedJobId}
+                onRegenerate={handleRegenerate}
+              />
+            )}
+            {activeTab === 'history' && (
+              <HistoryPage 
+                onJobSelected={handleJobSelected} 
+                onRegenerate={handleRegenerate}
+              />
+            )}
+          </>
         )}
       </main>
     </div>

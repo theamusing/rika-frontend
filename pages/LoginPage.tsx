@@ -28,7 +28,7 @@ const LoginPage: React.FC<{ onLogin: () => void }> = ({ onLogin }) => {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center p-4 bg-[#0f171e]">
+    <div className="min-h-screen flex items-center justify-center p-4 bg-[#0d0221]">
       <PixelCard className="max-w-md w-full" title="RIKA AI LOGIN">
         <div className="text-center mb-8">
             <h2 className="text-2xl font-bold mb-2">ACCESS TERMINAL</h2>
@@ -64,7 +64,7 @@ const LoginPage: React.FC<{ onLogin: () => void }> = ({ onLogin }) => {
           </PixelButton>
         </form>
 
-        <div className="mt-8 pt-4 border-t-4 border-[#306230] text-center">
+        <div className="mt-8 pt-4 border-t-4 border-[#5a2d9c] text-center">
             <p className="text-[8px] opacity-50">REGISTRATION IS CURRENTLY CLOSED FOR INTERNAL TESTING MEMBERS ONLY.</p>
         </div>
       </PixelCard>

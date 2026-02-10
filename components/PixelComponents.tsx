@@ -4,15 +4,15 @@ import React from 'react';
 export const PixelButton: React.FC<{
   onClick?: () => void;
   children: React.ReactNode;
-  variant?: 'primary' | 'secondary' | 'danger';
+  variant?: 'primary' | 'secondary' | 'danger' | 'outline';
   className?: string;
   disabled?: boolean;
-  /* Add title prop for native accessibility and tooltips */
   title?: string;
 }> = ({ onClick, children, variant = 'primary', className = '', disabled, title }) => {
   const variantStyles = {
-    primary: 'bg-[#8bac0f] text-[#0f380f]',
-    secondary: 'bg-[#306230] text-[#8bac0f]',
+    primary: 'bg-[#f7d51d] text-[#2d1b4e] border-[#f7d51d]',
+    secondary: 'bg-[#5a2d9c] text-white border-[#5a2d9c]',
+    outline: 'bg-transparent text-[#f7d51d] border-[#f7d51d]',
     danger: 'bg-red-900 text-white border-red-500'
   };
 
@@ -29,7 +29,6 @@ export const PixelButton: React.FC<{
   );
 };
 
-// Added onClick prop to PixelCard to allow components like HistoryPage to handle click events on cards
 export const PixelCard: React.FC<{
   children: React.ReactNode;
   className?: string;
@@ -37,11 +36,11 @@ export const PixelCard: React.FC<{
   onClick?: () => void;
 }> = ({ children, className = '', title, onClick }) => (
   <div 
-    className={`pixel-border bg-[#0f380f]/50 p-4 relative ${className}`}
+    className={`pixel-border bg-[#2d1b4e]/50 p-4 relative ${className}`}
     onClick={onClick}
   >
     {title && (
-      <div className="absolute -top-4 left-4 bg-[#0f171e] px-2 text-[10px] text-[#8bac0f] uppercase">
+      <div className="absolute -top-4 left-4 bg-[#0d0221] px-2 text-[10px] text-white/70 uppercase">
         {title}
       </div>
     )}
@@ -61,6 +60,32 @@ export const PixelInput: React.FC<{
     value={value}
     onChange={onChange}
     placeholder={placeholder}
-    className={`bg-[#0f171e] pixel-border border-[#306230] p-2 text-[#8bac0f] text-[10px] outline-none focus:border-[#8bac0f] placeholder-[#306230] ${className}`}
+    className={`bg-[#0d0221] pixel-border border-[#5a2d9c] p-2 text-white text-[10px] outline-none focus:border-[#f7d51d] placeholder-[#5a2d9c] ${className}`}
   />
 );
+
+export const PixelModal: React.FC<{
+  isOpen: boolean;
+  onClose: () => void;
+  title: string;
+  children: React.ReactNode;
+}> = ({ isOpen, onClose, title, children }) => {
+  if (!isOpen) return null;
+
+  return (
+    <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-fade-in">
+      <div className="max-w-md w-full relative">
+        <PixelCard title={title} className="bg-[#0d0221] shadow-2xl">
+          <div className="pt-2">
+            {children}
+            <div className="mt-6 flex justify-center">
+              <PixelButton onClick={onClose} variant="primary" className="w-full">
+                UNDERSTOOD
+              </PixelButton>
+            </div>
+          </div>
+        </PixelCard>
+      </div>
+    </div>
+  );
+};
