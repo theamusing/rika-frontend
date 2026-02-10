@@ -6,6 +6,7 @@ import { PixelButton, PixelCard } from '../components/PixelComponents.tsx';
 import { sliceSpriteSheet, reconstructSpriteSheet, processImage } from '../utils/imageUtils.ts';
 import { floodFill, RGB, colorDistance } from '../utils/editorUtils.ts';
 import { saveSpriteToCache, getSpriteFromCache, CachedSprite } from '../utils/dbUtils.ts';
+// @ts-ignore
 import gifshot from 'gifshot';
 
 type Tool = 'brush' | 'eraser' | 'move' | 'wand';
