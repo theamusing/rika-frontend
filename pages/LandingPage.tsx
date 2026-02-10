@@ -151,10 +151,11 @@ const LandingPage: React.FC<LandingPageProps> = ({ onGetStarted }) => {
 
       {/* SECTION 3: SPRITE PLAYER (Window-style layout) */}
       <section className="min-h-[70vh] flex flex-col justify-center py-24 px-6 lg:px-24 bg-[#0d0221]">
-        <div className="text-center mb-20 space-y-4">
-          <h2 className="text-xl md:text-3xl font-bold uppercase tracking-tight text-white text-pretty">Sprite Player & Editor</h2>
-          <p className="text-[9px] md:text-[10px] text-white/40 uppercase tracking-[0.2em] max-w-2xl mx-auto text-pretty">
-            Professional workflow tools including background removal, pixel-perfect frame editing, and smart export.
+        <div className="text-center mb-20 space-y-2">
+          <h2 className="text-xl md:text-2xl font-bold uppercase tracking-tight text-[#f7d51d] text-pretty">Sprite Player & Editor</h2>
+          <p className="text-[8px] text-white/30 uppercase tracking-[0.4em] text-pretty">Professional Workflow & Refinement Tools</p>
+          <p className="pt-4 text-[9px] md:text-[10px] text-white/40 uppercase tracking-[0.2em] max-w-2xl mx-auto text-pretty">
+            Advanced features including background removal, pixel-perfect frame editing, and smart export options.
           </p>
         </div>
 
@@ -191,6 +192,16 @@ const LandingPage: React.FC<LandingPageProps> = ({ onGetStarted }) => {
               </div>
             </div>
           ))}
+        </div>
+
+        <div className="mt-16 flex justify-center">
+          <PixelButton 
+            variant="outline"
+            className="w-full max-w-[200px] h-12 text-[10px] font-bold hover:bg-[#f7d51d] hover:text-[#0d0221] transition-all"
+            onClick={onGetStarted}
+          >
+            TRY EDITOR
+          </PixelButton>
         </div>
       </section>
 
