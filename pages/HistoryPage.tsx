@@ -49,7 +49,8 @@ const HistoryPage: React.FC<HistoryPageProps> = ({ onJobSelected, onRegenerate }
   useEffect(() => {
     isMounted.current = true;
     fetchHistory(true, currentPage);
-    const pollInterval = setInterval(() => fetchHistory(false, currentPage), 15000); 
+    // Polling interval set to 5 seconds as requested
+    const pollInterval = setInterval(() => fetchHistory(false, currentPage), 5000); 
     return () => {
       isMounted.current = false;
       clearInterval(pollInterval);
@@ -58,7 +59,7 @@ const HistoryPage: React.FC<HistoryPageProps> = ({ onJobSelected, onRegenerate }
 
   const handleManualRefresh = () => {
     const now = Date.now();
-    if (now - lastRefreshTime.current < 2000) return; 
+    if (now - lastRefreshTime.current < 1000) return; 
     lastRefreshTime.current = now;
     fetchHistory(false, currentPage);
   };

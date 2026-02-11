@@ -4,17 +4,19 @@ import { PixelButton } from '../components/PixelComponents.tsx';
 
 interface LandingPageProps {
   onGetStarted: () => void;
+  onViewDocs: () => void;
 }
 
 // Updated to use local public/assets directory
-const CDN_BASE = "/assets/";
+const CDN_BASE = "https://cdn.rika-ai.com/assets/frontpage/";
+// const CDN_BASE = "/assets/";
 const GIF_BASE = `${CDN_BASE}gifs/`;
 
 // 14 display GIFs from local subfolder
 const DISPLAY_GIFS = Array.from({ length: 14 }, (_, i) => `${GIF_BASE}${i + 1}.gif`);
 const FALLBACK_IMAGE = `${GIF_BASE}1.gif`;
 
-const LandingPage: React.FC<LandingPageProps> = ({ onGetStarted }) => {
+const LandingPage: React.FC<LandingPageProps> = ({ onGetStarted, onViewDocs }) => {
   // Randomly select one of the three hero images from the local assets
   const heroImage = useMemo(() => {
     const images = [
@@ -35,10 +37,12 @@ const LandingPage: React.FC<LandingPageProps> = ({ onGetStarted }) => {
           </h1>
           <div className="space-y-4">
              <h2 className="text-base md:text-lg font-medium text-white/90 leading-tight uppercase tracking-wider text-pretty">
-                Automatically generate pixel animations from your art
+                make your pixel art to live
              </h2>
              <p className="text-[9px] md:text-[10px] text-white/40 uppercase tracking-[0.15em] leading-relaxed max-w-md mx-auto lg:mx-0 text-pretty">
-                The ultimate neural toolkit for 2D game developers. Transform static sprites into professional frame sequences instantly with high-fidelity motion synthesis.
+                The ultimate ai animation toolkit for 2D game developers. Transform static pixel-style character into frame sequences.
+                <br /><br />
+                Imagination is All you need.
              </p>
           </div>
           <div className="pt-4">
@@ -134,8 +138,12 @@ const LandingPage: React.FC<LandingPageProps> = ({ onGetStarted }) => {
         </div>
 
         {/* TUTORIAL VIDEO SECTION */}
-        <div className="max-w-4xl mx-auto w-full mt-28 px-4">
-          <div className="pixel-border bg-black/40 overflow-hidden relative pointer-events-none select-none">
+        <div className="max-w-4xl mx-auto w-full mt-28 px-4 flex flex-col items-center">
+          <div className="mb-6 flex flex-col items-center gap-1">
+            <h3 className="text-[10px] md:text-[11px] font-bold uppercase tracking-[0.3em] text-[#f7d51d]">Watch Tutorial</h3>
+            <div className="w-12 h-0.5 bg-[#f7d51d] opacity-40"></div>
+          </div>
+          <div className="pixel-border bg-black/40 overflow-hidden relative pointer-events-none select-none w-full">
             <video 
               src={`${CDN_BASE}tutorial.mp4`} 
               autoPlay 
@@ -145,6 +153,15 @@ const LandingPage: React.FC<LandingPageProps> = ({ onGetStarted }) => {
               className="w-full h-auto block"
               onContextMenu={(e) => e.preventDefault()}
             />
+          </div>
+          <div className="mt-8">
+            <PixelButton 
+              variant="secondary"
+              className="px-8 h-12 text-[10px] font-bold"
+              onClick={onViewDocs}
+            >
+              VIEW DOCUMENTATION
+            </PixelButton>
           </div>
         </div>
       </section>

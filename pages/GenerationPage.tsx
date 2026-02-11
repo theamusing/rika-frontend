@@ -12,7 +12,10 @@ interface GenerationPageProps {
   onConsumed?: () => void;
   refreshCredits: () => void;
   credits: number;
+  onOpenPricing?: () => void;
 }
+
+const CDN_BASE = "https://cdn.rika-ai.com/assets/frontpage/";
 
 const DEFAULT_PROMPTS: Record<MotionType, string> = {
   idle: 'side-view, 2D game character standing in place, breathing motion,body sways up-and-down slightly, chest and shoulders rising and falling, head bob synchronized with breathing.',
@@ -22,7 +25,7 @@ const DEFAULT_PROMPTS: Record<MotionType, string> = {
   defeated: 'side-view 2D game character getting hit, kneel down and fall to the ground, lying motionlessly'
 };
 
-const GenerationPage: React.FC<GenerationPageProps> = ({ onJobCreated, initialParams, onConsumed, refreshCredits, credits }) => {
+const GenerationPage: React.FC<GenerationPageProps> = ({ onJobCreated, initialParams, onConsumed, refreshCredits, credits, onOpenPricing }) => {
   const [images, setImages] = useState<(string | null)[]>([null, null, null]);
   const [sourceFiles, setSourceFiles] = useState<(File | string | null)[]>([null, null, null]);
   const [flipStates, setFlipStates] = useState<boolean[]>([false, false, false]);
@@ -223,8 +226,20 @@ const GenerationPage: React.FC<GenerationPageProps> = ({ onJobCreated, initialPa
             <p className="text-xl font-bold text-[#f7d51d]">{credits}</p>
           </div>
           <p className="text-[8px] opacity-50 uppercase leading-tight text-white/40">
-            PLEASE TOP UP YOUR ACCOUNT OR CONTACT SYSTEM ADMINISTRATOR TO ACQUIRE MORE CREDITS.
+            PLEASE TOP UP YOUR ACCOUNT TO ACQUIRE MORE CREDITS.
           </p>
+          <div className="pt-2">
+            <PixelButton 
+              variant="primary" 
+              className="w-full h-12" 
+              onClick={() => {
+                setShowCreditModal(false);
+                onOpenPricing?.();
+              }}
+            >
+              BUY CREDITS
+            </PixelButton>
+          </div>
         </div>
       </PixelModal>
 
@@ -238,16 +253,28 @@ const GenerationPage: React.FC<GenerationPageProps> = ({ onJobCreated, initialPa
                 return (
                   <div key={idx} className="space-y-2">
                     <p className="text-[10px] text-center text-white/60 uppercase">{label}</p>
-                    <div className={`relative aspect-square pixel-border border-[#5a2d9c] bg-black/20 flex items-center justify-center overflow-hidden ${!expandImages ? 'max-w-[280px] mx-auto' : ''}`}>
+                    <div className={`relative aspect-square pixel-border border-[#5a2d9c] bg-black/20 flex items-center justify-center overflow-hidden ${!expandImages ? 'max-w-md mx-auto w-full' : ''}`}>
+                      {/* Placeholder Background for Start Image when not expanded */}
+                      {!expandImages && idx === 0 && (
+                        <div className="absolute inset-0 pointer-events-none opacity-10 grayscale">
+                          <img 
+                            src={`${CDN_BASE}origin.png`} 
+                            className="w-full h-full object-contain" 
+                            style={{ imageRendering: 'pixelated' }}
+                            alt=""
+                          />
+                        </div>
+                      )}
+                      
                       {images[idx] ? (
-                        <img src={images[idx]!} className="w-full h-full object-contain" style={{ imageRendering: 'pixelated' }} alt={label} />
+                        <img src={images[idx]!} className="w-full h-full object-contain relative z-10" style={{ imageRendering: 'pixelated' }} alt={label} />
                       ) : (
-                        <div className="text-[8px] opacity-40 text-center p-2 uppercase text-white/30">Click to upload</div>
+                        <div className="text-[8px] opacity-40 text-center p-2 uppercase text-white/30 relative z-10">Click to upload</div>
                       )}
                       <input 
                         type="file" 
                         accept="image/*"
-                        className="absolute inset-0 opacity-0 cursor-pointer"
+                        className="absolute inset-0 opacity-0 cursor-pointer z-20"
                         onChange={(e) => e.target.files?.[0] && handleImageUpload(idx, e.target.files[0])}
                       />
                     </div>

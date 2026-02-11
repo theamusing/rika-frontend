@@ -9,18 +9,22 @@ import GenerationPage from './pages/GenerationPage.tsx';
 import TaskPlayerPage from './pages/TaskPlayerPage.tsx';
 import HistoryPage from './pages/HistoryPage.tsx';
 import LandingPage from './pages/LandingPage.tsx';
+import DocumentPage from './pages/DocumentPage.tsx';
 import { PixelButton } from './components/PixelComponents.tsx';
+import { PricingModal } from './components/PricingModal.tsx';
 
 const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
 const App: React.FC = () => {
   const [user, setUser] = useState<AuthUser | null>(null);
   const [credits, setCredits] = useState<number>(0);
-  const [activeTab, setActiveTab] = useState<'intro' | 'generate' | 'player' | 'history'>('intro');
-  const [pendingTab, setPendingTab] = useState<'generate' | 'player' | 'history' | null>(null);
+  const [activeTab, setActiveTab] = useState<'intro' | 'generate' | 'player' | 'history' | 'docs'>('intro');
+  const [pendingTab, setPendingTab] = useState<'generate' | 'player' | 'history' | 'docs' | null>(null);
   const [selectedJobId, setSelectedJobId] = useState<string | null>(null);
   const [initialParams, setInitialParams] = useState<any>(null);
   const [isAuthChecking, setIsAuthChecking] = useState(true);
+  const [isPricingOpen, setIsPricingOpen] = useState(false);
+  const [loginMode, setLoginMode] = useState<'login' | 'forgot' | 'update'>('login');
   
   const lastFetchTime = useRef<number>(0);
 
@@ -49,10 +53,19 @@ const App: React.FC = () => {
     checkUser();
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+      console.log(`[AUTH EVENT] ${event}`);
+
+      if (event === 'PASSWORD_RECOVERY') {
+        // Force the app to show the update password form
+        setLoginMode('update');
+        setActiveTab('generate'); // The tab that holds the Login/Register container
+        return;
+      }
+
       if (session?.user) {
         setUser({ id: session.user.id, email: session.user.email || '' });
         apiService.setToken(session.access_token);
-        if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') {
+        if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED' || event === 'USER_UPDATED') {
           fetchCredits();
         }
       } else {
@@ -68,11 +81,12 @@ const App: React.FC = () => {
     setUser(null);
     setActiveTab('intro');
     setPendingTab(null);
+    setLoginMode('login');
   };
 
-  const navigateTo = (tab: 'intro' | 'generate' | 'player' | 'history') => {
-    if (tab === 'intro') {
-      setActiveTab('intro');
+  const navigateTo = (tab: 'intro' | 'generate' | 'player' | 'history' | 'docs') => {
+    if (tab === 'intro' || tab === 'docs') {
+      setActiveTab(tab);
       setPendingTab(null);
       return;
     }
@@ -92,6 +106,7 @@ const App: React.FC = () => {
     const target = pendingTab || 'generate';
     setActiveTab(target);
     setPendingTab(null);
+    setLoginMode('login');
   };
 
   const handleJobSelected = (jobId: string) => {
@@ -108,8 +123,10 @@ const App: React.FC = () => {
     return <div className="min-h-screen flex items-center justify-center bg-[#0d0221] text-white uppercase text-xs">Loading OS...</div>;
   }
 
-  const showIntro = activeTab === 'intro';
-  const showLogin = !user && !showIntro;
+  // Recovery mode should override showIntro if the user is in the middle of a password reset
+  const isRecovering = loginMode === 'update';
+  const showIntro = activeTab === 'intro' && !isRecovering;
+  const showLogin = !user && !showIntro && activeTab !== 'docs';
 
   return (
     <div className="min-h-screen flex flex-col bg-[#0d0221]">
@@ -140,15 +157,25 @@ const App: React.FC = () => {
             >
               DASHBOARD
             </button>
+            <button 
+              onClick={() => navigateTo('docs')}
+              className={`px-4 py-2 text-[10px] font-bold uppercase transition-all ${activeTab === 'docs' ? 'text-white border-b-2 border-white' : 'text-white/40 hover:text-white'}`}
+            >
+              DOCS
+            </button>
           </nav>
         </div>
 
         <div className="flex items-center gap-4">
           {user ? (
             <>
-              <div className="flex flex-col items-end">
-                <span className="text-[8px] opacity-40 text-white">CREDITS</span>
-                <span className="text-sm font-bold text-[#f7d51d]">{credits}</span>
+              <div 
+                className="flex flex-col items-end cursor-pointer group"
+                onClick={() => setIsPricingOpen(true)}
+                title="Click to buy more credits"
+              >
+                <span className="text-[8px] opacity-40 text-white group-hover:text-[#f7d51d]">CREDITS</span>
+                <span className="text-sm font-bold text-[#f7d51d] group-hover:scale-105 transition-transform">{credits}</span>
               </div>
               <button onClick={handleLogout} className="text-[10px] font-bold uppercase text-white/60 hover:text-white">LOGOUT</button>
             </>
@@ -166,9 +193,11 @@ const App: React.FC = () => {
 
       <main className="flex-1 container mx-auto p-4 max-w-7xl">
         {showIntro ? (
-          <LandingPage onGetStarted={() => navigateTo('generate')} />
+          <LandingPage onGetStarted={() => navigateTo('generate')} onViewDocs={() => navigateTo('docs')} />
+        ) : activeTab === 'docs' ? (
+          <DocumentPage />
         ) : showLogin ? (
-          <LoginPage onLogin={handleLoginSuccess} />
+          <LoginPage onLogin={handleLoginSuccess} initialMode={loginMode} />
         ) : (
           <>
             {activeTab === 'generate' && (
@@ -178,6 +207,7 @@ const App: React.FC = () => {
                 onConsumed={() => setInitialParams(null)}
                 refreshCredits={fetchCredits}
                 credits={credits}
+                onOpenPricing={() => setIsPricingOpen(true)}
               />
             )}
             {activeTab === 'player' && (
@@ -196,6 +226,11 @@ const App: React.FC = () => {
           </>
         )}
       </main>
+
+      <PricingModal 
+        isOpen={isPricingOpen} 
+        onClose={() => setIsPricingOpen(false)} 
+      />
     </div>
   );
 };

@@ -69,6 +69,7 @@ const TaskPlayerPage: React.FC<TaskPlayerPageProps> = ({ selectedJobId, onJobSel
 
   const handleUndo = useCallback(() => {
     if (undoStack.length === 0 || isJobRunning) return;
+    setIsPlaying(false);
     const prev = undoStack[undoStack.length - 1];
     setRedoStack(prevRedo => [...prevRedo, frames]);
     setUndoStack(prevUndo => prevUndo.slice(0, -1));
@@ -77,6 +78,7 @@ const TaskPlayerPage: React.FC<TaskPlayerPageProps> = ({ selectedJobId, onJobSel
 
   const handleRedo = useCallback(() => {
     if (redoStack.length === 0 || isJobRunning) return;
+    setIsPlaying(false);
     const next = redoStack[redoStack.length - 1];
     setUndoStack(prevUndo => [...prevUndo, frames]);
     setRedoStack(prevRedo => prevRedo.slice(0, -1));
@@ -99,6 +101,7 @@ const TaskPlayerPage: React.FC<TaskPlayerPageProps> = ({ selectedJobId, onJobSel
 
   const deleteSelection = useCallback(() => {
     if (selection.size === 0 || isJobRunning) return;
+    setIsPlaying(false);
     const canvas = canvasRef.current;
     if (!canvas) return;
     const ctx = canvas.getContext('2d')!;
@@ -300,7 +303,9 @@ const TaskPlayerPage: React.FC<TaskPlayerPageProps> = ({ selectedJobId, onJobSel
   };
 
   const removeBackground = async () => {
-    if (isJobRunning) return; setLoading(true);
+    if (isJobRunning) return;
+    setIsPlaying(false);
+    setLoading(true);
     const newFrames = await Promise.all(frames.map(async (f) => {
       const canvas = document.createElement('canvas');
       const img = await new Promise<HTMLImageElement>(res => { const i = new Image(); i.onload = () => res(i); i.src = f; });
@@ -367,7 +372,7 @@ const TaskPlayerPage: React.FC<TaskPlayerPageProps> = ({ selectedJobId, onJobSel
       > {label} </button>
       {hasParams && (
         <button 
-          onClick={(e) => { e.stopPropagation(); setMenuOpenFor(menuOpenFor === id ? null : id); }}
+          onClick={(e) => { e.stopPropagation(); setMenuOpenFor(menuOpenFor === id ? null : id); setIsPlaying(false); }}
           className="absolute -right-3 top-1/2 -translate-y-1/2 w-4 h-6 flex items-center justify-center text-[8px] bg-[#5a2d9c] text-white pixel-border border-[1px] hover:bg-white hover:text-black z-10"
         > ▶ </button>
       )}
@@ -440,8 +445,18 @@ const TaskPlayerPage: React.FC<TaskPlayerPageProps> = ({ selectedJobId, onJobSel
            <ToolButton id="wand" label="🪄" hasParams />
            <ToolButton id="move" label="🖐️" />
            <div className="mt-4 border-t-2 border-[#5a2d9c] pt-4 flex flex-col items-center gap-2">
-              <input type="color" value={brushColor} onChange={(e) => setBrushColor(e.target.value)} className="w-10 h-10 cursor-pointer bg-transparent border-none p-0" />
-              <button onClick={() => setIsLightBg(!isLightBg)} className={`w-10 h-10 flex items-center justify-center text-[10px] pixel-border border-2 transition-all ${isLightBg ? 'bg-[#f5f5dc] text-black border-black' : 'bg-black text-white border-white'}`}> {isLightBg ? '☀️' : '🌙'} </button>
+              <input 
+                type="color" 
+                value={brushColor} 
+                onChange={(e) => { setBrushColor(e.target.value); setIsPlaying(false); }} 
+                className="w-10 h-10 cursor-pointer bg-transparent border-none p-0" 
+              />
+              <button 
+                onClick={() => { setIsLightBg(!isLightBg); setIsPlaying(false); }} 
+                className={`w-10 h-10 flex items-center justify-center text-[10px] pixel-border border-2 transition-all ${isLightBg ? 'bg-[#f5f5dc] text-black border-black' : 'bg-black text-white border-white'}`}
+              > 
+                {isLightBg ? '☀️' : '🌙'} 
+              </button>
            </div>
         </div>
 

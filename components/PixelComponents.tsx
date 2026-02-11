@@ -80,7 +80,7 @@ export const PixelModal: React.FC<{
             {children}
             <div className="mt-6 flex justify-center">
               <PixelButton onClick={onClose} variant="primary" className="w-full">
-                UNDERSTOOD
+                CLOSE
               </PixelButton>
             </div>
           </div>
