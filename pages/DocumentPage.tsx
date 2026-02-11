@@ -10,7 +10,7 @@ const DocumentPage: React.FC = () => {
         <header className="space-y-4 border-b-2 border-[#5a2d9c] pb-8 text-center md:text-left">
           <h1 className="text-2xl font-bold text-white uppercase tracking-tighter">Documentation</h1>
           <p className="text-[10px] text-white/60 leading-relaxed">
-            Technical Manual & Quick Start Guide for Rika Neural Lab v1.0
+            Technical Manual & Quick Start Guide for Rika AI v1.0
           </p>
         </header>
 
@@ -35,6 +35,9 @@ const DocumentPage: React.FC = () => {
                   <p>
                     Prepare a pixel character PNG in one of the following standard resolutions: 
                     <span className="text-[#f7d51d] font-bold ml-1">64x64, 128x128, or 256x256</span>.
+                  </p>
+                  <p>
+                    Characters should be oriented facing to the <span className="text-white font-bold">RIGHT</span>. If your character is facing left, please use the <span className="text-[#f7d51d] font-bold">"FLIP"</span> toggle in the reference section to correct the orientation.
                   </p>
                   <p>
                     Images can have a transparent background or a solid background. 
@@ -239,7 +242,7 @@ const DocumentPage: React.FC = () => {
 
         <footer className="pt-16 border-t border-[#5a2d9c]/20">
           <p className="text-[8px] text-white/20 uppercase tracking-[0.3em] text-center">
-            End of Document • Rika Neural Lab
+            End of Document • Rika AI
           </p>
         </footer>
       </div>

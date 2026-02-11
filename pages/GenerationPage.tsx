@@ -16,6 +16,7 @@ interface GenerationPageProps {
 }
 
 const CDN_BASE = "https://cdn.rika-ai.com/assets/frontpage/";
+// const CDN_BASE = "/assets/";
 
 const DEFAULT_PROMPTS: Record<MotionType, string> = {
   idle: 'side-view, 2D game character standing in place, breathing motion,body sways up-and-down slightly, chest and shoulders rising and falling, head bob synchronized with breathing.',

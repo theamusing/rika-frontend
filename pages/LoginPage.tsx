@@ -336,7 +336,7 @@ const LoginPage: React.FC<{ onLogin: () => void, initialMode?: AuthMode }> = ({ 
         <div className="mt-8 pt-4 border-t-4 border-[#5a2d9c] text-center">
             <p className="text-[8px] opacity-50 uppercase leading-relaxed">
               {mode === 'login' ? 'New users will be registered automatically.' : 'Finalize your identity update.'}<br/>
-              By connecting, you agree to the Rika lab protocols.
+              By connecting, you agree to the Rika AI protocols.
             </p>
         </div>
       </PixelCard>

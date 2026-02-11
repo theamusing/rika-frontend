@@ -251,8 +251,8 @@ const LandingPage: React.FC<LandingPageProps> = ({ onGetStarted, onViewDocs }) =
       </section>
 
       {/* FOOTER */}
-      <footer className="py-24 text-center bg-[#0d0221]">
-         <div className="max-w-2xl mx-auto space-y-6 px-6">
+      <footer className="pt-24 pb-12 text-center bg-[#0d0221] flex flex-col items-center">
+         <div className="max-w-2xl mx-auto space-y-6 px-6 mb-16">
             <div className="flex flex-col items-center justify-center space-y-2">
               <h3 className="text-lg font-bold uppercase tracking-tight text-white text-pretty">Ready to Animate?</h3>
               <p className="text-[10px] text-white/30 uppercase tracking-[0.3em] text-pretty">Try Rika AI</p>
@@ -263,7 +263,29 @@ const LandingPage: React.FC<LandingPageProps> = ({ onGetStarted, onViewDocs }) =
               </PixelButton>
             </div>
             <div className="pt-8 opacity-10">
-               <p className="text-[7px] uppercase tracking-[0.5em] text-pretty">Rika Neural Lab • v1.0.42</p>
+               <p className="text-[7px] uppercase tracking-[0.5em] text-pretty">Rika AI • v1.0.42</p>
+            </div>
+         </div>
+
+         {/* Sub-footer with Copyright and Contact */}
+         <div className="w-full max-w-7xl px-8 mt-auto border-t border-white/5 pt-10 flex flex-col md:flex-row justify-between items-center gap-8 md:gap-0">
+            <div className="text-[9px] uppercase tracking-widest text-white/70 font-medium">
+              © 2025 Rika AI. All rights reserved.
+            </div>
+            
+            <div className="flex flex-col items-center md:items-end gap-2">
+              <span className="text-[8px] uppercase tracking-[0.25em] text-[#f7d51d] font-bold">Contact</span>
+              <a 
+                href="mailto:amusingyyy@gmail.com" 
+                className="flex items-center gap-2.5 text-[10px] text-white/70 hover:text-white transition-all group"
+              >
+                <span className="font-medium tracking-wide">amusingyyy@gmail.com</span>
+                <div className="bg-white/10 p-1.5 rounded-sm group-hover:bg-white/20 transition-colors">
+                  <svg className="w-3.5 h-3.5 fill-current" viewBox="0 0 24 24">
+                    <path d="M20 4H4c-1.1 0-1.99.9-1.99 2L2 18c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zm0 4l-8 5-8-5V6l8 5 8-5v2z"/>
+                  </svg>
+                </div>
+              </a>
             </div>
          </div>
       </footer>
