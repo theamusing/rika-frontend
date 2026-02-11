@@ -56,9 +56,8 @@ const App: React.FC = () => {
       console.log(`[AUTH EVENT] ${event}`);
 
       if (event === 'PASSWORD_RECOVERY') {
-        // Force the app to show the update password form
         setLoginMode('update');
-        setActiveTab('generate'); // The tab that holds the Login/Register container
+        setActiveTab('generate');
         return;
       }
 
@@ -106,7 +105,7 @@ const App: React.FC = () => {
     const target = pendingTab || 'generate';
     setActiveTab(target);
     setPendingTab(null);
-    setLoginMode('login');
+    setLoginMode('login'); // Reset mode after success
   };
 
   const handleJobSelected = (jobId: string) => {
@@ -123,10 +122,11 @@ const App: React.FC = () => {
     return <div className="min-h-screen flex items-center justify-center bg-[#0d0221] text-white uppercase text-xs">Loading OS...</div>;
   }
 
-  // Recovery mode should override showIntro if the user is in the middle of a password reset
+  // CRITICAL FIX: If we are in 'update' mode, we MUST show the login page even if 'user' is technically present
+  // because Supabase logs the user in automatically with a recovery token.
   const isRecovering = loginMode === 'update';
   const showIntro = activeTab === 'intro' && !isRecovering;
-  const showLogin = !user && !showIntro && activeTab !== 'docs';
+  const showLogin = (isRecovering || !user) && !showIntro && activeTab !== 'docs';
 
   return (
     <div className="min-h-screen flex flex-col bg-[#0d0221]">

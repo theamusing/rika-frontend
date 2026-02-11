@@ -95,7 +95,6 @@ const LoginPage: React.FC<{ onLogin: () => void, initialMode?: AuthMode }> = ({ 
     setMessage('');
 
     try {
-      // Logic Check: Redirect URL must be exactly as set in Supabase dashboard
       const redirectUrl = window.location.origin;
       console.log("[AUTH] Initiating reset for:", email, "Redirecting to:", redirectUrl);
       
@@ -108,7 +107,6 @@ const LoginPage: React.FC<{ onLogin: () => void, initialMode?: AuthMode }> = ({ 
         throw error;
       }
 
-      // Security Note: Supabase returns 'Success' even if account doesn't exist or is unverified.
       setMessage('REQUEST RECEIVED. IF YOUR EMAIL IS VERIFIED, A RESET LINK WILL ARRIVE SHORTLY.');
       setMode('login');
     } catch (err: any) {
@@ -127,14 +125,21 @@ const LoginPage: React.FC<{ onLogin: () => void, initialMode?: AuthMode }> = ({ 
     }
     setLoading(true);
     setError('');
+    setMessage('');
+
     try {
       const { error } = await supabase.auth.updateUser({ password });
       if (error) throw error;
+      
       setMessage('PASS-KEY UPDATED. CLEARANCE GRANTED.');
-      const { data } = await supabase.auth.getSession();
-      if (data.session) onLogin();
-      else setMode('login');
+      
+      // Delay to let user see success message before transitioning
+      setTimeout(() => {
+        onLogin(); 
+      }, 1500);
+      
     } catch (err: any) {
+      console.error("[AUTH EXCEPTION] Password update failed:", err);
       setError(err.message || 'FAILED TO REWRITE PASS-KEY.');
     } finally {
       setLoading(false);
@@ -213,9 +218,15 @@ const LoginPage: React.FC<{ onLogin: () => void, initialMode?: AuthMode }> = ({ 
               <p className="text-red-500 text-[8px] uppercase font-bold leading-relaxed">{error}</p>
             </div>
           )}
+          {message && (
+            <div className="p-3 bg-green-900/20 pixel-border border-green-500">
+              <p className="text-green-500 text-[8px] uppercase font-bold leading-relaxed">{message}</p>
+            </div>
+          )}
           <PixelButton className="w-full h-12" disabled={loading}>
             {loading ? 'REWRITING...' : 'UPDATE PASS-KEY'}
           </PixelButton>
+          <p className="text-[7px] text-white/30 text-center uppercase">Updating security credentials...</p>
         </form>
       );
     }
