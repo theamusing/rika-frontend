@@ -36,7 +36,7 @@ const TaskPlayerPage: React.FC<TaskPlayerPageProps> = ({ selectedJobId, onJobSel
   const [isExportingGif, setIsExportingGif] = useState(false);
 
   const [activeTool, setActiveTool] = useState<Tool>('brush');
-  const [brushColor, setBrushColor] = useState('#f7d51d');
+  const [brushColor, setBrushColor] = useState('#ffffff');
   const [zoom, setZoom] = useState(1);
   const [pan, setPan] = useState({ x: 0, y: 0 });
   const [isDrawing, setIsDrawing] = useState(false);
@@ -208,18 +208,39 @@ const TaskPlayerPage: React.FC<TaskPlayerPageProps> = ({ selectedJobId, onJobSel
         } catch (e) { setLoading(false); }
       };
       fetchJob();
+    } else {
+      const blank = document.createElement('canvas');
+      blank.width = 128;
+      blank.height = 128;
+      const b64 = blank.toDataURL();
+      setFrames([b64]);
+      setInitialFrames([b64]);
+      setCurrentJob(null);
+      setUndoStack([]);
+      setRedoStack([]);
+      setExcludedFrames(new Set());
     }
     return () => { isMounted.current = false; };
   }, [selectedJobId, updateFramesFromJob]);
 
   useEffect(() => {
     const canvas = canvasRef.current;
-    if (!canvas || !frames[currentFrameIndex]) return;
-    const ctx = canvas.getContext('2d'); if (!ctx) return;
-    const img = new Image(); img.onload = () => {
-      canvas.width = img.width; canvas.height = img.height; ctx.imageSmoothingEnabled = false; ctx.clearRect(0, 0, canvas.width, canvas.height); ctx.drawImage(img, 0, 0);
-    };
-    img.src = frames[currentFrameIndex];
+    if (!canvas) return;
+    
+    if (frames[currentFrameIndex]) {
+      const ctx = canvas.getContext('2d'); if (!ctx) return;
+      const img = new Image(); img.onload = () => {
+        canvas.width = img.width; canvas.height = img.height; 
+        ctx.imageSmoothingEnabled = false; ctx.clearRect(0, 0, canvas.width, canvas.height); 
+        ctx.drawImage(img, 0, 0);
+      };
+      img.src = frames[currentFrameIndex];
+    } else {
+      canvas.width = 128;
+      canvas.height = 128;
+      const ctx = canvas.getContext('2d');
+      if (ctx) ctx.clearRect(0, 0, 128, 128);
+    }
   }, [frames, currentFrameIndex]);
 
   useEffect(() => {
@@ -329,7 +350,7 @@ const TaskPlayerPage: React.FC<TaskPlayerPageProps> = ({ selectedJobId, onJobSel
     if (frames.length === 0 || isJobRunning) return; setIsExporting(true);
     try {
       const activeFrames = frames.filter((_, idx) => !excludedFrames.has(idx)); if (activeFrames.length === 0) return;
-      const spriteSheetData = await reconstructSpriteSheet(activeFrames); const link = document.createElement('a'); link.href = spriteSheetData; link.download = `rika_${selectedJobId?.slice(0,8)}.png`; link.click();
+      const spriteSheetData = await reconstructSpriteSheet(activeFrames); const link = document.createElement('a'); link.href = spriteSheetData; link.download = `rika_${selectedJobId?.slice(0,8) || 'work'}.png`; link.click();
     } catch (err) {} finally { setIsExporting(false); }
   };
 
@@ -355,7 +376,7 @@ const TaskPlayerPage: React.FC<TaskPlayerPageProps> = ({ selectedJobId, onJobSel
         sampleInterval: 1,
         numWorkers: 4
       }, (obj: any) => {
-        if (!obj.error) { const link = document.createElement('a'); link.href = obj.image; link.download = `rika_${selectedJobId?.slice(0,8)}.gif`; link.click(); }
+        if (!obj.error) { const link = document.createElement('a'); link.href = obj.image; link.download = `rika_${selectedJobId?.slice(0,8) || 'work'}.gif`; link.click(); }
         setIsExportingGif(false);
       });
     } catch (err) { setIsExportingGif(false); }
@@ -377,7 +398,7 @@ const TaskPlayerPage: React.FC<TaskPlayerPageProps> = ({ selectedJobId, onJobSel
   const ToolButton = ({ id, content, hasParams }: { id: Tool, content: React.ReactNode, hasParams?: boolean }) => {
     const isActive = effectiveTool === id;
     return (
-      <div className="relative flex items-center group">
+      <div className="relative flex items-center justify-center w-full group">
         <button 
           onClick={() => { setActiveTool(id); setIsPlaying(false); }}
           className={`w-10 h-10 flex items-center justify-center pixel-border border-2 transition-all shrink-0 ${isActive ? 'bg-[#f7d51d] text-[#2d1b4e] border-white' : 'bg-black/40 text-white border-[#5a2d9c] hover:border-white/50'}`}
@@ -394,7 +415,7 @@ const TaskPlayerPage: React.FC<TaskPlayerPageProps> = ({ selectedJobId, onJobSel
         {hasParams && (
           <button 
             onClick={(e) => { e.stopPropagation(); setMenuOpenFor(menuOpenFor === id ? null : id); setIsPlaying(false); }}
-            className="absolute -right-3 top-1/2 -translate-y-1/2 w-4 h-6 flex items-center justify-center text-[8px] bg-[#5a2d9c] text-white pixel-border border-[1px] hover:bg-white hover:text-black z-10"
+            className="absolute -right-4 top-1/2 -translate-y-1/2 w-4 h-6 flex items-center justify-center text-[8px] bg-[#5a2d9c] text-white pixel-border border-[1px] hover:bg-white hover:text-black z-10"
           > ▶ </button>
         )}
         {menuOpenFor === id && (
@@ -444,13 +465,13 @@ const TaskPlayerPage: React.FC<TaskPlayerPageProps> = ({ selectedJobId, onJobSel
     <div className="flex flex-col gap-6 w-full overflow-hidden text-white">
       <div className="flex justify-between items-center bg-[#121212]/80 p-3 pixel-border border-[#5a2d9c] w-full">
         <div className="flex gap-4 text-[10px] text-white/60 uppercase">
-          <span>JOB: <span className="text-white">{selectedJobId?.slice(0,8)}</span></span>
-          <span>MODE: <span className="text-white">{currentJob?.input_params?.motion_type}</span></span>
+          <span>JOB: <span className="text-white">{selectedJobId?.slice(0,8) || 'NONE'}</span></span>
+          <span>MODE: <span className="text-white">{currentJob?.input_params?.motion_type || 'MANUAL'}</span></span>
           <span>STATUS: <span className={
             currentJob?.status === 'succeeded' ? 'text-green-500' : 
             (currentJob?.status === 'running' || currentJob?.status === 'queued') ? 'text-yellow-500' : 
             'text-white/40'
-          }>{currentJob?.status}</span></span>
+          }>{currentJob?.status || 'READY'}</span></span>
         </div>
         <div className="flex items-center gap-4 text-[10px] uppercase text-white/60">
           <div className="flex items-center gap-2">
@@ -461,18 +482,22 @@ const TaskPlayerPage: React.FC<TaskPlayerPageProps> = ({ selectedJobId, onJobSel
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-[auto_1fr_auto] gap-6 w-full items-start">
-        <div className={`flex flex-col gap-4 p-2 bg-[#1e1e1e]/60 pixel-border border-[#5a2d9c] w-14 shrink-0 ${isJobRunning ? 'opacity-30 pointer-events-none' : ''}`}>
+        <div className={`flex flex-col items-center gap-4 p-2 bg-[#1e1e1e]/60 pixel-border border-[#5a2d9c] w-14 shrink-0 ${isJobRunning ? 'opacity-30 pointer-events-none' : ''}`}>
            <ToolButton id="brush" content="✎" hasParams />
            <ToolButton id="eraser" content={<img src={`${ICON_BASE}eraser.png`} style={{ imageRendering: 'auto' }} className="w-full h-full object-contain" alt="Eraser" />} hasParams />
            <ToolButton id="wand" content={<img src={`${ICON_BASE}wand.png`} style={{ imageRendering: 'auto' }} className="w-full h-full object-contain" alt="Wand" />} hasParams />
            <ToolButton id="move" content="🖐️" />
-           <div className="mt-4 border-t-2 border-[#5a2d9c] pt-4 flex flex-col items-center gap-2">
-              <div className="w-10 h-10 pixel-border border-2 border-[#5a2d9c] bg-black/40 overflow-hidden shrink-0">
+           <div className="mt-4 border-t-2 border-[#5a2d9c] pt-4 flex flex-col items-center gap-4 w-full">
+              <div 
+                className="relative w-10 h-10 pixel-border border-2 border-[#5a2d9c] bg-black/40 overflow-hidden shrink-0" 
+                title="q+click to pick color"
+              >
+                <div className="absolute inset-0" style={{ backgroundColor: brushColor }}></div>
                 <input 
                   type="color" 
                   value={brushColor} 
                   onChange={(e) => { setBrushColor(e.target.value); setIsPlaying(false); }} 
-                  className="w-[150%] h-[150%] -translate-x-[15%] -translate-y-[15%] cursor-pointer border-none p-0 bg-transparent" 
+                  className="absolute inset-0 w-full h-full opacity-0 cursor-pointer" 
                 />
               </div>
               <button 
@@ -536,7 +561,7 @@ const TaskPlayerPage: React.FC<TaskPlayerPageProps> = ({ selectedJobId, onJobSel
               </div>
            </PixelCard>
            <div className="flex flex-col gap-3">
-              <PixelButton variant="secondary" className="text-[10px] h-12" onClick={() => onRegenerate(currentJob!)} disabled={isJobRunning}>RE-GENERATE</PixelButton>
+              <PixelButton variant="secondary" className="text-[10px] h-12" onClick={() => onRegenerate(currentJob!)} disabled={isJobRunning || !currentJob}>RE-GENERATE</PixelButton>
               <PixelButton variant="primary" className="text-[10px] h-12" disabled={isExportingGif || isJobRunning} onClick={handleExportGif}> {isExportingGif ? 'PACKING...' : 'EXPORT GIF'} </PixelButton>
               <PixelButton variant="secondary" className="text-[10px] h-12" disabled={isExporting || isJobRunning} onClick={handleDownload}> {isExporting ? 'EXPORTING...' : 'DOWNLOAD PNG'} </PixelButton>
            </div>
