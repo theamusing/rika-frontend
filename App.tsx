@@ -51,14 +51,26 @@ const App: React.FC = () => {
     
     checkUser();
 
-    // Check for payment success in URL
-    const params = new URLSearchParams(window.location.search);
-    if (params.get('payment_status') === 'success') {
-      setIsPaymentSuccessOpen(true);
-      fetchCredits();
-      // Cleanup URL without refreshing
-      window.history.replaceState({}, document.title, window.location.pathname);
-    }
+    // FIXED: Check for payment success in BOTH search and hash
+    const checkPaymentStatus = () => {
+      // Check standard search params: ?payment_status=success
+      const searchParams = new URLSearchParams(window.location.search);
+      
+      // Check hash params: #/payment-success?payment_status=success
+      const hash = window.location.hash;
+      const hashQueryPart = hash.includes('?') ? hash.split('?')[1] : '';
+      const hashParams = new URLSearchParams(hashQueryPart);
+
+      if (searchParams.get('payment_status') === 'success' || hashParams.get('payment_status') === 'success') {
+        setIsPaymentSuccessOpen(true);
+        fetchCredits();
+        // Cleanup URL without refreshing - remove both search and hash query params
+        const cleanUrl = window.location.origin + window.location.pathname;
+        window.history.replaceState({}, document.title, cleanUrl);
+      }
+    };
+
+    checkPaymentStatus();
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
       console.log(`[AUTH EVENT] ${event}`);
