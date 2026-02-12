@@ -53,7 +53,7 @@ export const PricingModal: React.FC<PricingModalProps> = ({ isOpen, onClose, onS
   return (
     <div className="fixed inset-0 z-[110] flex items-center justify-center p-4 bg-black/95 backdrop-blur-md animate-fade-in overflow-y-auto">
       <div className="max-w-3xl w-full my-auto">
-        <PixelCard title="STORE TERMINAL v2.7" className="bg-[#0d0221] shadow-2xl p-6">
+        <PixelCard title="STORE TERMINAL" className="bg-[#0d0221] shadow-2xl p-6">
           <div className="flex flex-col items-center mb-10 space-y-4">
             <h2 className="text-xl font-bold text-white uppercase tracking-tighter">Credit Store</h2>
             

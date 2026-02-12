@@ -1,4 +1,3 @@
-
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -8,17 +7,43 @@
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Press+Start+2P&display=swap" rel="stylesheet">
     <style>
+        /* Fusion Pixel 10px Monospaced SC */
+        @font-face {
+          font-family: 'Fusion Pixel 10px Monospaced SC';
+          font-style: normal;
+          font-display: swap;
+          font-weight: 400;
+          src: url("https://cdn.jsdelivr.net/fontsource/fonts/fusion-pixel-10px-monospaced-sc@latest/latin-400-normal.woff2") format("woff2"),
+               url("https://cdn.jsdelivr.net/fontsource/fonts/fusion-pixel-10px-monospaced-sc@latest/latin-400-normal.woff") format("woff");
+        }
+
         body {
-            font-family: 'Press Start 2P', cursive;
+            /* Prioritize English pixel font, fallback to Fusion Pixel 10px for Chinese */
+            font-family: 'Press Start 2P', 'Fusion Pixel 10px Monospaced SC', monospace;
             background-color: #0d0221;
             color: #ffffff;
             image-rendering: pixelated;
+            
+            /* Disable font smoothing for sharp pixelated look */
+            -webkit-font-smoothing: none;
+            -moz-osx-font-smoothing: grayscale;
+            font-smooth: never;
+            text-rendering: optimizeSpeed;
         }
-        /* Custom class for readable body text */
+        
+        /* Base size for Chinese text to align with 10px bitmap native size */
+        .zh-text {
+            font-size: 10px;
+            line-height: 1.5;
+        }
+        
+        /* Custom class for readable body text (non-pixel) */
         .font-sans {
             font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
             image-rendering: auto;
+            -webkit-font-smoothing: antialiased;
         }
+        
         ::-webkit-scrollbar {
             width: 10px;
         }
@@ -28,19 +53,23 @@
         ::-webkit-scrollbar-thumb {
             background: #ffffff;
         }
+        
         .pixel-border {
             border: 4px solid #5a2d9c;
             box-shadow: 4px 4px 0px #2d1b4e;
         }
+        
         .pixel-btn:active {
             transform: translate(2px, 2px);
             box-shadow: 2px 2px 0px #2d1b4e;
         }
+        
         .loading-shimmer {
             background: linear-gradient(90deg, #5a2d9c 25%, #ffffff 50%, #5a2d9c 75%);
             background-size: 200% 100%;
             animation: shimmer 1.5s infinite;
         }
+        
         @keyframes shimmer {
             0% { background-position: 200% 0; }
             100% { background-position: -200% 0; }

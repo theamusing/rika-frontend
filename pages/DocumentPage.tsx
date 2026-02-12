@@ -10,7 +10,7 @@ const DocumentPage: React.FC = () => {
         <header className="space-y-4 border-b-2 border-[#5a2d9c] pb-8 text-center md:text-left">
           <h1 className="text-2xl font-bold text-white uppercase tracking-tighter">Documentation</h1>
           <p className="text-[10px] text-white/60 leading-relaxed">
-            Technical Manual & Quick Start Guide for Rika AI v1.0
+            Technical Manual & Quick Start Guide for Rika AI
           </p>
         </header>
 

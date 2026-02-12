@@ -24,6 +24,7 @@ const App: React.FC = () => {
   const [isPricingOpen, setIsPricingOpen] = useState(false);
   const [isPaymentSuccessOpen, setIsPaymentSuccessOpen] = useState(false);
   const [loginMode, setLoginMode] = useState<'login' | 'forgot' | 'update'>('login');
+  const [lang, setLang] = useState<'en' | 'zh'>('en');
   
   const lastFetchTime = useRef<number>(0);
 
@@ -51,12 +52,8 @@ const App: React.FC = () => {
     
     checkUser();
 
-    // FIXED: Check for payment success in BOTH search and hash
     const checkPaymentStatus = () => {
-      // Check standard search params: ?payment_status=success
       const searchParams = new URLSearchParams(window.location.search);
-      
-      // Check hash params: #/payment-success?payment_status=success
       const hash = window.location.hash;
       const hashQueryPart = hash.includes('?') ? hash.split('?')[1] : '';
       const hashParams = new URLSearchParams(hashQueryPart);
@@ -64,7 +61,6 @@ const App: React.FC = () => {
       if (searchParams.get('payment_status') === 'success' || hashParams.get('payment_status') === 'success') {
         setIsPaymentSuccessOpen(true);
         fetchCredits();
-        // Cleanup URL without refreshing - remove both search and hash query params
         const cleanUrl = window.location.origin + window.location.pathname;
         window.history.replaceState({}, document.title, cleanUrl);
       }
@@ -73,8 +69,6 @@ const App: React.FC = () => {
     checkPaymentStatus();
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
-      console.log(`[AUTH EVENT] ${event}`);
-
       if (event === 'PASSWORD_RECOVERY') {
         setLoginMode('update');
         setActiveTab('generate');
@@ -125,7 +119,7 @@ const App: React.FC = () => {
     const target = pendingTab || 'generate';
     setActiveTab(target);
     setPendingTab(null);
-    setLoginMode('login'); // Reset mode after success
+    setLoginMode('login');
   };
 
   const handleJobSelected = (jobId: string) => {
@@ -139,7 +133,7 @@ const App: React.FC = () => {
   };
 
   if (isAuthChecking) {
-    return <div className="min-h-screen flex items-center justify-center bg-[#0d0221] text-white uppercase text-xs">Loading OS...</div>;
+    return <div className="min-h-screen flex items-center justify-center bg-[#0d0221] text-white uppercase text-xs">Loading Rika AI...</div>;
   }
 
   const isRecovering = loginMode === 'update';
@@ -185,6 +179,22 @@ const App: React.FC = () => {
         </div>
 
         <div className="flex items-center gap-4">
+          {/* Language Toggle */}
+          <div className="flex bg-black/40 p-1 pixel-border border-[#5a2d9c] h-8 items-center">
+            <button 
+              onClick={() => setLang('en')}
+              className={`px-2 h-full text-[8px] font-bold transition-all ${lang === 'en' ? 'bg-[#f7d51d] text-[#2d1b4e]' : 'text-white/40 hover:text-white'}`}
+            >
+              EN
+            </button>
+            <button 
+              onClick={() => setLang('zh')}
+              className={`px-2 h-full text-[8px] font-bold transition-all ${lang === 'zh' ? 'bg-[#f7d51d] text-[#2d1b4e]' : 'text-white/40 hover:text-white'}`}
+            >
+              ZH
+            </button>
+          </div>
+
           {user ? (
             <>
               <div 
@@ -211,7 +221,7 @@ const App: React.FC = () => {
 
       <main className="flex-1 container mx-auto p-4 max-w-7xl">
         {showIntro ? (
-          <LandingPage onGetStarted={() => navigateTo('generate')} onViewDocs={() => navigateTo('docs')} />
+          <LandingPage lang={lang} onGetStarted={() => navigateTo('generate')} onViewDocs={() => navigateTo('docs')} />
         ) : activeTab === 'docs' ? (
           <DocumentPage />
         ) : showLogin ? (
