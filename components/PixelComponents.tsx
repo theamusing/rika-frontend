@@ -1,5 +1,6 @@
 
-import React from 'react';
+import React, { useState, useEffect } from 'react';
+import { fetchAsDataUrl, isUserImage } from '../utils/imageUtils.ts';
 
 export const PixelButton: React.FC<{
   onClick?: () => void;
@@ -87,5 +88,45 @@ export const PixelModal: React.FC<{
         </PixelCard>
       </div>
     </div>
+  );
+};
+
+/**
+ * Intelligent image component that utilizes IndexedDB for persistent caching
+ * of user images, while standard caching (or none) for static assets.
+ */
+export const PixelImage: React.FC<React.ImgHTMLAttributes<HTMLImageElement>> = (props) => {
+  const { src, ...rest } = props;
+  const [displaySrc, setDisplaySrc] = useState<string | undefined>(undefined);
+
+  const isCachable = typeof src === 'string' && isUserImage(src);
+
+  useEffect(() => {
+    let active = true;
+    if (typeof src !== 'string') return;
+
+    // We only manage caching for user generated content.
+    const load = async () => {
+      try {
+        const url = await fetchAsDataUrl(src);
+        if (active) setDisplaySrc(url);
+      } catch (e) {
+        if (active) setDisplaySrc(src); // Fallback on error
+      }
+    };
+
+    load();
+    return () => { active = false; };
+  }, [src]);
+
+  // A blank transparent pixel to prevent broken image icons while loading
+  const placeholder = "data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7";
+
+  return (
+    <img 
+      src={displaySrc || (isCachable ? placeholder : (typeof src === 'string' ? src : undefined))} 
+      crossOrigin="anonymous" 
+      {...rest} 
+    />
   );
 };

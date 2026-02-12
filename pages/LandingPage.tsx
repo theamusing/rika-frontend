@@ -1,6 +1,6 @@
 
 import React, { useMemo, useState } from 'react';
-import { PixelButton } from '../components/PixelComponents.tsx';
+import { PixelButton, PixelImage } from '../components/PixelComponents.tsx';
 import { MOTION_TYPES } from '../constants.ts';
 
 interface LandingPageProps {
@@ -90,9 +90,8 @@ const LandingPage: React.FC<LandingPageProps> = ({ onGetStarted, onViewDocs }) =
         <div className="flex-1 flex justify-center items-center w-full max-w-sm lg:max-w-none">
           <div className="w-full aspect-square pixel-border bg-[#2d1b4e]/10 flex items-center justify-center overflow-hidden relative group">
             <div className="absolute inset-0 bg-gradient-to-br from-[#5a2d9c]/5 to-transparent"></div>
-            <img 
+            <PixelImage 
               src={heroImage} 
-              crossOrigin="anonymous"
               className="w-[70%] h-[70%] object-contain animate-fade-in z-10" 
               style={{ imageRendering: 'pixelated' }}
               alt="Hero Animation Preview"
@@ -122,9 +121,8 @@ const LandingPage: React.FC<LandingPageProps> = ({ onGetStarted, onViewDocs }) =
             
             <div className="w-full max-w-[280px] relative">
               <div className="aspect-square bg-[#1e1e1e]/60 pixel-border border-[#5a2d9c] flex items-center justify-center overflow-hidden">
-                <img 
+                <PixelImage 
                   src={`${CDN_BASE}origin.png`} 
-                  crossOrigin="anonymous"
                   className="w-full h-full object-contain"
                   style={{ imageRendering: 'pixelated' }}
                   alt="Original Pixel Character"
@@ -186,10 +184,9 @@ const LandingPage: React.FC<LandingPageProps> = ({ onGetStarted, onViewDocs }) =
 
             <div className="w-full max-w-[280px]">
               <div className="aspect-square bg-[#1e1e1e]/60 pixel-border border-[#f7d51d] flex items-center justify-center overflow-hidden bg-gradient-to-b from-white/5 to-transparent">
-                <img 
+                <PixelImage 
                   src={`${EXAMPLES_BASE}${selectedMotion}_64.gif`} 
                   key={selectedMotion}
-                  crossOrigin="anonymous"
                   className="w-full h-full object-contain animate-fade-in"
                   style={{ imageRendering: 'pixelated' }}
                   alt={`${selectedMotion} Animation Example`}
@@ -270,9 +267,8 @@ const LandingPage: React.FC<LandingPageProps> = ({ onGetStarted, onViewDocs }) =
                 </div>
               </div>
               <div className="w-full aspect-[4/3] relative bg-black flex items-center justify-center overflow-hidden">
-                 <img 
+                 <PixelImage 
                    src={feature.img} 
-                   crossOrigin="anonymous"
                    className="w-full h-full object-cover group-hover:scale-[1.03] transition-transform duration-700" 
                    style={{ imageRendering: 'pixelated' }} 
                    alt={feature.title}
@@ -310,9 +306,8 @@ const LandingPage: React.FC<LandingPageProps> = ({ onGetStarted, onViewDocs }) =
             {[...DISPLAY_GIFS, ...DISPLAY_GIFS].map((src, i) => (
               <div key={i} className="inline-block px-4 py-2">
                 <div className="w-[180px] md:w-[220px] aspect-square pixel-border border-[#5a2d9c]/30 bg-[#2d1b4e]/20 flex items-center justify-center p-6 group hover:border-[#f7d51d] transition-all cursor-pointer">
-                  <img 
+                  <PixelImage 
                     src={src} 
-                    crossOrigin="anonymous"
                     className="w-full h-full object-contain group-hover:scale-110 transition-transform" 
                     style={{ imageRendering: 'pixelated' }} 
                     alt={`Gallery Display ${i}`}

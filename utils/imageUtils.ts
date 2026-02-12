@@ -2,20 +2,31 @@
 import { getAssetFromCache, saveAssetToCache } from './dbUtils.ts';
 
 /**
- * Helper to fetch a remote image and return a Data URL.
- * Implements persistent caching via IndexedDB and robust CORS handling.
+ * Checks if a URL points to a user-generated image that should be cached.
  */
-const fetchAsDataUrl = async (url: string): Promise<string> => {
+export const isUserImage = (url: string): boolean => {
+  return url.includes('cdn.rika-ai.com/users/');
+};
+
+/**
+ * Helper to fetch a remote image and return a Data URL.
+ * Implements persistent caching via IndexedDB for user images and robust CORS handling.
+ */
+export const fetchAsDataUrl = async (url: string): Promise<string> => {
   if (url.startsWith('data:')) return url;
 
-  // 1. Check persistent cache first
-  try {
-    const cached = await getAssetFromCache(url);
-    if (cached) {
-      return cached;
+  const shouldCache = isUserImage(url);
+
+  // 1. Check persistent cache first (only for user images)
+  if (shouldCache) {
+    try {
+      const cached = await getAssetFromCache(url);
+      if (cached) {
+        return cached;
+      }
+    } catch (err) {
+      console.warn("Persistent cache read failure", err);
     }
-  } catch (err) {
-    console.warn("Persistent cache read failure", err);
   }
 
   // 2. Try fetching via XHR/fetch first (preferred for blobs)
@@ -35,14 +46,16 @@ const fetchAsDataUrl = async (url: string): Promise<string> => {
         reader.readAsDataURL(blob);
       });
 
-      try { await saveAssetToCache(url, dataUrl); } catch (e) {}
+      if (shouldCache) {
+        try { await saveAssetToCache(url, dataUrl); } catch (e) {}
+      }
       return dataUrl;
     }
   } catch (err) {
     console.warn(`Fetch API failed for ${url.slice(-20)}, trying Image fallback...`);
   }
 
-  // 3. Fallback: Try loading via Image element (more robust for CDN caching conflicts)
+  // 3. Fallback: Try loading via Image element
   return new Promise((resolve, reject) => {
     const img = new Image();
     img.crossOrigin = "anonymous";
@@ -55,7 +68,9 @@ const fetchAsDataUrl = async (url: string): Promise<string> => {
       ctx.drawImage(img, 0, 0);
       try {
         const dataUrl = canvas.toDataURL('image/png');
-        saveAssetToCache(url, dataUrl).catch(() => {});
+        if (shouldCache) {
+          saveAssetToCache(url, dataUrl).catch(() => {});
+        }
         resolve(dataUrl);
       } catch (e) {
         reject(new Error("Canvas toDataURL failed - likely CORS"));
@@ -91,7 +106,6 @@ export const processImage = async (
       if (!sourceDataUrl) return reject('Invalid image source');
 
       const img = new Image();
-      // data: URLs don't need crossOrigin
       if (!sourceDataUrl.startsWith('data:')) img.crossOrigin = "anonymous";
 
       img.onload = () => {

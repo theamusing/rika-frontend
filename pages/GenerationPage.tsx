@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect, useRef } from 'react';
-import { PixelButton, PixelCard, PixelInput, PixelModal } from '../components/PixelComponents.tsx';
+import { PixelButton, PixelCard, PixelInput, PixelModal, PixelImage } from '../components/PixelComponents.tsx';
 import { processImage, unprocessImage } from '../utils/imageUtils.ts';
 import { apiService } from '../services/apiService.ts';
 import { MOTION_TYPES, PIXEL_SIZES } from '../constants.ts';
@@ -257,9 +257,8 @@ const GenerationPage: React.FC<GenerationPageProps> = ({ onJobCreated, initialPa
                       {/* Placeholder Background for Start Image when not expanded */}
                       {!expandImages && idx === 0 && (
                         <div className="absolute inset-0 pointer-events-none opacity-10 grayscale">
-                          <img 
+                          <PixelImage 
                             src={`${CDN_BASE}origin.png`} 
-                            crossOrigin="anonymous"
                             className="w-full h-full object-contain" 
                             style={{ imageRendering: 'pixelated' }}
                             alt=""

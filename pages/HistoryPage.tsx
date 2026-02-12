@@ -2,7 +2,7 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { apiService } from '../services/apiService.ts';
 import { Job } from '../types.ts';
-import { PixelButton, PixelCard } from '../components/PixelComponents.tsx';
+import { PixelButton, PixelCard, PixelImage } from '../components/PixelComponents.tsx';
 
 interface HistoryPageProps {
   onJobSelected: (id: string) => void;
@@ -96,9 +96,8 @@ const HistoryPage: React.FC<HistoryPageProps> = ({ onJobSelected, onRegenerate }
               <PixelCard key={job.gen_id} className="group hover:bg-[#5a2d9c]/20 transition-all cursor-pointer" onClick={() => setSelectedJob(job)}>
                   <div className="aspect-square bg-black/40 mb-4 overflow-hidden pixel-border border-2 border-[#5a2d9c] group-hover:border-white/40">
                       {job.input_images?.[0] && (
-                          <img 
+                          <PixelImage 
                             src={job.input_images[0].url} 
-                            crossOrigin="anonymous"
                             className="w-full h-full object-contain" 
                             style={{ imageRendering: 'pixelated' }} 
                             alt="Job preview" 
@@ -139,9 +138,8 @@ const HistoryPage: React.FC<HistoryPageProps> = ({ onJobSelected, onRegenerate }
                               <div className="grid grid-cols-3 gap-2">
                                   {selectedJob.input_images?.map((img, i) => (
                                       <div key={i} className="aspect-square bg-black/40 pixel-border border-[#5a2d9c]">
-                                          <img 
+                                          <PixelImage 
                                             src={img.url} 
-                                            crossOrigin="anonymous"
                                             className="w-full h-full object-contain" 
                                             style={{ imageRendering: 'pixelated' }} 
                                             alt={`Input ${i}`} 
@@ -154,9 +152,8 @@ const HistoryPage: React.FC<HistoryPageProps> = ({ onJobSelected, onRegenerate }
                               <div>
                                   <p className="text-[8px] opacity-50 uppercase mb-2">Generated Output</p>
                                   <div className="aspect-square bg-black/40 pixel-border border-[#5a2d9c]">
-                                      <img 
+                                      <PixelImage 
                                         src={selectedJob.output_images[0].url} 
-                                        crossOrigin="anonymous"
                                         className="w-full h-full object-contain" 
                                         style={{ imageRendering: 'pixelated' }} 
                                         alt="Output" 
