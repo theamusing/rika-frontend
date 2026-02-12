@@ -1,7 +1,6 @@
 
 import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { createClient } from '@supabase/supabase-js';
-import { SUPABASE_URL, SUPABASE_ANON_KEY } from './constants.ts';
+import { supabase } from './services/supabaseClient.ts';
 import { apiService } from './services/apiService.ts';
 import { AuthUser, Job } from './types.ts';
 import LoginPage from './pages/LoginPage.tsx';
@@ -12,8 +11,7 @@ import LandingPage from './pages/LandingPage.tsx';
 import DocumentPage from './pages/DocumentPage.tsx';
 import { PixelButton } from './components/PixelComponents.tsx';
 import { PricingModal } from './components/PricingModal.tsx';
-
-const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+import { PaymentSuccessModal } from './components/PaymentSuccessModal.tsx';
 
 const App: React.FC = () => {
   const [user, setUser] = useState<AuthUser | null>(null);
@@ -24,6 +22,7 @@ const App: React.FC = () => {
   const [initialParams, setInitialParams] = useState<any>(null);
   const [isAuthChecking, setIsAuthChecking] = useState(true);
   const [isPricingOpen, setIsPricingOpen] = useState(false);
+  const [isPaymentSuccessOpen, setIsPaymentSuccessOpen] = useState(false);
   const [loginMode, setLoginMode] = useState<'login' | 'forgot' | 'update'>('login');
   
   const lastFetchTime = useRef<number>(0);
@@ -51,6 +50,15 @@ const App: React.FC = () => {
     };
     
     checkUser();
+
+    // Check for payment success in URL
+    const params = new URLSearchParams(window.location.search);
+    if (params.get('payment_status') === 'success') {
+      setIsPaymentSuccessOpen(true);
+      fetchCredits();
+      // Cleanup URL without refreshing
+      window.history.replaceState({}, document.title, window.location.pathname);
+    }
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
       console.log(`[AUTH EVENT] ${event}`);
@@ -122,8 +130,6 @@ const App: React.FC = () => {
     return <div className="min-h-screen flex items-center justify-center bg-[#0d0221] text-white uppercase text-xs">Loading OS...</div>;
   }
 
-  // CRITICAL FIX: If we are in 'update' mode, we MUST show the login page even if 'user' is technically present
-  // because Supabase logs the user in automatically with a recovery token.
   const isRecovering = loginMode === 'update';
   const showIntro = activeTab === 'intro' && !isRecovering;
   const showLogin = (isRecovering || !user) && !showIntro && activeTab !== 'docs';
@@ -230,6 +236,14 @@ const App: React.FC = () => {
       <PricingModal 
         isOpen={isPricingOpen} 
         onClose={() => setIsPricingOpen(false)} 
+        onSimulatedSuccess={() => setIsPaymentSuccessOpen(true)}
+      />
+      <PaymentSuccessModal 
+        isOpen={isPaymentSuccessOpen} 
+        onClose={() => {
+          setIsPaymentSuccessOpen(false);
+          fetchCredits();
+        }} 
       />
     </div>
   );

@@ -1,19 +1,51 @@
 
 import React, { useState } from 'react';
 import { PixelButton, PixelCard } from './PixelComponents.tsx';
+import { supabase } from '../services/supabaseClient.ts';
 
 interface PricingModalProps {
   isOpen: boolean;
   onClose: () => void;
+  onSimulatedSuccess?: () => void;
 }
 
 type Currency = 'USD' | 'CNY';
+type Tier = 'starter' | 'pro' | 'ultimate';
 
-export const PricingModal: React.FC<PricingModalProps> = ({ isOpen, onClose }) => {
+export const PricingModal: React.FC<PricingModalProps> = ({ isOpen, onClose, onSimulatedSuccess }) => {
   const [currency, setCurrency] = useState<Currency>('USD');
+  const [loading, setLoading] = useState(false);
 
-  const handlePurchase = (packName: string, amount: string, credits: number) => {
-    alert(`[GATEWAY INITIATED]\nPack: ${packName}\nCredits: ${credits}\nPrice: ${amount} ${currency}\n\nThis is a UI demo. Payment gateway connection would follow.`);
+  const handlePurchase = async (tier: Tier, amount: string, credits: number) => {
+    if (currency === 'CNY') {
+      alert(`[CNY GATEWAY] Simulating ¥${amount} transaction for ${credits} credits...`);
+      onSimulatedSuccess?.();
+      onClose();
+      return;
+    }
+
+    setLoading(true);
+    try {
+      // Use the official Supabase SDK invoke method which is more robust for CORS
+      const { data, error } = await supabase.functions.invoke('create-creem-checkout', {
+        body: { tier },
+      });
+
+      if (error) throw error;
+      if (!data?.checkout_url) throw new Error("Checkout session could not be created.");
+
+      window.location.href = data.checkout_url;
+    } catch (err: any) {
+      console.error("Checkout failed:", err);
+      // Fallback for environment specific fetch errors
+      if (err.message === 'Failed to fetch') {
+        alert("NETWORK ERROR: The connection to the payment gateway was blocked. This often happens in restricted preview environments. Please try in a standard browser tab.");
+      } else {
+        alert("PAYMENT PROTOCOL ERROR: " + (err.message || "COULD NOT INITIATE CHECKOUT."));
+      }
+    } finally {
+      setLoading(false);
+    }
   };
 
   if (!isOpen) return null;
@@ -42,86 +74,79 @@ export const PricingModal: React.FC<PricingModalProps> = ({ isOpen, onClose }) =
             </div>
           </div>
 
-          {/* Pricing Grid - Progressive intensity: Purple -> White -> Gold */}
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4 max-w-2xl mx-auto">
-            {/* Starter Pack - Brand Purple Border */}
+            {/* Starter Pack */}
             <PixelCard className="flex flex-col items-center text-center border-[#5a2d9c] bg-[#5a2d9c]/10 transition-all py-8 px-4 h-full">
               <div className="h-16 flex flex-col justify-start space-y-2 mb-4">
                 <h3 className="text-[10px] font-bold uppercase tracking-wide text-white">Starter</h3>
                 <p className="text-[7px] text-white/60 uppercase leading-tight px-2">Taste the snack</p>
               </div>
-
               <div className="h-20 flex flex-col justify-center mb-4">
                 <span className="text-2xl font-bold text-[#f7d51d]">30</span>
                 <p className="text-[7px] opacity-60 uppercase tracking-widest text-white">CREDITS</p>
               </div>
-
               <div className="h-12 flex items-center justify-center mb-6">
                 <span className="text-lg font-bold text-white">
                   {currency === 'USD' ? '$1.9' : '¥9.9'}
                 </span>
               </div>
-
               <PixelButton 
                 variant="secondary" 
+                disabled={loading}
                 className="w-full text-[7px] h-10 mt-auto"
-                onClick={() => handlePurchase('STARTER PACK', currency === 'USD' ? '1.9' : '9.9', 30)}
+                onClick={() => handlePurchase('starter', currency === 'USD' ? '1.9' : '9.9', 30)}
               >
-                SELECT
+                {loading ? 'WAIT...' : 'SELECT'}
               </PixelButton>
             </PixelCard>
 
-            {/* Pro Pack - Clean White Border (Premium Upgrade) */}
+            {/* Pro Pack */}
             <PixelCard className="flex flex-col items-center text-center border-white bg-white/5 relative py-8 px-4 h-full">
               <div className="h-16 flex flex-col justify-start space-y-2 mb-4">
                 <h3 className="text-[10px] font-bold uppercase tracking-wide text-white">Pro Pack</h3>
                 <p className="text-[7px] text-white/70 uppercase leading-tight px-2">Indie Game Developer's Choice</p>
               </div>
-
               <div className="h-20 flex flex-col justify-center mb-4">
                 <span className="text-2xl font-bold text-[#f7d51d]">100</span>
                 <p className="text-[7px] opacity-60 uppercase tracking-widest text-white">CREDITS</p>
               </div>
-
               <div className="h-12 flex items-center justify-center mb-6">
                 <span className="text-lg font-bold text-white">
                   {currency === 'USD' ? '$4.9' : '¥29.9'}
                 </span>
               </div>
-
               <PixelButton 
                 variant="secondary" 
+                disabled={loading}
                 className="w-full text-[7px] h-10 mt-auto bg-transparent border-white text-white hover:bg-white hover:text-[#0d0221]"
-                onClick={() => handlePurchase('PRO PACK', currency === 'USD' ? '4.9' : '29.9', 100)}
+                onClick={() => handlePurchase('pro', currency === 'USD' ? '4.9' : '29.9', 100)}
               >
-                PURCHASE
+                {loading ? 'WAIT...' : 'PURCHASE'}
               </PixelButton>
             </PixelCard>
 
-            {/* Ultimate Pack - Premium Gold Border */}
+            {/* Ultimate Pack */}
             <PixelCard className="flex flex-col items-center text-center border-[#f7d51d] bg-[#f7d51d]/5 py-8 px-4 h-full shadow-[0_0_25px_rgba(247,213,29,0.15)]">
               <div className="h-16 flex flex-col justify-start space-y-2 mb-4">
                 <h3 className="text-[10px] font-bold uppercase tracking-wide text-[#f7d51d]">Ultimate</h3>
                 <p className="text-[7px] text-[#f7d51d]/50 uppercase leading-tight px-2">For Professional Developers</p>
               </div>
-
               <div className="h-20 flex flex-col justify-center mb-4">
                 <span className="text-2xl font-bold text-[#f7d51d]">500</span>
                 <p className="text-[7px] opacity-80 uppercase tracking-widest text-[#f7d51d]">CREDITS</p>
               </div>
-
               <div className="h-12 flex items-center justify-center mb-6">
                 <span className="text-lg font-bold text-[#f7d51d]">
                   {currency === 'USD' ? '$19.9' : '¥129.9'}
                 </span>
               </div>
-
               <PixelButton 
                 variant="primary" 
+                disabled={loading}
                 className="w-full text-[7px] h-10 mt-auto whitespace-nowrap"
-                onClick={() => handlePurchase('ULTIMATE PACK', currency === 'USD' ? '19.9' : '129.9', 500)}
+                onClick={() => handlePurchase('ultimate', currency === 'USD' ? '19.9' : '129.9', 500)}
               >
-                GAIN POWER
+                {loading ? 'WAIT...' : 'GAIN POWER'}
               </PixelButton>
             </PixelCard>
           </div>
