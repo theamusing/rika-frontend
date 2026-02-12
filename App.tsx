@@ -179,7 +179,6 @@ const App: React.FC = () => {
         </div>
 
         <div className="flex items-center gap-4">
-          {/* Language Toggle */}
           <div className="flex bg-black/40 p-1 pixel-border border-[#5a2d9c] h-8 items-center">
             <button 
               onClick={() => setLang('en')}
@@ -223,7 +222,7 @@ const App: React.FC = () => {
         {showIntro ? (
           <LandingPage lang={lang} onGetStarted={() => navigateTo('generate')} onViewDocs={() => navigateTo('docs')} />
         ) : activeTab === 'docs' ? (
-          <DocumentPage />
+          <DocumentPage lang={lang} />
         ) : showLogin ? (
           <LoginPage onLogin={handleLoginSuccess} initialMode={loginMode} />
         ) : (
@@ -236,6 +235,7 @@ const App: React.FC = () => {
                 refreshCredits={fetchCredits}
                 credits={credits}
                 onOpenPricing={() => setIsPricingOpen(true)}
+                lang={lang}
               />
             )}
             {activeTab === 'player' && (
@@ -243,12 +243,14 @@ const App: React.FC = () => {
                 selectedJobId={selectedJobId} 
                 onJobSelected={setSelectedJobId}
                 onRegenerate={handleRegenerate}
+                lang={lang}
               />
             )}
             {activeTab === 'history' && (
               <HistoryPage 
                 onJobSelected={handleJobSelected} 
                 onRegenerate={handleRegenerate}
+                lang={lang}
               />
             )}
           </>

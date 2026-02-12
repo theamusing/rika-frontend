@@ -7,11 +7,12 @@ import { PixelButton, PixelCard, PixelImage } from '../components/PixelComponent
 interface HistoryPageProps {
   onJobSelected: (id: string) => void;
   onRegenerate: (params: any) => void;
+  lang?: 'en' | 'zh';
 }
 
 const PAGE_SIZE = 20;
 
-const HistoryPage: React.FC<HistoryPageProps> = ({ onJobSelected, onRegenerate }) => {
+const HistoryPage: React.FC<HistoryPageProps> = ({ onJobSelected, onRegenerate, lang = 'en' }) => {
   const [jobs, setJobs] = useState<Job[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedJob, setSelectedJob] = useState<Job | null>(null);
@@ -49,7 +50,6 @@ const HistoryPage: React.FC<HistoryPageProps> = ({ onJobSelected, onRegenerate }
   useEffect(() => {
     isMounted.current = true;
     fetchHistory(true, currentPage);
-    // Polling interval set to 5 seconds as requested
     const pollInterval = setInterval(() => fetchHistory(false, currentPage), 5000); 
     return () => {
       isMounted.current = false;
@@ -67,11 +67,25 @@ const HistoryPage: React.FC<HistoryPageProps> = ({ onJobSelected, onRegenerate }
   const handleNextPage = () => setCurrentPage(prev => prev + 1);
   const handlePrevPage = () => setCurrentPage(prev => Math.max(0, prev - 1));
 
-  if (loading) return <div className="text-center p-20 animate-pulse uppercase text-white/50">Scanning Database...</div>;
+  const isZh = lang === 'zh';
+  
+  // Helper to apply larger font only if text is Chinese
+  const zhScale = (enSize: number) => isZh ? `${enSize + 3}px` : `${enSize}px`;
+
+  if (loading) return (
+    <div className={`text-center p-20 animate-pulse uppercase text-white/50`} style={{ fontSize: zhScale(10) }}>
+      {isZh ? '扫描数据库中...' : 'Scanning Database...'}
+    </div>
+  );
+
   if (error) return (
     <div className="text-center p-20 space-y-4">
-      <p className="text-red-500 uppercase">Archive Error: {error}</p>
-      <PixelButton onClick={() => fetchHistory(true, currentPage)}>Retry Connection</PixelButton>
+      <p className={`text-red-500 uppercase`} style={{ fontSize: zhScale(10) }}>
+        {isZh ? '加载失败: ' : 'Archive Error: '}{error}
+      </p>
+      <PixelButton onClick={() => fetchHistory(true, currentPage)} style={{ fontSize: zhScale(10) }}>
+        {isZh ? '重试连接' : 'Retry Connection'}
+      </PixelButton>
     </div>
   );
 
@@ -81,17 +95,23 @@ const HistoryPage: React.FC<HistoryPageProps> = ({ onJobSelected, onRegenerate }
     <div className="space-y-8 text-white">
       <div className="flex justify-between items-center">
           <div className="flex items-center gap-4">
-            <h2 className="text-xl font-bold uppercase text-white/80">Archive Terminal</h2>
-            <div className="px-3 py-1 bg-[#5a2d9c]/40 pixel-border border-[#5a2d9c] text-[10px] text-white/60">
+            <h2 className={`font-bold uppercase text-white/80 ${isZh ? 'text-[24px]' : 'text-xl'}`}>
+              {isZh ? '历史记录' : 'GENERATION ARCHIVE'}
+            </h2>
+            <div className={`px-3 py-1 bg-[#5a2d9c]/40 pixel-border border-[#5a2d9c] text-white/60 text-[10px]`}>
               PAGE {String(currentPage + 1).padStart(2, '0')}
             </div>
           </div>
-          <PixelButton variant="secondary" onClick={handleManualRefresh} className="text-[10px]">Refresh</PixelButton>
+          <PixelButton variant="secondary" onClick={handleManualRefresh} style={{ fontSize: zhScale(10) }}>
+            {isZh ? '刷新' : 'Refresh'}
+          </PixelButton>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
           {jobs.length === 0 ? (
-            <div className="col-span-full text-center py-20 opacity-50 uppercase text-[10px]">No records found on this page</div>
+            <div className={`col-span-full text-center py-20 opacity-50 uppercase`} style={{ fontSize: zhScale(10) }}>
+              {isZh ? '此页暂无记录' : 'No records found on this page'}
+            </div>
           ) : jobs.map((job) => (
               <PixelCard key={job.gen_id} className="group hover:bg-[#5a2d9c]/20 transition-all cursor-pointer" onClick={() => setSelectedJob(job)}>
                   <div className="aspect-square bg-black/40 mb-4 overflow-hidden pixel-border border-2 border-[#5a2d9c] group-hover:border-white/40">
@@ -106,8 +126,10 @@ const HistoryPage: React.FC<HistoryPageProps> = ({ onJobSelected, onRegenerate }
                   </div>
                   <div className="space-y-2">
                       <div className="flex justify-between items-start">
-                          <p className="text-[10px] font-bold truncate pr-4 text-white/90">{job.input_params?.prompt || 'Untitled Job'}</p>
-                          <span className={`text-[6px] px-1 border ${
+                          <p className={`font-bold truncate pr-4 text-white/90`} style={{ fontSize: isZh && !job.input_params?.prompt ? '14px' : '10px' }}>
+                            {job.input_params?.prompt || (isZh ? '未命名任务' : 'Untitled Job')}
+                          </p>
+                          <span className={`px-1 border text-[6px] ${
                             job.status === 'succeeded' ? 'border-green-500 text-green-500' : 
                             job.status === 'failed' ? 'border-red-500 text-red-500' : 
                             (job.status === 'running' || job.status === 'queued') ? 'border-yellow-500 text-yellow-500' : 
@@ -116,25 +138,38 @@ const HistoryPage: React.FC<HistoryPageProps> = ({ onJobSelected, onRegenerate }
                               {job.status.toUpperCase()}
                           </span>
                       </div>
-                      <p className="text-[6px] opacity-40 uppercase">{new Date(job.created_at).toLocaleString()}</p>
+                      <p className={`opacity-40 uppercase text-[6px]`}>
+                        {new Date(job.created_at).toLocaleString()}
+                      </p>
                   </div>
               </PixelCard>
           ))}
       </div>
 
       <div className="flex justify-center items-center gap-8 py-4 border-t-4 border-[#5a2d9c]/30">
-          <PixelButton variant="secondary" disabled={currentPage === 0} onClick={handlePrevPage} className="w-32 text-[10px]"> &lt; PREV </PixelButton>
-          <div className="text-[10px] opacity-40"> SHOWING {currentPage * PAGE_SIZE + 1} - {currentPage * PAGE_SIZE + jobs.length} </div>
-          <PixelButton variant="secondary" disabled={!hasNextPage} onClick={handleNextPage} className="w-32 text-[10px]"> NEXT &gt; </PixelButton>
+          <PixelButton variant="secondary" disabled={currentPage === 0} onClick={handlePrevPage} className="w-32" style={{ fontSize: zhScale(10) }}>
+            {isZh ? '上一页' : '< PREV'}
+          </PixelButton>
+          <div className={`opacity-40`} style={{ fontSize: zhScale(10) }}>
+            {isZh ? '显示' : 'SHOWING'}
+          </div>
+          <div className={`opacity-40`} style={{ fontSize: 10 }}>
+            {currentPage * PAGE_SIZE + 1} - {currentPage * PAGE_SIZE + jobs.length}
+          </div>
+          <PixelButton variant="secondary" disabled={!hasNextPage} onClick={handleNextPage} className="w-32" style={{ fontSize: zhScale(10) }}>
+            {isZh ? '下一页' : 'NEXT >'}
+          </PixelButton>
       </div>
 
       {selectedJob && (
           <div className="fixed inset-0 z-[60] bg-black/90 flex items-center justify-center p-4">
-              <PixelCard className="max-w-4xl w-full max-h-[90vh] overflow-y-auto" title="Task Specifications">
+              <PixelCard className="max-w-4xl w-full max-h-[90vh] overflow-y-auto" title={isZh ? '任务详情' : 'Task Specifications'}>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
                       <div className="space-y-6">
                           <div>
-                              <p className="text-[8px] opacity-50 uppercase mb-2">Input Reference</p>
+                              <p className={`opacity-50 uppercase mb-2`} style={{ fontSize: zhScale(8) }}>
+                                {isZh ? '输入图像' : 'Input Reference'}
+                              </p>
                               <div className="grid grid-cols-3 gap-2">
                                   {selectedJob.input_images?.map((img, i) => (
                                       <div key={i} className="aspect-square bg-black/40 pixel-border border-[#5a2d9c]">
@@ -150,7 +185,9 @@ const HistoryPage: React.FC<HistoryPageProps> = ({ onJobSelected, onRegenerate }
                           </div>
                           {selectedJob.status === 'succeeded' && selectedJob.output_images && (
                               <div>
-                                  <p className="text-[8px] opacity-50 uppercase mb-2">Generated Output</p>
+                                  <p className={`opacity-50 uppercase mb-2`} style={{ fontSize: zhScale(8) }}>
+                                    {isZh ? '生成结果' : 'Generated Output'}
+                                  </p>
                                   <div className="aspect-square bg-black/40 pixel-border border-[#5a2d9c]">
                                       <PixelImage 
                                         src={selectedJob.output_images[0].url} 
@@ -165,22 +202,32 @@ const HistoryPage: React.FC<HistoryPageProps> = ({ onJobSelected, onRegenerate }
                       <div className="space-y-6">
                           <div className="space-y-4">
                               <div className="p-4 bg-[#0d0221] pixel-border border-[#5a2d9c]">
-                                  <p className="text-[10px] uppercase underline mb-2 text-white/60">Config Dump</p>
-                                  <pre className="text-[8px] leading-relaxed opacity-80 overflow-x-auto text-white/90">
+                                  <p className={`uppercase underline mb-2 text-white/60 text-[10px]`}>Parameters</p>
+                                  <pre className={`leading-relaxed opacity-80 overflow-x-auto text-white/90 text-[8px]`}>
                                       {JSON.stringify(selectedJob.input_params, null, 2)}
                                   </pre>
                               </div>
                               {selectedJob.error && (
                                   <div className="p-4 bg-red-900/20 pixel-border border-red-500">
-                                      <p className="text-[8px] uppercase text-red-500 mb-1">Error Trace</p>
-                                      <p className="text-[8px] opacity-80 text-white">{selectedJob.error}</p>
+                                      <p className={`uppercase text-red-500 mb-1`} style={{ fontSize: zhScale(8) }}>
+                                        {isZh ? '错误信息' : 'Error Trace'}
+                                      </p>
+                                      <p className={`opacity-80 text-white`} style={{ fontSize: 8 }}>
+                                        {selectedJob.error}
+                                      </p>
                                   </div>
                               )}
                           </div>
                           <div className="flex flex-col gap-3">
-                              <PixelButton variant="primary" onClick={() => onJobSelected(selectedJob.gen_id)} disabled={selectedJob.status === 'failed'} className="text-[10px]"> View In Player </PixelButton>
-                              <PixelButton variant="secondary" onClick={() => onRegenerate(selectedJob)} className="text-[10px]"> Re-generate (Load Params) </PixelButton>
-                              <PixelButton variant="secondary" onClick={() => setSelectedJob(null)} className="text-[10px]"> Close Archive </PixelButton>
+                              <PixelButton variant="primary" onClick={() => onJobSelected(selectedJob.gen_id)} disabled={selectedJob.status === 'failed'} style={{ fontSize: zhScale(10) }}>
+                                {isZh ? '预览' : 'View In Player'}
+                              </PixelButton>
+                              <PixelButton variant="secondary" onClick={() => onRegenerate(selectedJob)} style={{ fontSize: zhScale(10) }}>
+                                {isZh ? '重新生成' : 'Re-generate'}
+                              </PixelButton>
+                              <PixelButton variant="secondary" onClick={() => setSelectedJob(null)} style={{ fontSize: zhScale(10) }}>
+                                {isZh ? '关闭' : 'Close Archive'}
+                              </PixelButton>
                           </div>
                       </div>
                   </div>

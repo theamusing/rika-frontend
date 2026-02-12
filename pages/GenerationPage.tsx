@@ -13,6 +13,7 @@ interface GenerationPageProps {
   refreshCredits: () => void;
   credits: number;
   onOpenPricing?: () => void;
+  lang?: 'en' | 'zh';
 }
 
 const CDN_BASE = "https://cdn.rika-ai.com/assets/frontpage/";
@@ -25,7 +26,15 @@ const DEFAULT_PROMPTS: Record<MotionType, string> = {
   defeated: 'side-view 2D game character getting hit, kneel down and fall to the ground, lying motionlessly'
 };
 
-const GenerationPage: React.FC<GenerationPageProps> = ({ onJobCreated, initialParams, onConsumed, refreshCredits, credits, onOpenPricing }) => {
+const GenerationPage: React.FC<GenerationPageProps> = ({ 
+  onJobCreated, 
+  initialParams, 
+  onConsumed, 
+  refreshCredits, 
+  credits, 
+  onOpenPricing,
+  lang = 'en'
+}) => {
   const [images, setImages] = useState<(string | null)[]>([null, null, null]);
   const [sourceFiles, setSourceFiles] = useState<(File | string | null)[]>([null, null, null]);
   const [flipStates, setFlipStates] = useState<boolean[]>([false, false, false]);
@@ -55,6 +64,8 @@ const GenerationPage: React.FC<GenerationPageProps> = ({ onJobCreated, initialPa
   });
 
   const userHasEditedPrompt = useRef(false);
+  const isZh = lang === 'zh';
+  const zhScale = (enSize: number) => isZh ? `${enSize + 3}px` : `${enSize}px`;
 
   useEffect(() => {
     if (!initialParams) {
@@ -244,7 +255,7 @@ const GenerationPage: React.FC<GenerationPageProps> = ({ onJobCreated, initialPa
       </PixelModal>
 
       <div className="lg:col-span-2 space-y-6">
-        <PixelCard title="REFERENCE IMAGES">
+        <PixelCard title={isZh ? "参考图" : "REFERENCE IMAGES"}>
           <div className="flex flex-col gap-4">
             <div className={`grid gap-4 ${expandImages ? 'grid-cols-3' : 'grid-cols-1'}`}>
               {[0, 1, 2].map((idx) => {
@@ -269,7 +280,9 @@ const GenerationPage: React.FC<GenerationPageProps> = ({ onJobCreated, initialPa
                       {images[idx] ? (
                         <img src={images[idx]!} className="w-full h-full object-contain relative z-10" style={{ imageRendering: 'pixelated' }} alt={label} />
                       ) : (
-                        <div className="text-[8px] opacity-40 text-center p-2 uppercase text-white/30 relative z-10">Click to upload</div>
+                        <div className="text-[8px] opacity-40 text-center p-2 uppercase text-white/30 relative z-10" style={{ fontSize: zhScale(8) }}>
+                          {isZh ? "点击上传" : "Click to upload"}
+                        </div>
                       )}
                       <input 
                         type="file" 
@@ -282,7 +295,7 @@ const GenerationPage: React.FC<GenerationPageProps> = ({ onJobCreated, initialPa
                       <div className="flex justify-center">
                         <label className="flex items-center gap-1 text-[8px] cursor-pointer text-white/40 hover:text-white transition-colors">
                           <input type="checkbox" checked={flipStates[idx]} onChange={() => handleFlipToggle(idx)} />
-                          FLIP H
+                          FLIP
                         </label>
                       </div>
                     )}
@@ -293,8 +306,10 @@ const GenerationPage: React.FC<GenerationPageProps> = ({ onJobCreated, initialPa
             
             <div className="flex items-center justify-between gap-4 pt-2 border-t-2 border-[#5a2d9c]">
                <div className="flex gap-2">
-                 <PixelButton variant="secondary" onClick={() => setExpandImages(!expandImages)} className="text-[9px]">
-                   {expandImages ? 'COLLAPSE' : 'EXPAND TO 3 FRAMES'}
+                 <PixelButton variant="secondary" onClick={() => setExpandImages(!expandImages)} className="text-[9px]" style={{ fontSize: zhScale(9) }}>
+                   {expandImages 
+                    ? (isZh ? '收起' : 'COLLAPSE') 
+                    : (isZh ? '展开控制帧' : 'EXPAND CONTROL FRAMES')}
                  </PixelButton>
                  {expandImages && (
                     <div className="flex items-center gap-2 px-3 bg-black/20 border-2 border-[#5a2d9c] text-[8px] text-white/60">
@@ -333,7 +348,7 @@ const GenerationPage: React.FC<GenerationPageProps> = ({ onJobCreated, initialPa
           </div>
         </PixelCard>
 
-        <PixelCard title="GENERATION LOG">
+        <PixelCard title={isZh ? "生成日志" : "GENERATION LOG"}>
             <div className="h-24 overflow-y-auto text-[8px] font-mono leading-relaxed opacity-60 text-white/50">
                 [SYSTEM] Status: Ready<br/>
                 {images[0] && <>[ASSET] Reference image active<br/></>}
@@ -344,10 +359,12 @@ const GenerationPage: React.FC<GenerationPageProps> = ({ onJobCreated, initialPa
       </div>
 
       <div className="space-y-6">
-        <PixelCard title="CORE PARAMETERS">
+        <PixelCard title={isZh ? "参数设置" : "CORE PARAMETERS"}>
           <div className="space-y-4">
              <div className="space-y-2">
-                <label className="text-[10px] block text-white/60 uppercase">PROMPT</label>
+                <label className="text-[10px] block text-white/60 uppercase" style={{ fontSize: zhScale(10) }}>
+                  {isZh ? "提示词" : "PROMPT"}
+                </label>
                 <textarea 
                   className="w-full bg-[#0d0221] pixel-border border-[#5a2d9c] p-2 text-white text-[10px] h-48 outline-none focus:border-[#f7d51d] placeholder:opacity-30"
                   placeholder="Enter custom prompt here..."
@@ -358,13 +375,17 @@ const GenerationPage: React.FC<GenerationPageProps> = ({ onJobCreated, initialPa
 
              <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
-                    <label className="text-[10px] block text-white/60 uppercase">MOTION</label>
+                    <label className="text-[10px] block text-white/60 uppercase" style={{ fontSize: zhScale(10) }}>
+                      {isZh ? "动作" : "MOTION"}
+                    </label>
                     <select className="w-full bg-[#0d0221] p-2 text-[10px] outline-none border-2 border-[#5a2d9c] text-white" value={params.motion_type} onChange={(e) => setParams({...params, motion_type: e.target.value as MotionType})}>
                         {MOTION_TYPES.map(m => <option key={m} value={m}>{m.toUpperCase()}</option>)}
                     </select>
                 </div>
                 <div className="space-y-2">
-                    <label className="text-[10px] block text-white/60 uppercase">PIXELS</label>
+                    <label className="text-[10px] block text-white/60 uppercase" style={{ fontSize: zhScale(10) }}>
+                      {isZh ? "像素尺寸" : "PIXELS"}
+                    </label>
                     <select className="w-full bg-[#0d0221] p-2 text-[10px] outline-none border-2 border-[#5a2d9c] text-white" value={params.pixel_size} onChange={(e) => setParams({...params, pixel_size: e.target.value as PixelSize})}>
                         {PIXEL_SIZES.map(s => <option key={s} value={s}>{s}x{s}</option>)}
                     </select>
@@ -372,30 +393,40 @@ const GenerationPage: React.FC<GenerationPageProps> = ({ onJobCreated, initialPa
              </div>
 
              <div className="pt-2">
-                <PixelButton variant="secondary" className="w-full text-[9px]" onClick={() => setShowAdvanced(!showAdvanced)}>
-                  {showAdvanced ? 'HIDE ADVANCED' : 'SHOW ADVANCED'}
+                <PixelButton variant="secondary" className="w-full text-[9px]" onClick={() => setShowAdvanced(!showAdvanced)} style={{ fontSize: zhScale(9) }}>
+                  {showAdvanced 
+                    ? (isZh ? '高级选项' : 'HIDE ADVANCED') 
+                    : (isZh ? '高级选项' : 'SHOW ADVANCED')}
                 </PixelButton>
              </div>
 
              {showAdvanced && (
                 <div className="space-y-4 border-t-2 border-[#5a2d9c] pt-4 animate-fade-in text-white/60">
                     <div className="space-y-2">
-                        <label className="text-[10px] block flex justify-between">STRENGTH LOW <span>{params.strength_low}</span></label>
+                        <label className="text-[10px] block flex justify-between" style={{ fontSize: zhScale(10) }}>
+                          {isZh ? "低噪声强度" : "STRENGTH LOW"} <span>{params.strength_low}</span>
+                        </label>
                         <input type="range" min="0" max="2" step="0.1" className="w-full accent-white" value={params.strength_low} onChange={e => setParams({...params, strength_low: parseFloat(e.target.value)})} />
                     </div>
                     <div className="space-y-2">
-                        <label className="text-[10px] block flex justify-between">STRENGTH HIGH <span>{params.strength_high}</span></label>
+                        <label className="text-[10px] block flex justify-between" style={{ fontSize: zhScale(10) }}>
+                          {isZh ? "高噪声强度" : "STRENGTH HIGH"} <span>{params.strength_high}</span>
+                        </label>
                         <input type="range" min="0" max="2" step="0.1" className="w-full accent-white" value={params.strength_high} onChange={e => setParams({...params, strength_high: parseFloat(e.target.value)})} />
                     </div>
                     <div className="space-y-2">
-                        <label className="text-[10px] block flex justify-between uppercase">LENGTH <span>{uiLength}</span></label>
+                        <label className="text-[10px] block flex justify-between uppercase" style={{ fontSize: zhScale(10) }}>
+                          {isZh ? "帧数" : "LENGTH"} <span>{uiLength}</span>
+                        </label>
                         <select className="w-full bg-[#0d0221] p-2 text-[10px] outline-none border-2 border-[#5a2d9c] text-white" value={uiLength} onChange={(e) => setUiLength(parseInt(e.target.value))}>
                           {[8, 10, 12, 14, 16].map(l => <option key={l} value={l}>{l} FRAMES</option>)}
                         </select>
                     </div>
                     <div className="space-y-2">
                         <div className="flex justify-between">
-                            <label className="text-[10px] block">SEED</label>
+                            <label className="text-[10px] block" style={{ fontSize: zhScale(10) }}>
+                              {isZh ? "随机数种子" : "SEED"}
+                            </label>
                             <label className="text-[8px] flex items-center gap-1 cursor-pointer">
                                 <input type="checkbox" checked={params.fix_seed} onChange={e => setParams({...params, fix_seed: e.target.checked})} />
                                 FIX
@@ -408,8 +439,15 @@ const GenerationPage: React.FC<GenerationPageProps> = ({ onJobCreated, initialPa
           </div>
         </PixelCard>
 
-        <PixelButton className="w-full h-16 text-lg" disabled={loading || !images[0]} onClick={handleGenerate}>
-          {loading ? 'PROCESSING...' : `GENERATE (5¢)`}
+        <PixelButton 
+          className="w-full h-16 text-lg" 
+          disabled={loading || !images[0]} 
+          onClick={handleGenerate} 
+          style={{ fontSize: zhScale(18) }}
+        >
+          {loading 
+            ? (isZh ? '处理中...' : 'PROCESSING...') 
+            : (isZh ? '生成' : 'GENERATE')}
         </PixelButton>
       </div>
     </div>

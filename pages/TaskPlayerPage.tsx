@@ -16,12 +16,13 @@ interface TaskPlayerPageProps {
   selectedJobId: string | null;
   onJobSelected: (id: string) => void;
   onRegenerate: (job: Job) => void;
+  lang?: 'en' | 'zh';
 }
 
 const CDN_BASE = "https://cdn.rika-ai.com/assets/frontpage/";
 const ICON_BASE = `${CDN_BASE}icons/`;
 
-const TaskPlayerPage: React.FC<TaskPlayerPageProps> = ({ selectedJobId, onJobSelected, onRegenerate }) => {
+const TaskPlayerPage: React.FC<TaskPlayerPageProps> = ({ selectedJobId, onJobSelected, onRegenerate, lang = 'en' }) => {
   const [currentJob, setCurrentJob] = useState<Job | null>(null);
   const [frames, setFrames] = useState<string[]>([]);
   const [undoStack, setUndoStack] = useState<string[][]>([]);
@@ -63,6 +64,9 @@ const TaskPlayerPage: React.FC<TaskPlayerPageProps> = ({ selectedJobId, onJobSel
 
   const isJobRunning = currentJob?.status === 'running' || currentJob?.status === 'queued';
   const effectiveTool: Tool = isCtrlPressed ? 'move' : activeTool;
+
+  const isZh = lang === 'zh';
+  const zhScale = (enSize: number) => isZh ? `${enSize + 3}px` : `${enSize}px`;
 
   const pushToHistory = (newFrames: string[]) => {
     setUndoStack(prev => [...prev.slice(-31), frames]);
@@ -397,12 +401,23 @@ const TaskPlayerPage: React.FC<TaskPlayerPageProps> = ({ selectedJobId, onJobSel
 
   const ToolButton = ({ id, content, hasParams }: { id: Tool, content: React.ReactNode, hasParams?: boolean }) => {
     const isActive = effectiveTool === id;
+    const getToolTitle = () => {
+      if (!isZh) return id.toUpperCase();
+      switch(id) {
+        case 'brush': return '笔刷';
+        case 'eraser': return '橡皮';
+        case 'wand': return '魔棒';
+        case 'move': return '移动';
+        default: return id;
+      }
+    };
+
     return (
       <div className="relative flex items-center justify-center w-full group">
         <button 
           onClick={() => { setActiveTool(id); setIsPlaying(false); }}
           className={`w-10 h-10 flex items-center justify-center pixel-border border-2 transition-all shrink-0 ${isActive ? 'bg-[#f7d51d] text-[#2d1b4e] border-white' : 'bg-black/40 text-white border-[#5a2d9c] hover:border-white/50'}`}
-          title={id.toUpperCase()}
+          title={getToolTitle()}
         >
           {typeof content === 'string' ? (
              <span className="text-lg leading-none">{content}</span>
@@ -421,32 +436,45 @@ const TaskPlayerPage: React.FC<TaskPlayerPageProps> = ({ selectedJobId, onJobSel
         {menuOpenFor === id && (
           <div className="absolute left-14 top-0 z-[100] bg-[#1e1e1e] pixel-border p-4 w-48 shadow-2xl animate-fade-in border-[#5a2d9c]">
             <div className="flex justify-between items-center mb-3">
-              <span className="text-[10px] uppercase font-bold text-white/80">{id} Params</span>
+              <span className="font-bold text-white/80 uppercase" style={{ fontSize: zhScale(10) }}>
+                {isZh ? (id === 'brush' ? '笔刷' : id === 'eraser' ? '橡皮' : '魔棒') : id.toUpperCase()}
+              </span>
               <button onClick={() => setMenuOpenFor(null)} className="text-[10px] text-white hover:text-red-400">×</button>
             </div>
             {id === 'brush' && (
               <div className="space-y-2">
-                <div className="flex justify-between text-[8px] opacity-60 text-white"><span>SIZE: {brushSize}px</span></div>
+                <div className="flex justify-between text-white/60">
+                   <span style={{ fontSize: zhScale(8) }}>{isZh ? '大小' : 'SIZE'}:</span>
+                   <span style={{ fontSize: '8px' }}>{brushSize}px</span>
+                </div>
                 <input type="range" min="1" max="8" value={brushSize} onChange={e => setBrushSize(parseInt(e.target.value))} className="w-full accent-white" />
               </div>
             )}
             {id === 'eraser' && (
               <div className="space-y-2">
-                <div className="flex justify-between text-[8px] opacity-60 text-white"><span>SIZE: {eraserSize}px</span></div>
+                <div className="flex justify-between text-white/60">
+                   <span style={{ fontSize: zhScale(8) }}>{isZh ? '大小' : 'SIZE'}:</span>
+                   <span style={{ fontSize: '8px' }}>{eraserSize}px</span>
+                </div>
                 <input type="range" min="1" max="8" value={eraserSize} onChange={e => setEraserSize(parseInt(e.target.value))} className="w-full accent-white" />
               </div>
             )}
             {id === 'wand' && (
               <div className="space-y-4">
                 <div className="space-y-2">
-                  <div className="flex justify-between text-[8px] opacity-60 text-white"><span>TOLERANCE: {wandTolerance}</span></div>
+                  <div className="flex justify-between text-white/60">
+                    <span style={{ fontSize: zhScale(8) }}>{isZh ? '容差' : 'TOLERANCE'}:</span>
+                    <span style={{ fontSize: '8px' }}>{wandTolerance}</span>
+                  </div>
                   <input type="range" min="0" max="255" value={wandTolerance} onChange={e => setWandTolerance(parseInt(e.target.value))} className="w-full accent-white" />
                 </div>
                 <div className="space-y-2">
-                  <p className="text-[8px] opacity-60 uppercase text-white/60">MODE</p>
+                  <p className="opacity-60 uppercase text-white/60" style={{ fontSize: zhScale(8) }}>{isZh ? '模式' : 'MODE'}</p>
                   <div className="grid grid-cols-1 gap-1">
                     {(['select', 'add', 'remove'] as WandMode[]).map(mode => (
-                      <button key={mode} onClick={() => setWandMode(mode)} className={`text-[8px] py-1 border ${wandMode === mode ? 'bg-white text-black border-white' : 'bg-black/20 text-white/60 border-[#5a2d9c]'}`}> {mode.toUpperCase()} </button>
+                      <button key={mode} onClick={() => setWandMode(mode)} className={`py-1 border ${wandMode === mode ? 'bg-white text-black border-white' : 'bg-black/20 text-white/60 border-[#5a2d9c]'}`} style={{ fontSize: zhScale(8) }}> 
+                        {isZh ? (mode === 'select' ? '选择' : mode === 'add' ? '添加' : '移除') : mode.toUpperCase()} 
+                      </button>
                     ))}
                   </div>
                 </div>
@@ -490,7 +518,7 @@ const TaskPlayerPage: React.FC<TaskPlayerPageProps> = ({ selectedJobId, onJobSel
            <div className="mt-4 border-t-2 border-[#5a2d9c] pt-4 flex flex-col items-center gap-4 w-full">
               <div 
                 className="relative w-10 h-10 pixel-border border-2 border-[#5a2d9c] bg-black/40 overflow-hidden shrink-0" 
-                title="q+click to pick color"
+                title={isZh ? "Q + 点击取色" : "Q + click to pick color"}
               >
                 <div className="absolute inset-0" style={{ backgroundColor: brushColor }}></div>
                 <input 
@@ -534,25 +562,34 @@ const TaskPlayerPage: React.FC<TaskPlayerPageProps> = ({ selectedJobId, onJobSel
         </div>
 
         <div className="flex flex-col gap-6 w-64 shrink-0">
-           <PixelCard title="SMART ACTIONS">
+           <PixelCard title={isZh ? '智能工具' : 'SMART ACTIONS'}>
               <div className={`space-y-4 pt-2 ${isJobRunning ? 'opacity-30 pointer-events-none' : ''}`}>
-                 <PixelButton variant="secondary" className="w-full text-[9px]" onClick={removeBackground}>BG REMOVE</PixelButton>
+                 <PixelButton variant="secondary" className="w-full" onClick={removeBackground} style={{ fontSize: zhScale(9) }}>
+                    {isZh ? '背景去除' : 'BG REMOVE'}
+                 </PixelButton>
                  <div className="space-y-1">
-                    <p className="text-[8px] opacity-40 uppercase text-white/60">TOLERANCE: {bgRemovalTolerance}</p>
+                    <div className="flex justify-between text-white/60">
+                      <span style={{ fontSize: zhScale(8) }}>{isZh ? '容差' : 'TOLERANCE'}:</span>
+                      <span style={{ fontSize: '8px' }}>{bgRemovalTolerance}</span>
+                    </div>
                     <input type="range" min="0" max="255" value={bgRemovalTolerance} onChange={e => setBgRemovalTolerance(parseInt(e.target.value))} className="w-full accent-white" />
                  </div>
               </div>
            </PixelCard>
-           <PixelCard title="HISTORY">
+           <PixelCard title={isZh ? '历史记录' : 'HISTORY'}>
               <div className={`grid grid-cols-2 gap-2 pt-2 ${isJobRunning ? 'opacity-30 pointer-events-none' : ''}`}>
-                <PixelButton variant="secondary" onClick={handleUndo} disabled={undoStack.length === 0} className="text-[9px]">UNDO</PixelButton>
-                <PixelButton variant="secondary" onClick={handleRedo} disabled={redoStack.length === 0} className="text-[9px]">REDO</PixelButton>
+                <PixelButton variant="secondary" onClick={handleUndo} disabled={undoStack.length === 0} style={{ fontSize: zhScale(9) }}>
+                  {isZh ? '撤销' : 'UNDO'}
+                </PixelButton>
+                <PixelButton variant="secondary" onClick={handleRedo} disabled={redoStack.length === 0} style={{ fontSize: zhScale(9) }}>
+                  {isZh ? '重做' : 'REDO'}
+                </PixelButton>
               </div>
            </PixelCard>
-           <PixelCard title="CONTROLS">
+           <PixelCard title={isZh ? '控制工具' : 'CONTROLS'}>
               <div className="space-y-4 pt-2">
-                 <PixelButton variant={isPlaying ? 'secondary' : 'primary'} className="w-full text-[10px]" onClick={() => setIsPlaying(!isPlaying)} disabled={isJobRunning || frames.length <= 1}>
-                   {isPlaying ? 'PAUSE' : 'PLAY'}
+                 <PixelButton variant={isPlaying ? 'secondary' : 'primary'} className="w-full" onClick={() => setIsPlaying(!isPlaying)} disabled={isJobRunning || frames.length <= 1} style={{ fontSize: zhScale(10) }}>
+                   {isPlaying ? (isZh ? '暂停' : 'PAUSE') : (isZh ? '播放' : 'PLAY')}
                  </PixelButton>
                  <div className="space-y-2">
                    <p className="text-[8px] opacity-40 uppercase">FPS: {fps}</p>
@@ -561,9 +598,15 @@ const TaskPlayerPage: React.FC<TaskPlayerPageProps> = ({ selectedJobId, onJobSel
               </div>
            </PixelCard>
            <div className="flex flex-col gap-3">
-              <PixelButton variant="secondary" className="text-[10px] h-12" onClick={() => onRegenerate(currentJob!)} disabled={isJobRunning || !currentJob}>RE-GENERATE</PixelButton>
-              <PixelButton variant="primary" className="text-[10px] h-12" disabled={isExportingGif || isJobRunning} onClick={handleExportGif}> {isExportingGif ? 'PACKING...' : 'EXPORT GIF'} </PixelButton>
-              <PixelButton variant="secondary" className="text-[10px] h-12" disabled={isExporting || isJobRunning} onClick={handleDownload}> {isExporting ? 'EXPORTING...' : 'DOWNLOAD PNG'} </PixelButton>
+              <PixelButton variant="secondary" className="h-12" onClick={() => onRegenerate(currentJob!)} disabled={isJobRunning || !currentJob} style={{ fontSize: zhScale(10) }}>
+                {isZh ? '重新生成' : 'RE-GENERATE'}
+              </PixelButton>
+              <PixelButton variant="primary" className="h-12" disabled={isExportingGif || isJobRunning} onClick={handleExportGif} style={{ fontSize: zhScale(10) }}> 
+                {isExportingGif ? (isZh ? '打包中...' : 'PACKING...') : (isZh ? '导出动图' : 'EXPORT GIF')} 
+              </PixelButton>
+              <PixelButton variant="secondary" className="h-12" disabled={isExporting || isJobRunning} onClick={handleDownload} style={{ fontSize: zhScale(10) }}> 
+                {isExporting ? (isZh ? '导出中...' : 'EXPORTING...') : (isZh ? '导出序列帧' : 'DOWNLOAD PNG')} 
+              </PixelButton>
            </div>
         </div>
       </div>

@@ -9,7 +9,8 @@ export const PixelButton: React.FC<{
   className?: string;
   disabled?: boolean;
   title?: string;
-}> = ({ onClick, children, variant = 'primary', className = '', disabled, title }) => {
+  style?: React.CSSProperties;
+}> = ({ onClick, children, variant = 'primary', className = '', disabled, title, style }) => {
   const variantStyles = {
     primary: 'bg-[#f7d51d] text-[#2d1b4e] border-[#f7d51d]',
     secondary: 'bg-[#5a2d9c] text-white border-[#5a2d9c]',
@@ -23,7 +24,7 @@ export const PixelButton: React.FC<{
       disabled={disabled}
       title={title}
       className={`pixel-btn px-4 py-2 pixel-border font-bold uppercase transition-all flex items-center justify-center gap-2 ${variantStyles[variant]} ${disabled ? 'opacity-50 grayscale' : ''} ${className}`}
-      style={{ fontSize: '12px' }}
+      style={{ fontSize: '12px', ...style }}
     >
       {children}
     </button>
