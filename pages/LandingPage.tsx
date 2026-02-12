@@ -183,21 +183,12 @@ const LandingPage: React.FC<LandingPageProps> = ({ onGetStarted, onViewDocs }) =
             </h3>
 
             <div className="w-full max-w-[280px]">
-              <div 
-                className="aspect-square bg-[#1e1e1e] pixel-border border-[#f7d51d] flex items-center justify-center overflow-hidden relative"
-                style={{
-                  backgroundImage: `conic-gradient(#252525 25%, #1a1a1a 25% 50%, #252525 50% 75%, #1a1a1a 75%)`,
-                  backgroundSize: `${100 / 32}% ${100 / 32}%`,
-                }}
-              >
+              <div className="aspect-square bg-[#1e1e1e]/60 pixel-border border-[#f7d51d] flex items-center justify-center overflow-hidden bg-gradient-to-b from-white/5 to-transparent">
                 <img 
                   src={`${EXAMPLES_BASE}${selectedMotion}_64.gif`} 
                   key={selectedMotion}
-                  className="w-full h-full object-contain animate-fade-in relative z-10"
-                  style={{ 
-                    imageRendering: 'pixelated',
-                    mixBlendMode: 'lighten'
-                  }}
+                  className="w-full h-full object-contain animate-fade-in"
+                  style={{ imageRendering: 'pixelated' }}
                   alt={`${selectedMotion} Animation Example`}
                   onError={(e) => {
                     e.currentTarget.src = FALLBACK_IMAGE;
