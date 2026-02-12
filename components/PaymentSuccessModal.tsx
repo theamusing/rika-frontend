@@ -5,12 +5,22 @@ import { PixelButton, PixelCard } from './PixelComponents.tsx';
 interface PaymentSuccessModalProps {
   isOpen: boolean;
   onClose: () => void;
+  lang?: 'en' | 'zh';
 }
 
 const CDN_BASE = "https://cdn.rika-ai.com/assets/frontpage/";
 
-export const PaymentSuccessModal: React.FC<PaymentSuccessModalProps> = ({ isOpen, onClose }) => {
+export const PaymentSuccessModal: React.FC<PaymentSuccessModalProps> = ({ isOpen, onClose, lang = 'en' }) => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
+
+  const isZh = lang === 'zh';
+  const zhScale = (enSize: number) => isZh ? `${enSize + 3}px` : `${enSize}px`;
+
+  const t = {
+    success: isZh ? '购买成功' : 'Purchase Successful',
+    added: isZh ? '积分已经添加到您的账户' : 'Credits have been added to your balance.',
+    close: isZh ? '关闭' : 'CLOSE'
+  };
 
   useEffect(() => {
     if (!isOpen || !canvasRef.current) return;
@@ -110,17 +120,17 @@ export const PaymentSuccessModal: React.FC<PaymentSuccessModalProps> = ({ isOpen
               </div>
             </div>
             
-            <h2 className="text-[11px] font-bold text-white uppercase tracking-tighter whitespace-nowrap px-2">
-              Purchase Successful
+            <h2 className="font-bold text-white uppercase tracking-tighter whitespace-nowrap px-2" style={{ fontSize: zhScale(11) }}>
+              {t.success}
             </h2>
             
-            <p className="text-[8px] text-white/60 uppercase leading-normal tracking-tight px-4">
-              Credits have been added to your balance.
+            <p className="text-white/60 uppercase leading-normal tracking-tight px-4" style={{ fontSize: zhScale(8) }}>
+              {t.added}
             </p>
             
             <div className="pt-2 px-6">
-              <PixelButton onClick={onClose} variant="primary" className="w-full h-8 text-[9px]">
-                CLOSE
+              <PixelButton onClick={onClose} variant="primary" className="w-full h-8" style={{ fontSize: zhScale(9) }}>
+                {t.close}
               </PixelButton>
             </div>
           </div>

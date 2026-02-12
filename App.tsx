@@ -261,6 +261,7 @@ const App: React.FC = () => {
         isOpen={isPricingOpen} 
         onClose={() => setIsPricingOpen(false)} 
         onSimulatedSuccess={() => setIsPaymentSuccessOpen(true)}
+        lang={lang}
       />
       <PaymentSuccessModal 
         isOpen={isPaymentSuccessOpen} 
@@ -268,6 +269,7 @@ const App: React.FC = () => {
           setIsPaymentSuccessOpen(false);
           fetchCredits();
         }} 
+        lang={lang}
       />
     </div>
   );
