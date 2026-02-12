@@ -7,6 +7,8 @@ interface PaymentSuccessModalProps {
   onClose: () => void;
 }
 
+const CDN_BASE = "https://cdn.rika-ai.com/assets/frontpage/";
+
 export const PaymentSuccessModal: React.FC<PaymentSuccessModalProps> = ({ isOpen, onClose }) => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
 
@@ -21,47 +23,65 @@ export const PaymentSuccessModal: React.FC<PaymentSuccessModalProps> = ({ isOpen
     canvas.height = window.innerHeight;
 
     const particles: any[] = [];
-    const colors = ['#f7d51d', '#5a2d9c', '#ffffff', '#2d1b4e'];
+    // Vibrant pixel palette matching the app theme
+    const colors = ['#f7d51d', '#5a2d9c', '#ffffff', '#ff00ff', '#00ffff'];
 
     class Particle {
-      x: number; y: number; vx: number; vy: number; size: number; color: string; life: number;
+      x: number; y: number; vx: number; vy: number; size: number; color: string; life: number; decay: number;
       constructor() {
         this.x = canvas.width / 2;
         this.y = canvas.height / 2;
+        // Spherical distribution
         const angle = Math.random() * Math.PI * 2;
-        const speed = Math.random() * 8 + 2;
+        // INCREASED speed for a larger explosion range
+        const speed = Math.random() * 8 + 4; 
         this.vx = Math.cos(angle) * speed;
         this.vy = Math.sin(angle) * speed;
-        this.size = Math.random() * 4 + 2;
+        // Large blocks for "pixel chunks" feel
+        this.size = Math.random() * 5 + 5; 
         this.color = colors[Math.floor(Math.random() * colors.length)];
         this.life = 1.0;
+        // Slower decay for longer flight time
+        this.decay = Math.random() * 0.015 + 0.008;
       }
       update() {
         this.x += this.vx;
         this.y += this.vy;
-        this.vy += 0.1; // gravity
-        this.life -= 0.01;
+        // Adjusted friction to allow further travel while staying spherical
+        this.vx *= 0.94;
+        this.vy *= 0.94;
+        this.life -= this.decay;
       }
       draw() {
         if (!ctx) return;
         ctx.fillStyle = this.color;
-        ctx.globalAlpha = this.life;
-        ctx.fillRect(Math.floor(this.x), Math.floor(this.y), this.size, this.size);
+        ctx.globalAlpha = Math.max(0, this.life);
+        // Ensure pixel-perfect rendering by rounding coords
+        ctx.fillRect(
+          Math.round(this.x - this.size / 2), 
+          Math.round(this.y - this.size / 2), 
+          Math.round(this.size), 
+          Math.round(this.size)
+        );
       }
     }
 
-    for (let i = 0; i < 150; i++) {
+    // Burst 120 particles for a more dense "ball" effect
+    for (let i = 0; i < 120; i++) {
       particles.push(new Particle());
     }
 
     let animationFrameId: number;
     const render = () => {
       ctx.clearRect(0, 0, canvas.width, canvas.height);
-      particles.forEach((p, i) => {
+      for (let i = particles.length - 1; i >= 0; i--) {
+        const p = particles[i];
         p.update();
         p.draw();
-        if (p.life <= 0) particles.splice(i, 1);
-      });
+        if (p.life <= 0) {
+          particles.splice(i, 1);
+        }
+      }
       if (particles.length > 0) {
         animationFrameId = requestAnimationFrame(render);
       }
@@ -76,20 +96,30 @@ export const PaymentSuccessModal: React.FC<PaymentSuccessModalProps> = ({ isOpen
   return (
     <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/80 backdrop-blur-sm animate-fade-in">
       <canvas ref={canvasRef} className="absolute inset-0 pointer-events-none" />
-      <div className="max-w-sm w-full p-4 relative">
-        <PixelCard title="TRANSACTION COMPLETE" className="bg-[#0d0221] border-[#f7d51d] text-center py-8">
-          <div className="space-y-6">
+      <div className="max-w-[300px] w-full p-4 relative">
+        <PixelCard title="SUCCESS" className="bg-[#0d0221] border-[#f7d51d] text-center py-6">
+          <div className="space-y-4">
             <div className="flex justify-center">
-              <div className="w-16 h-16 bg-[#f7d51d] pixel-border border-white flex items-center justify-center animate-bounce">
-                <span className="text-2xl">✔</span>
+              <div className="w-10 h-10 flex items-center justify-center overflow-hidden">
+                <img 
+                  src={`${CDN_BASE}coin.gif`} 
+                  className="w-full h-full object-contain" 
+                  style={{ imageRendering: 'pixelated' }}
+                  alt="Success Coin"
+                />
               </div>
             </div>
-            <h2 className="text-lg font-bold text-white uppercase tracking-tighter">Purchase Successful</h2>
-            <p className="text-[10px] text-white/60 uppercase leading-relaxed tracking-widest px-4">
-              Credits have been added to your terminal balance. Access granted to premium generation protocols.
+            
+            <h2 className="text-[11px] font-bold text-white uppercase tracking-tighter whitespace-nowrap px-2">
+              Purchase Successful
+            </h2>
+            
+            <p className="text-[8px] text-white/60 uppercase leading-normal tracking-tight px-4">
+              Credits have been added to your balance.
             </p>
-            <div className="pt-4">
-              <PixelButton onClick={onClose} variant="primary" className="w-full h-12">
+            
+            <div className="pt-2 px-6">
+              <PixelButton onClick={onClose} variant="primary" className="w-full h-8 text-[9px]">
                 CLOSE
               </PixelButton>
             </div>

@@ -343,7 +343,16 @@ const TaskPlayerPage: React.FC<TaskPlayerPageProps> = ({ selectedJobId, onJobSel
           }; img.src = frameData;
         });
       }));
-      gifshot.createGIF({ images: processedFrames, gifWidth: 512, gifHeight: 512, interval: 1 / fps, numFrames: processedFrames.length }, (obj: any) => {
+      gifshot.createGIF({ 
+        images: processedFrames, 
+        gifWidth: 512, 
+        gifHeight: 512, 
+        interval: 1 / fps, 
+        numFrames: processedFrames.length,
+        // FIX: Improve color fidelity by setting sampleInterval to 1
+        sampleInterval: 1,
+        numWorkers: 4
+      }, (obj: any) => {
         if (!obj.error) { const link = document.createElement('a'); link.href = obj.image; link.download = `rika_${selectedJobId?.slice(0,8)}.gif`; link.click(); }
         setIsExportingGif(false);
       });
