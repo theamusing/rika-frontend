@@ -1,31 +1,69 @@
 
+import { getAssetFromCache, saveAssetToCache } from './dbUtils.ts';
+
 /**
- * Helper to fetch a remote image and return an object URL.
- * Includes cache busting and handles CORS errors gracefully.
+ * Helper to fetch a remote image and return a Data URL.
+ * Implements persistent caching via IndexedDB and robust CORS handling.
  */
-const fetchAsObjectUrl = async (url: string): Promise<string> => {
+const fetchAsDataUrl = async (url: string): Promise<string> => {
   if (url.startsWith('data:')) return url;
 
-  const separator = url.includes('?') ? '&' : '?';
-  const finalUrl = `${url}${separator}t=${Date.now()}`;
-  
+  // 1. Check persistent cache first
   try {
-    const response = await fetch(finalUrl, { 
+    const cached = await getAssetFromCache(url);
+    if (cached) {
+      return cached;
+    }
+  } catch (err) {
+    console.warn("Persistent cache read failure", err);
+  }
+
+  // 2. Try fetching via XHR/fetch first (preferred for blobs)
+  try {
+    const response = await fetch(url, { 
+      method: 'GET',
       mode: 'cors',
       credentials: 'omit'
     });
     
-    if (!response.ok) {
-      throw new Error(`Asset server returned ${response.status}`);
+    if (response.ok) {
+      const blob = await response.blob();
+      const dataUrl = await new Promise<string>((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onloadend = () => resolve(reader.result as string);
+        reader.onerror = reject;
+        reader.readAsDataURL(blob);
+      });
+
+      try { await saveAssetToCache(url, dataUrl); } catch (e) {}
+      return dataUrl;
     }
-    
-    const blob = await response.blob();
-    if (!blob) throw new Error("Received empty blob from server");
-    return URL.createObjectURL(blob);
   } catch (err) {
-    console.error("CORS/Network error fetching asset:", url);
-    throw new Error("Failed to fetch image. Ensure the server allows CORS for this origin.");
+    console.warn(`Fetch API failed for ${url.slice(-20)}, trying Image fallback...`);
   }
+
+  // 3. Fallback: Try loading via Image element (more robust for CDN caching conflicts)
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    img.crossOrigin = "anonymous";
+    img.onload = () => {
+      const canvas = document.createElement('canvas');
+      canvas.width = img.width;
+      canvas.height = img.height;
+      const ctx = canvas.getContext('2d');
+      if (!ctx) return reject(new Error("Canvas context failed"));
+      ctx.drawImage(img, 0, 0);
+      try {
+        const dataUrl = canvas.toDataURL('image/png');
+        saveAssetToCache(url, dataUrl).catch(() => {});
+        resolve(dataUrl);
+      } catch (e) {
+        reject(new Error("Canvas toDataURL failed - likely CORS"));
+      }
+    };
+    img.onerror = () => reject(new Error(`Failed to fetch image via all protocols: ${url}`));
+    img.src = url;
+  });
 };
 
 export const processImage = async (
@@ -35,25 +73,26 @@ export const processImage = async (
   pixelSize: string = '128'
 ): Promise<string> => {
   return new Promise(async (resolve, reject) => {
-    let objectUrl: string | null = null;
-    let isDataUrl = false;
+    let sourceDataUrl: string | null = null;
+    let isRevocable = false;
 
     try {
       if (source instanceof File) {
-        objectUrl = URL.createObjectURL(source);
+        sourceDataUrl = URL.createObjectURL(source);
+        isRevocable = true;
       } else if (typeof source === 'string') {
         if (source.startsWith('data:')) {
-          objectUrl = source;
-          isDataUrl = true;
+          sourceDataUrl = source;
         } else {
-          objectUrl = await fetchAsObjectUrl(source);
+          sourceDataUrl = await fetchAsDataUrl(source);
         }
       }
 
-      if (!objectUrl) return reject('Invalid image source');
+      if (!sourceDataUrl) return reject('Invalid image source');
 
       const img = new Image();
-      if (!isDataUrl) img.crossOrigin = "anonymous";
+      // data: URLs don't need crossOrigin
+      if (!sourceDataUrl.startsWith('data:')) img.crossOrigin = "anonymous";
 
       img.onload = () => {
         const canvas = document.createElement('canvas');
@@ -62,7 +101,7 @@ export const processImage = async (
         
         const ctx = canvas.getContext('2d');
         if (!ctx) {
-          if (objectUrl && !isDataUrl) URL.revokeObjectURL(objectUrl);
+          if (isRevocable && sourceDataUrl) URL.revokeObjectURL(sourceDataUrl);
           return reject('No context');
         }
 
@@ -71,7 +110,7 @@ export const processImage = async (
         tempCanvas.height = img.height;
         const tempCtx = tempCanvas.getContext('2d');
         if (!tempCtx) {
-          if (objectUrl && !isDataUrl) URL.revokeObjectURL(objectUrl);
+          if (isRevocable && sourceDataUrl) URL.revokeObjectURL(sourceDataUrl);
           return reject('No temp context');
         }
         tempCtx.drawImage(img, 0, 0);
@@ -96,9 +135,7 @@ export const processImage = async (
         ctx.fillStyle = bgColor;
         ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-        // Reverted Logic: Uniform content dimension for padding mode
         const contentDim = padding ? 384 : 512;
-
         const scale = Math.min(contentDim / img.width, contentDim / img.height);
         const x = (canvas.width - img.width * scale) / 2;
         const y = (canvas.height - img.height * scale) / 2;
@@ -113,19 +150,19 @@ export const processImage = async (
         ctx.drawImage(img, x, y, img.width * scale, img.height * scale);
         ctx.restore();
 
-        if (objectUrl && !isDataUrl) URL.revokeObjectURL(objectUrl);
+        if (isRevocable && sourceDataUrl) URL.revokeObjectURL(sourceDataUrl);
         resolve(canvas.toDataURL('image/png'));
       };
 
       img.onerror = () => {
-        if (objectUrl && !isDataUrl) URL.revokeObjectURL(objectUrl);
+        if (isRevocable && sourceDataUrl) URL.revokeObjectURL(sourceDataUrl);
         reject('Image rendering failed');
       };
 
-      img.src = objectUrl;
+      img.src = sourceDataUrl;
 
     } catch (err) {
-      if (objectUrl && !isDataUrl) URL.revokeObjectURL(objectUrl);
+      if (isRevocable && sourceDataUrl) URL.revokeObjectURL(sourceDataUrl);
       reject(err instanceof Error ? err.message : 'Unknown image load error');
     }
   });
@@ -133,8 +170,8 @@ export const processImage = async (
 
 export const unprocessImage = async (url: string, pixelSize: string = '128'): Promise<string> => {
   try {
-    const objectUrl = await fetchAsObjectUrl(url);
-    const isDataUrl = objectUrl.startsWith('data:');
+    const sourceDataUrl = await fetchAsDataUrl(url);
+    const isDataUrl = sourceDataUrl.startsWith('data:');
 
     return new Promise((resolve, reject) => {
       const img = new Image();
@@ -145,14 +182,10 @@ export const unprocessImage = async (url: string, pixelSize: string = '128'): Pr
         canvas.width = 512;
         canvas.height = 512;
         const ctx = canvas.getContext('2d');
-        if (!ctx) {
-          if (!isDataUrl) URL.revokeObjectURL(objectUrl);
-          return reject('No context');
-        }
+        if (!ctx) return reject('No context');
         
         ctx.imageSmoothingEnabled = false;
         
-        // Reverted Logic: If image is 768px (padded), always crop the central 384px area.
         if (img.width === 768) {
             const contentDim = 384;
             const offset = (768 - contentDim) / 2;
@@ -161,16 +194,14 @@ export const unprocessImage = async (url: string, pixelSize: string = '128'): Pr
             ctx.drawImage(img, 0, 0, img.width, img.height, 0, 0, 512, 512);
         }
         
-        if (!isDataUrl) URL.revokeObjectURL(objectUrl);
         resolve(canvas.toDataURL('image/png'));
       };
       
       img.onerror = () => {
-        if (!isDataUrl) URL.revokeObjectURL(objectUrl);
         reject('Failed to load image for unprocessing');
       };
       
-      img.src = objectUrl;
+      img.src = sourceDataUrl;
     });
   } catch (err) {
     throw err;
@@ -179,8 +210,8 @@ export const unprocessImage = async (url: string, pixelSize: string = '128'): Pr
 
 export const sliceSpriteSheet = async (url: string, apiLength: number = 25): Promise<string[]> => {
   try {
-    const objectUrl = await fetchAsObjectUrl(url);
-    const isDataUrl = objectUrl.startsWith('data:');
+    const sourceDataUrl = await fetchAsDataUrl(url);
+    const isDataUrl = sourceDataUrl.startsWith('data:');
 
     return new Promise((resolve, reject) => {
       const img = new Image();
@@ -222,18 +253,15 @@ export const sliceSpriteSheet = async (url: string, apiLength: number = 25): Pro
             }
           }
           
-          if (!isDataUrl) URL.revokeObjectURL(objectUrl);
           resolve(frames);
         } catch (e) {
-          if (!isDataUrl) URL.revokeObjectURL(objectUrl);
           reject(e);
         }
       };
       img.onerror = () => {
-        if (!isDataUrl) URL.revokeObjectURL(objectUrl);
         reject(new Error("Image rendering failed"));
       };
-      img.src = objectUrl;
+      img.src = sourceDataUrl;
     });
   } catch (err) {
     console.error("Sprite sheet fetch error:", err);
@@ -241,16 +269,13 @@ export const sliceSpriteSheet = async (url: string, apiLength: number = 25): Pro
   }
 };
 
-/**
- * Reconstructs a sprite sheet from a list of frame Data URLs.
- * Arranges active frames in a 4-column grid.
- */
 export const reconstructSpriteSheet = async (frames: string[]): Promise<string> => {
   if (frames.length === 0) throw new Error("No frames provided");
 
   const loadImage = (src: string): Promise<HTMLImageElement> => {
     return new Promise((resolve, reject) => {
       const img = new Image();
+      if (src.startsWith('http')) img.crossOrigin = "anonymous";
       img.onload = () => resolve(img);
       img.onerror = reject;
       img.src = src;
@@ -272,7 +297,6 @@ export const reconstructSpriteSheet = async (frames: string[]): Promise<string> 
     const ctx = canvas.getContext('2d');
     if (!ctx) throw new Error("Could not create reconstruction context");
 
-    // Fill with transparent black (explicitly)
     ctx.clearRect(0, 0, canvas.width, canvas.height);
 
     imgObjects.forEach((img, idx) => {
