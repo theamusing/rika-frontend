@@ -224,7 +224,7 @@ const App: React.FC = () => {
         ) : activeTab === 'docs' ? (
           <DocumentPage lang={lang} />
         ) : showLogin ? (
-          <LoginPage onLogin={handleLoginSuccess} initialMode={loginMode} />
+          <LoginPage onLogin={handleLoginSuccess} initialMode={loginMode} lang={lang} />
         ) : (
           <>
             {activeTab === 'generate' && (
