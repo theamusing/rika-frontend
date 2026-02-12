@@ -152,8 +152,8 @@ const LandingPage: React.FC<LandingPageProps> = ({ onGetStarted, onViewDocs }) =
                   "{MOTION_PROMPTS[selectedMotion]}"
                 </p>
               </div>
-              {/* ARROW 2 - Positioned more to the left (closer to Step 2 box) */}
-              <div className="hidden lg:flex absolute top-1/2 -translate-y-1/2 left-[calc(100%+6px)] z-10">
+              {/* ARROW 2 - Centered in gap between Box 2 and Box 3 (consistent with Arrow 1) */}
+              <div className="hidden lg:flex absolute top-1/2 -translate-y-1/2 left-[calc(100%+12px)] z-10">
                 <div className="w-0 h-0 border-t-[8px] border-t-transparent border-b-[8px] border-b-transparent border-l-[12px] border-l-[#5a2d9c]/40"></div>
               </div>
             </div>
