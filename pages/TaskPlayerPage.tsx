@@ -18,6 +18,9 @@ interface TaskPlayerPageProps {
   onRegenerate: (job: Job) => void;
 }
 
+const CDN_BASE = "https://cdn.rika-ai.com/assets/frontpage/";
+const ICON_BASE = `${CDN_BASE}icons/`;
+
 const TaskPlayerPage: React.FC<TaskPlayerPageProps> = ({ selectedJobId, onJobSelected, onRegenerate }) => {
   const [currentJob, setCurrentJob] = useState<Job | null>(null);
   const [frames, setFrames] = useState<string[]>([]);
@@ -349,7 +352,6 @@ const TaskPlayerPage: React.FC<TaskPlayerPageProps> = ({ selectedJobId, onJobSel
         gifHeight: 512, 
         interval: 1 / fps, 
         numFrames: processedFrames.length,
-        // FIX: Improve color fidelity by setting sampleInterval to 1
         sampleInterval: 1,
         numWorkers: 4
       }, (obj: any) => {
@@ -372,57 +374,68 @@ const TaskPlayerPage: React.FC<TaskPlayerPageProps> = ({ selectedJobId, onJobSel
     return () => { if (playbackRef.current) clearInterval(playbackRef.current); };
   }, [isPlaying, frames.length, fps, excludedFrames, isJobRunning]);
 
-  const ToolButton = ({ id, label, hasParams }: { id: Tool, label: string, hasParams?: boolean }) => (
-    <div className="relative flex items-center group">
-      <button 
-        onClick={() => { setActiveTool(id); setIsPlaying(false); }}
-        className={`w-10 h-10 flex items-center justify-center text-lg pixel-border border-2 transition-all ${effectiveTool === id ? 'bg-[#f7d51d] text-[#2d1b4e] border-white' : 'bg-black/40 text-white border-[#5a2d9c] hover:border-white/50'}`}
-        title={id.toUpperCase()}
-      > {label} </button>
-      {hasParams && (
+  const ToolButton = ({ id, content, hasParams }: { id: Tool, content: React.ReactNode, hasParams?: boolean }) => {
+    const isActive = effectiveTool === id;
+    return (
+      <div className="relative flex items-center group">
         <button 
-          onClick={(e) => { e.stopPropagation(); setMenuOpenFor(menuOpenFor === id ? null : id); setIsPlaying(false); }}
-          className="absolute -right-3 top-1/2 -translate-y-1/2 w-4 h-6 flex items-center justify-center text-[8px] bg-[#5a2d9c] text-white pixel-border border-[1px] hover:bg-white hover:text-black z-10"
-        > ▶ </button>
-      )}
-      {menuOpenFor === id && (
-        <div className="absolute left-14 top-0 z-[100] bg-[#1e1e1e] pixel-border p-4 w-48 shadow-2xl animate-fade-in border-[#5a2d9c]">
-          <div className="flex justify-between items-center mb-3">
-            <span className="text-[10px] uppercase font-bold text-white/80">{id} Params</span>
-            <button onClick={() => setMenuOpenFor(null)} className="text-[10px] text-white hover:text-red-400">×</button>
-          </div>
-          {id === 'brush' && (
-            <div className="space-y-2">
-              <div className="flex justify-between text-[8px] opacity-60 text-white"><span>SIZE: {brushSize}px</span></div>
-              <input type="range" min="1" max="8" value={brushSize} onChange={e => setBrushSize(parseInt(e.target.value))} className="w-full accent-white" />
+          onClick={() => { setActiveTool(id); setIsPlaying(false); }}
+          className={`w-10 h-10 flex items-center justify-center pixel-border border-2 transition-all shrink-0 ${isActive ? 'bg-[#f7d51d] text-[#2d1b4e] border-white' : 'bg-black/40 text-white border-[#5a2d9c] hover:border-white/50'}`}
+          title={id.toUpperCase()}
+        >
+          {typeof content === 'string' ? (
+             <span className="text-lg leading-none">{content}</span>
+          ) : (
+            <div className={`w-6 h-6 flex items-center justify-center shrink-0 ${!isActive ? 'invert' : ''}`}>
+              {content}
             </div>
           )}
-          {id === 'eraser' && (
-            <div className="space-y-2">
-              <div className="flex justify-between text-[8px] opacity-60 text-white"><span>SIZE: {eraserSize}px</span></div>
-              <input type="range" min="1" max="8" value={eraserSize} onChange={e => setEraserSize(parseInt(e.target.value))} className="w-full accent-white" />
+        </button>
+        {hasParams && (
+          <button 
+            onClick={(e) => { e.stopPropagation(); setMenuOpenFor(menuOpenFor === id ? null : id); setIsPlaying(false); }}
+            className="absolute -right-3 top-1/2 -translate-y-1/2 w-4 h-6 flex items-center justify-center text-[8px] bg-[#5a2d9c] text-white pixel-border border-[1px] hover:bg-white hover:text-black z-10"
+          > ▶ </button>
+        )}
+        {menuOpenFor === id && (
+          <div className="absolute left-14 top-0 z-[100] bg-[#1e1e1e] pixel-border p-4 w-48 shadow-2xl animate-fade-in border-[#5a2d9c]">
+            <div className="flex justify-between items-center mb-3">
+              <span className="text-[10px] uppercase font-bold text-white/80">{id} Params</span>
+              <button onClick={() => setMenuOpenFor(null)} className="text-[10px] text-white hover:text-red-400">×</button>
             </div>
-          )}
-          {id === 'wand' && (
-            <div className="space-y-4">
+            {id === 'brush' && (
               <div className="space-y-2">
-                <div className="flex justify-between text-[8px] opacity-60 text-white"><span>TOLERANCE: {wandTolerance}</span></div>
-                <input type="range" min="0" max="255" value={wandTolerance} onChange={e => setWandTolerance(parseInt(e.target.value))} className="w-full accent-white" />
+                <div className="flex justify-between text-[8px] opacity-60 text-white"><span>SIZE: {brushSize}px</span></div>
+                <input type="range" min="1" max="8" value={brushSize} onChange={e => setBrushSize(parseInt(e.target.value))} className="w-full accent-white" />
               </div>
+            )}
+            {id === 'eraser' && (
               <div className="space-y-2">
-                <p className="text-[8px] opacity-60 uppercase text-white/60">MODE</p>
-                <div className="grid grid-cols-1 gap-1">
-                  {(['select', 'add', 'remove'] as WandMode[]).map(mode => (
-                    <button key={mode} onClick={() => setWandMode(mode)} className={`text-[8px] py-1 border ${wandMode === mode ? 'bg-white text-black border-white' : 'bg-black/20 text-white/60 border-[#5a2d9c]'}`}> {mode.toUpperCase()} </button>
-                  ))}
+                <div className="flex justify-between text-[8px] opacity-60 text-white"><span>SIZE: {eraserSize}px</span></div>
+                <input type="range" min="1" max="8" value={eraserSize} onChange={e => setEraserSize(parseInt(e.target.value))} className="w-full accent-white" />
+              </div>
+            )}
+            {id === 'wand' && (
+              <div className="space-y-4">
+                <div className="space-y-2">
+                  <div className="flex justify-between text-[8px] opacity-60 text-white"><span>TOLERANCE: {wandTolerance}</span></div>
+                  <input type="range" min="0" max="255" value={wandTolerance} onChange={e => setWandTolerance(parseInt(e.target.value))} className="w-full accent-white" />
+                </div>
+                <div className="space-y-2">
+                  <p className="text-[8px] opacity-60 uppercase text-white/60">MODE</p>
+                  <div className="grid grid-cols-1 gap-1">
+                    {(['select', 'add', 'remove'] as WandMode[]).map(mode => (
+                      <button key={mode} onClick={() => setWandMode(mode)} className={`text-[8px] py-1 border ${wandMode === mode ? 'bg-white text-black border-white' : 'bg-black/20 text-white/60 border-[#5a2d9c]'}`}> {mode.toUpperCase()} </button>
+                    ))}
+                  </div>
                 </div>
               </div>
-            </div>
-          )}
-        </div>
-      )}
-    </div>
-  );
+            )}
+          </div>
+        )}
+      </div>
+    );
+  };
 
   const darkChecker = `linear-gradient(45deg, #1e1e1e 25%, transparent 25%), linear-gradient(-45deg, #1e1e1e 25%, transparent 25%), linear-gradient(45deg, transparent 75%, #1e1e1e 75%), linear-gradient(-45deg, transparent 75%, #1e1e1e 75%)`;
   const lightChecker = `linear-gradient(45deg, #e1e1bc 25%, transparent 25%), linear-gradient(-45deg, #e1e1bc 25%, transparent 25%), linear-gradient(45deg, transparent 75%, #e1e1bc 75%), linear-gradient(-45deg, transparent 75%, #e1e1bc 75%)`;
@@ -449,22 +462,24 @@ const TaskPlayerPage: React.FC<TaskPlayerPageProps> = ({ selectedJobId, onJobSel
 
       <div className="grid grid-cols-1 lg:grid-cols-[auto_1fr_auto] gap-6 w-full items-start">
         <div className={`flex flex-col gap-4 p-2 bg-[#1e1e1e]/60 pixel-border border-[#5a2d9c] w-14 shrink-0 ${isJobRunning ? 'opacity-30 pointer-events-none' : ''}`}>
-           <ToolButton id="brush" label="✎" hasParams />
-           <ToolButton id="eraser" label="⌫" hasParams />
-           <ToolButton id="wand" label="🪄" hasParams />
-           <ToolButton id="move" label="🖐️" />
+           <ToolButton id="brush" content="✎" hasParams />
+           <ToolButton id="eraser" content={<img src={`${ICON_BASE}eraser.png`} style={{ imageRendering: 'auto' }} className="w-full h-full object-contain" alt="Eraser" />} hasParams />
+           <ToolButton id="wand" content={<img src={`${ICON_BASE}wand.png`} style={{ imageRendering: 'auto' }} className="w-full h-full object-contain" alt="Wand" />} hasParams />
+           <ToolButton id="move" content="🖐️" />
            <div className="mt-4 border-t-2 border-[#5a2d9c] pt-4 flex flex-col items-center gap-2">
-              <input 
-                type="color" 
-                value={brushColor} 
-                onChange={(e) => { setBrushColor(e.target.value); setIsPlaying(false); }} 
-                className="w-10 h-10 cursor-pointer bg-transparent border-none p-0" 
-              />
+              <div className="w-10 h-10 pixel-border border-2 border-[#5a2d9c] bg-black/40 overflow-hidden shrink-0">
+                <input 
+                  type="color" 
+                  value={brushColor} 
+                  onChange={(e) => { setBrushColor(e.target.value); setIsPlaying(false); }} 
+                  className="w-[150%] h-[150%] -translate-x-[15%] -translate-y-[15%] cursor-pointer border-none p-0 bg-transparent" 
+                />
+              </div>
               <button 
                 onClick={() => { setIsLightBg(!isLightBg); setIsPlaying(false); }} 
-                className={`w-10 h-10 flex items-center justify-center text-[10px] pixel-border border-2 transition-all ${isLightBg ? 'bg-[#f5f5dc] text-black border-black' : 'bg-black text-white border-white'}`}
+                className={`w-10 h-10 flex items-center justify-center pixel-border border-2 transition-all shrink-0 ${isLightBg ? 'bg-[#f5f5dc] border-black' : 'bg-black text-white border-white'}`}
               > 
-                {isLightBg ? '☀️' : '🌙'} 
+                <img src={`${ICON_BASE}switch.png`} style={{ imageRendering: 'auto' }} className={`w-6 h-6 object-contain shrink-0 ${!isLightBg ? 'invert' : ''}`} alt="Switch" />
               </button>
            </div>
         </div>
