@@ -93,7 +93,7 @@ export const PixelModal: React.FC<{
 
 /**
  * Intelligent image component that utilizes IndexedDB for persistent caching
- * of user images, while standard caching (or none) for static assets.
+ * of user images, while standard caching for static assets.
  */
 export const PixelImage: React.FC<React.ImgHTMLAttributes<HTMLImageElement>> = (props) => {
   const { src, ...rest } = props;
@@ -103,9 +103,14 @@ export const PixelImage: React.FC<React.ImgHTMLAttributes<HTMLImageElement>> = (
 
   useEffect(() => {
     let active = true;
-    if (typeof src !== 'string') return;
+    
+    // Optimization: If the image is not meant to be cached (like static assets),
+    // don't perform the asynchronous fetchAsDataUrl dance.
+    if (!isCachable || typeof src !== 'string') {
+      if (active) setDisplaySrc(undefined);
+      return;
+    }
 
-    // We only manage caching for user generated content.
     const load = async () => {
       try {
         const url = await fetchAsDataUrl(src);
@@ -117,14 +122,14 @@ export const PixelImage: React.FC<React.ImgHTMLAttributes<HTMLImageElement>> = (
 
     load();
     return () => { active = false; };
-  }, [src]);
+  }, [src, isCachable]);
 
-  // A blank transparent pixel to prevent broken image icons while loading
+  // A blank transparent pixel to prevent broken image icons while loading for cachable items
   const placeholder = "data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7";
 
   return (
     <img 
-      src={displaySrc || (isCachable ? placeholder : (typeof src === 'string' ? src : undefined))} 
+      src={isCachable ? (displaySrc || placeholder) : (typeof src === 'string' ? src : undefined)} 
       crossOrigin="anonymous" 
       {...rest} 
     />
