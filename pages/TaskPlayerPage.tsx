@@ -511,10 +511,10 @@ const TaskPlayerPage: React.FC<TaskPlayerPageProps> = ({ selectedJobId, onJobSel
 
       <div className="grid grid-cols-1 lg:grid-cols-[auto_1fr_auto] gap-6 w-full items-start">
         <div className={`flex flex-col items-center gap-4 p-2 bg-[#1e1e1e]/60 pixel-border border-[#5a2d9c] w-14 shrink-0 ${isJobRunning ? 'opacity-30 pointer-events-none' : ''}`}>
-           <ToolButton id="brush" content="✎" hasParams />
+           <ToolButton id="brush" content={<img src={`${ICON_BASE}brush.png`} style={{ imageRendering: 'auto' }} className="w-full h-full object-contain" alt="Brush" />} hasParams />
            <ToolButton id="eraser" content={<img src={`${ICON_BASE}eraser.png`} style={{ imageRendering: 'auto' }} className="w-full h-full object-contain" alt="Eraser" />} hasParams />
            <ToolButton id="wand" content={<img src={`${ICON_BASE}wand.png`} style={{ imageRendering: 'auto' }} className="w-full h-full object-contain" alt="Wand" />} hasParams />
-           <ToolButton id="move" content="🖐️" />
+           <ToolButton id="move" content={<img src={`${ICON_BASE}drag.png`} style={{ imageRendering: 'auto' }} className="w-full h-full object-contain" alt="Drag" />} />
            <div className="mt-4 border-t-2 border-[#5a2d9c] pt-4 flex flex-col items-center gap-4 w-full">
               <div 
                 className="relative w-10 h-10 pixel-border border-2 border-[#5a2d9c] bg-black/40 overflow-hidden shrink-0" 

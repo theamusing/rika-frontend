@@ -1,3 +1,4 @@
+
 import React, { useMemo, useState } from 'react';
 import { PixelButton, PixelImage } from '../components/PixelComponents.tsx';
 import { MOTION_TYPES } from '../constants.ts';
@@ -46,6 +47,8 @@ const TRANSLATIONS = {
     faqSub: "Common Inquiries about Rika AI",
     ctaTitle: "Ready to Animate?",
     ctaSub: "Try Rika AI",
+    termsBtn: "Terms of Use",
+    privacyBtn: "Privacy Policy",
     faqs: [
       {
         q: "Do I need to use my own pixel character to generate animations?",
@@ -91,10 +94,12 @@ const TRANSLATIONS = {
     faqSub: "关于 Rika AI 的常见疑问",
     ctaTitle: "Ready to Animate?",
     ctaSub: "try Rika AI",
+    termsBtn: "使用条款",
+    privacyBtn: "隐私政策",
     faqs: [
       {
         q: "我需要使用自己的像素角色来生成动画吗？",
-        a: "是的，你需要准备自己的像素角色。你可以上传具有实色或透明背景的 PNG 图像。目前，Rika AI 支持 64x64 和 128x128 像素艺术，你可以在生成参数中选择像素比例。"
+        a: "是的，你需要准备自己的像素角色。你可以上传具有实色或透明背景的 PNG 图像。目前，Rika AI 支持 64x64 and 128x128 像素艺术，你可以在生成参数中选择像素比例。"
       },
       {
         q: "生成的动画是像素完美的吗？",
@@ -118,8 +123,12 @@ const TRANSLATIONS = {
 
 const LandingPage: React.FC<LandingPageProps> = ({ onGetStarted, onViewDocs, lang = 'en' }) => {
   const [selectedMotion, setSelectedMotion] = useState<string>('idle');
+  const [isTermsOpen, setIsTermsOpen] = useState(false);
+  const [isPrivacyOpen, setIsPrivacyOpen] = useState(false);
   const t = TRANSLATIONS[lang];
   const isZh = lang === 'zh';
+
+  const zhScale = (enSize: number) => isZh ? `${enSize + 3}px` : `${enSize}px`;
 
   const heroImage = useMemo(() => {
     const images = [
@@ -420,6 +429,24 @@ const LandingPage: React.FC<LandingPageProps> = ({ onGetStarted, onViewDocs, lan
                 GET STARTED
               </PixelButton>
             </div>
+            
+            <div className="pt-8 flex gap-8 justify-center">
+              <button 
+                onClick={() => setIsTermsOpen(true)}
+                className="uppercase tracking-widest text-white/30 hover:text-white/60 underline underline-offset-4 transition-colors"
+                style={{ fontSize: zhScale(9) }}
+              >
+                {t.termsBtn}
+              </button>
+              <button 
+                onClick={() => setIsPrivacyOpen(true)}
+                className="uppercase tracking-widest text-white/30 hover:text-white/60 underline underline-offset-4 transition-colors"
+                style={{ fontSize: zhScale(9) }}
+              >
+                {t.privacyBtn}
+              </button>
+            </div>
+
             <div className="pt-8 opacity-10">
                <p className="text-[7px] uppercase tracking-[0.5em] text-pretty">Rika AI</p>
             </div>
@@ -446,6 +473,199 @@ const LandingPage: React.FC<LandingPageProps> = ({ onGetStarted, onViewDocs, lan
             </div>
          </div>
       </footer>
+
+      {/* TERMS OF USE MODAL */}
+      {isTermsOpen && (
+        <div className="fixed inset-0 z-[1000] bg-black/90 backdrop-blur-md flex items-center justify-center p-4 md:p-12 overflow-y-auto">
+          <div className="max-w-4xl w-full bg-white text-black font-sans shadow-2xl relative animate-fade-in my-auto">
+            <button 
+              onClick={() => setIsTermsOpen(false)}
+              className="absolute top-4 right-6 text-black/40 hover:text-black text-2xl font-light transition-colors"
+              title="Close"
+            >
+              ✕
+            </button>
+            
+            <div className="p-8 md:p-16 max-h-[85vh] overflow-y-auto">
+              <div className="space-y-12">
+                <div className="border-b border-black/10 pb-8">
+                  <h1 className="text-3xl font-bold tracking-tight mb-4">Rika AI – Terms of Use</h1>
+                  <div className="text-sm text-black/60 space-y-1">
+                    <p>Effective Date: February 12, 2026</p>
+                    <p>Contact: amusingyyy@gmail.com</p>
+                  </div>
+                </div>
+
+                <div className="prose prose-sm max-w-none text-black/80 space-y-8 leading-relaxed">
+                  <p className="text-base">Rika AI is operated by an independent developer based in China.</p>
+
+                  <section className="space-y-3">
+                    <h2 className="text-xl font-bold text-black border-l-4 border-black pl-4">1. Use of the Service</h2>
+                    <p>Rika AI is an AI-powered pixel animation tool. By using the Service, you agree to these Terms. We may update, modify, or discontinue the Service at any time.</p>
+                  </section>
+
+                  <section className="space-y-3">
+                    <h2 className="text-xl font-bold text-black border-l-4 border-black pl-4">2. Accounts</h2>
+                    <p>You are responsible for:</p>
+                    <ul className="list-disc pl-6 space-y-2">
+                      <li>Providing accurate information</li>
+                      <li>Keeping your account secure</li>
+                      <li>All activity under your account</li>
+                    </ul>
+                    <p>We may suspend accounts that violate these Terms.</p>
+                  </section>
+
+                  <section className="space-y-3">
+                    <h2 className="text-xl font-bold text-black border-l-4 border-black pl-4">3. Credits & Payments</h2>
+                    <ul className="list-disc pl-6 space-y-2">
+                      <li>The Service uses virtual credits.</li>
+                      <li>Credits have no monetary value.</li>
+                      <li>Credits are non-transferable and non-refundable.</li>
+                      <li>Credits are consumed when generation is processed.</li>
+                    </ul>
+                    <p>Payments are handled by third-party providers. We do not store full credit card information.</p>
+                  </section>
+
+                  <section className="space-y-3">
+                    <h2 className="text-xl font-bold text-black border-l-4 border-black pl-4">4. User Content</h2>
+                    <p>You retain ownership of images you upload. By uploading content, you grant Rika AI permission to store, process, generate animations, and display content as needed to operate the Service. You are responsible for ensuring your content does not violate any laws or rights.</p>
+                  </section>
+
+                  <section className="space-y-3">
+                    <h2 className="text-xl font-bold text-black border-l-4 border-black pl-4">5. Acceptable Use</h2>
+                    <p>You may not:</p>
+                    <ul className="list-disc pl-6 space-y-2">
+                      <li>Upload illegal or infringing content</li>
+                      <li>Abuse the credit system</li>
+                      <li>Attempt to disrupt or exploit the Service</li>
+                    </ul>
+                  </section>
+
+                  <section className="space-y-3">
+                    <h2 className="text-xl font-bold text-black border-l-4 border-black pl-4">6. Disclaimer</h2>
+                    <p>The Service is provided “AS IS.” We do not guarantee uninterrupted access or specific results.</p>
+                  </section>
+
+                  <section className="space-y-3">
+                    <h2 className="text-xl font-bold text-black border-l-4 border-black pl-4">7. Limitation of Liability</h2>
+                    <p>To the maximum extent permitted by law, Rika AI is not liable for data loss, service interruptions, or indirect or consequential damages.</p>
+                  </section>
+
+                  <section className="space-y-3">
+                    <h2 className="text-xl font-bold text-black border-l-4 border-black pl-4">8. Governing Law</h2>
+                    <p>These Terms are governed by the laws of the People’s Republic of China.</p>
+                  </section>
+
+                  <section className="space-y-3">
+                    <h2 className="text-xl font-bold text-black border-l-4 border-black pl-4">9. Contact</h2>
+                    <p>For questions, contact: <a href="mailto:amusingyyy@gmail.com" className="font-bold underline">amusingyyy@gmail.com</a></p>
+                  </section>
+                </div>
+                
+                <div className="pt-12 flex justify-center border-t border-black/10">
+                  <button 
+                    onClick={() => setIsTermsOpen(false)}
+                    className="px-12 py-3 bg-black text-white font-bold tracking-widest hover:bg-black/80 transition-colors uppercase text-sm"
+                  >
+                    Accept & Close
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* PRIVACY POLICY MODAL */}
+      {isPrivacyOpen && (
+        <div className="fixed inset-0 z-[1000] bg-black/90 backdrop-blur-md flex items-center justify-center p-4 md:p-12 overflow-y-auto">
+          <div className="max-w-4xl w-full bg-white text-black font-sans shadow-2xl relative animate-fade-in my-auto">
+            <button 
+              onClick={() => setIsPrivacyOpen(false)}
+              className="absolute top-4 right-6 text-black/40 hover:text-black text-2xl font-light transition-colors"
+              title="Close"
+            >
+              ✕
+            </button>
+            
+            <div className="p-8 md:p-16 max-h-[85vh] overflow-y-auto">
+              <div className="space-y-12">
+                <div className="border-b border-black/10 pb-8">
+                  <h1 className="text-3xl font-bold tracking-tight mb-4">Rika AI – Privacy Policy</h1>
+                  <div className="text-sm text-black/60 space-y-1">
+                    <p>Effective Date: February 12, 2026</p>
+                    <p>Contact: amusingyyy@gmail.com</p>
+                  </div>
+                </div>
+
+                <div className="prose prose-sm max-w-none text-black/80 space-y-8 leading-relaxed">
+                  <p className="text-base">Rika AI is operated by an independent developer based in China.</p>
+
+                  <section className="space-y-3">
+                    <h2 className="text-xl font-bold text-black border-l-4 border-black pl-4">1. Information We Collect</h2>
+                    <p>We may collect:</p>
+                    <ul className="list-disc pl-6 space-y-2">
+                      <li>Email address (for account registration)</li>
+                      <li>Uploaded images</li>
+                      <li>Generated animations</li>
+                      <li>Usage logs (IP address, browser type, timestamps)</li>
+                      <li>Payment transaction records (processed by third-party providers)</li>
+                    </ul>
+                    <p>We do not store full credit card information.</p>
+                  </section>
+
+                  <section className="space-y-3">
+                    <h2 className="text-xl font-bold text-black border-l-4 border-black pl-4">2. How We Use Information</h2>
+                    <p>We use information to:</p>
+                    <ul className="list-disc pl-6 space-y-2">
+                      <li>Provide and maintain the Service</li>
+                      <li>Process generation requests</li>
+                      <li>Process payments</li>
+                      <li>Improve performance</li>
+                      <li>Prevent abuse</li>
+                    </ul>
+                    <p>We do not sell personal data.</p>
+                  </section>
+
+                  <section className="space-y-3">
+                    <h2 className="text-xl font-bold text-black border-l-4 border-black pl-4">3. Data Storage</h2>
+                    <p>Content is stored on cloud infrastructure. You may request deletion of your account and associated data.</p>
+                  </section>
+
+                  <section className="space-y-3">
+                    <h2 className="text-xl font-bold text-black border-l-4 border-black pl-4">4. Security</h2>
+                    <p>We use reasonable security measures, including encrypted connections (HTTPS). However, no system is completely secure.</p>
+                  </section>
+
+                  <section className="space-y-3">
+                    <h2 className="text-xl font-bold text-black border-l-4 border-black pl-4">5. International Use</h2>
+                    <p>By using the Service, you acknowledge that data may be processed and stored in different jurisdictions.</p>
+                  </section>
+
+                  <section className="space-y-3">
+                    <h2 className="text-xl font-bold text-black border-l-4 border-black pl-4">6. Changes</h2>
+                    <p>We may update this Privacy Policy from time to time.</p>
+                  </section>
+
+                  <section className="space-y-3">
+                    <h2 className="text-xl font-bold text-black border-l-4 border-black pl-4">7. Contact</h2>
+                    <p>For privacy inquiries: <a href="mailto:amusingyyy@gmail.com" className="font-bold underline">amusingyyy@gmail.com</a></p>
+                  </section>
+                </div>
+                
+                <div className="pt-12 flex justify-center border-t border-black/10">
+                  <button 
+                    onClick={() => setIsPrivacyOpen(false)}
+                    className="px-12 py-3 bg-black text-white font-bold tracking-widest hover:bg-black/80 transition-colors uppercase text-sm"
+                  >
+                    Close
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       <style dangerouslySetInnerHTML={{ __html: `
         @keyframes fade-in {
