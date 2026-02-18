@@ -13,6 +13,25 @@ interface PricingModalProps {
 type Currency = 'USD' | 'CNY';
 type Tier = 'starter' | 'pro' | 'ultimate';
 
+/**
+ * Helper to submit a hidden form to a payment gateway
+ */
+const postToGateway = (gateway: string, form: Record<string, string>) => {
+  const f = document.createElement("form");
+  f.method = "POST";
+  f.action = gateway;
+
+  for (const [k, v] of Object.entries(form)) {
+    const input = document.createElement("input");
+    input.type = "hidden";
+    input.name = k;
+    input.value = String(v);
+    f.appendChild(input);
+  }
+  document.body.appendChild(f);
+  f.submit();
+};
+
 export const PricingModal: React.FC<PricingModalProps> = ({ isOpen, onClose, onSimulatedSuccess, lang = 'en' }) => {
   const [currency, setCurrency] = useState<Currency>('USD');
   const [loading, setLoading] = useState(false);
@@ -29,37 +48,48 @@ export const PricingModal: React.FC<PricingModalProps> = ({ isOpen, onClose, onS
     purchase: isZh ? '购买' : 'PURCHASE',
     power: isZh ? '获取力量' : 'GAIN POWER',
     footerNote: isZh ? '每次生成消耗 5 个积分。积分永不过期。' : 'EACH GENERATION CONSUMES 5 CREDITS. NO EXPIRATION ON ACQUIRED CREDITS.',
-    cancel: isZh ? '取消' : 'CANCEL'
+    cancel: isZh ? '取消' : 'CANCEL',
+    errorLogin: isZh ? '请先登录以进行购买。' : 'Please log in to make a purchase.',
+    errorGateway: isZh ? '支付网关连接失败，请稍后重试。' : 'Payment gateway connection failed. Please try again later.'
   };
 
-  const handlePurchase = async (tier: Tier, amount: string, credits: number) => {
-    if (currency === 'CNY') {
-      alert(`[CNY GATEWAY] Simulating ¥${amount} transaction for ${credits} credits...`);
-      onSimulatedSuccess?.();
-      onClose();
-      return;
-    }
-
+  const handlePurchase = async (tier: Tier) => {
     setLoading(true);
     try {
-      // Use the official Supabase SDK invoke method which is more robust for CORS
-      const { data, error } = await supabase.functions.invoke('create-creem-checkout', {
-        body: { tier },
-      });
-
-      if (error) throw error;
-      if (!data?.checkout_url) throw new Error("Checkout session could not be created.");
-
-      window.location.href = data.checkout_url;
-    } catch (err: any) {
-      console.error("Checkout failed:", err);
-      // Fallback for environment specific fetch errors
-      if (err.message === 'Failed to fetch') {
-        alert("NETWORK ERROR: The connection to the payment gateway was blocked. This often happens in restricted preview environments. Please try in a standard browser tab.");
-      } else {
-        alert("PAYMENT PROTOCOL ERROR: " + (err.message || "COULD NOT INITIATE CHECKOUT."));
+      const { data: { session } } = await supabase.auth.getSession();
+      const token = session?.access_token;
+      
+      if (!token) {
+        alert(t.errorLogin);
+        return;
       }
+
+      if (currency === 'CNY') {
+        // ZPay Payment Flow (Alipay/CNY)
+        const { data, error } = await supabase.functions.invoke('create-zpay-checkout', {
+          body: { product_id: tier },
+        });
+
+        if (error || !data) throw new Error(error?.message || "Checkout creation failed");
+        
+        // ZPay requires a form POST redirect
+        postToGateway(data.gateway, data.form);
+      } else {
+        // Creem/Stripe Payment Flow (USD)
+        const { data, error } = await supabase.functions.invoke('create-creem-checkout', {
+          body: { tier },
+        });
+
+        if (error) throw error;
+        if (!data?.checkout_url) throw new Error("Checkout session could not be created.");
+
+        window.location.href = data.checkout_url;
+      }
+    } catch (err: any) {
+      console.error("Purchase initiation failed:", err);
+      alert(isZh ? `支付发起失败: ${err.message}` : `COULD NOT INITIATE CHECKOUT: ${err.message}`);
     } finally {
+      // Note: For ZPay/Stripe, the page usually redirects, but we clear loading state in case of error
       setLoading(false);
     }
   };
@@ -111,7 +141,7 @@ export const PricingModal: React.FC<PricingModalProps> = ({ isOpen, onClose, onS
                 disabled={loading}
                 className="w-full h-10 mt-auto"
                 style={{ fontSize: zhScale(7) }}
-                onClick={() => handlePurchase('starter', currency === 'USD' ? '2.9' : '11.9', 40)}
+                onClick={() => handlePurchase('starter')}
               >
                 {loading ? 'WAIT...' : t.select}
               </PixelButton>
@@ -137,7 +167,7 @@ export const PricingModal: React.FC<PricingModalProps> = ({ isOpen, onClose, onS
                 disabled={loading}
                 className="w-full h-10 mt-auto bg-transparent border-white text-white hover:bg-white hover:text-[#0d0221]"
                 style={{ fontSize: zhScale(7) }}
-                onClick={() => handlePurchase('pro', currency === 'USD' ? '9.9' : '59.9', 250)}
+                onClick={() => handlePurchase('pro')}
               >
                 {loading ? 'WAIT...' : t.purchase}
               </PixelButton>
@@ -163,7 +193,7 @@ export const PricingModal: React.FC<PricingModalProps> = ({ isOpen, onClose, onS
                 disabled={loading}
                 className="w-full h-10 mt-auto whitespace-nowrap"
                 style={{ fontSize: zhScale(7) }}
-                onClick={() => handlePurchase('ultimate', currency === 'USD' ? '29.9' : '199.9', 1000)}
+                onClick={() => handlePurchase('ultimate')}
               >
                 {loading ? 'WAIT...' : t.power}
               </PixelButton>
