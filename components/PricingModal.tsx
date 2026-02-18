@@ -98,12 +98,12 @@ export const PricingModal: React.FC<PricingModalProps> = ({ isOpen, onClose, onS
                 <p className="text-white/60 uppercase leading-tight px-2" style={{ fontSize: zhScale(7) }}>{t.starterSub}</p>
               </div>
               <div className="h-20 flex flex-col justify-center mb-4">
-                <span className="text-2xl font-bold text-[#f7d51d]">30</span>
+                <span className="text-2xl font-bold text-[#f7d51d]">40</span>
                 <p className="text-[7px] opacity-60 uppercase tracking-widest text-white">CREDITS</p>
               </div>
               <div className="h-12 flex items-center justify-center mb-6">
                 <span className="text-lg font-bold text-white">
-                  {currency === 'USD' ? '$1.9' : '¥9.9'}
+                  {currency === 'USD' ? '$2.9' : '¥11.9'}
                 </span>
               </div>
               <PixelButton 
@@ -111,7 +111,7 @@ export const PricingModal: React.FC<PricingModalProps> = ({ isOpen, onClose, onS
                 disabled={loading}
                 className="w-full h-10 mt-auto"
                 style={{ fontSize: zhScale(7) }}
-                onClick={() => handlePurchase('starter', currency === 'USD' ? '1.9' : '9.9', 30)}
+                onClick={() => handlePurchase('starter', currency === 'USD' ? '2.9' : '11.9', 40)}
               >
                 {loading ? 'WAIT...' : t.select}
               </PixelButton>
@@ -124,12 +124,12 @@ export const PricingModal: React.FC<PricingModalProps> = ({ isOpen, onClose, onS
                 <p className="text-white/70 uppercase leading-tight px-2" style={{ fontSize: zhScale(7) }}>{t.proSub}</p>
               </div>
               <div className="h-20 flex flex-col justify-center mb-4">
-                <span className="text-2xl font-bold text-[#f7d51d]">100</span>
+                <span className="text-2xl font-bold text-[#f7d51d]">250</span>
                 <p className="text-[7px] opacity-60 uppercase tracking-widest text-white">CREDITS</p>
               </div>
               <div className="h-12 flex items-center justify-center mb-6">
                 <span className="text-lg font-bold text-white">
-                  {currency === 'USD' ? '$4.9' : '¥29.9'}
+                  {currency === 'USD' ? '$9.9' : '¥59.9'}
                 </span>
               </div>
               <PixelButton 
@@ -137,7 +137,7 @@ export const PricingModal: React.FC<PricingModalProps> = ({ isOpen, onClose, onS
                 disabled={loading}
                 className="w-full h-10 mt-auto bg-transparent border-white text-white hover:bg-white hover:text-[#0d0221]"
                 style={{ fontSize: zhScale(7) }}
-                onClick={() => handlePurchase('pro', currency === 'USD' ? '4.9' : '29.9', 100)}
+                onClick={() => handlePurchase('pro', currency === 'USD' ? '9.9' : '59.9', 250)}
               >
                 {loading ? 'WAIT...' : t.purchase}
               </PixelButton>
@@ -150,12 +150,12 @@ export const PricingModal: React.FC<PricingModalProps> = ({ isOpen, onClose, onS
                 <p className="text-[#f7d51d]/50 uppercase leading-tight px-2" style={{ fontSize: zhScale(7) }}>{t.ultimateSub}</p>
               </div>
               <div className="h-20 flex flex-col justify-center mb-4">
-                <span className="text-2xl font-bold text-[#f7d51d]">500</span>
+                <span className="text-2xl font-bold text-[#f7d51d]">1000</span>
                 <p className="text-[7px] opacity-80 uppercase tracking-widest text-[#f7d51d]">CREDITS</p>
               </div>
               <div className="h-12 flex items-center justify-center mb-6">
                 <span className="text-lg font-bold text-[#f7d51d]">
-                  {currency === 'USD' ? '$19.9' : '¥129.9'}
+                  {currency === 'USD' ? '$29.9' : '¥199.9'}
                 </span>
               </div>
               <PixelButton 
@@ -163,7 +163,7 @@ export const PricingModal: React.FC<PricingModalProps> = ({ isOpen, onClose, onS
                 disabled={loading}
                 className="w-full h-10 mt-auto whitespace-nowrap"
                 style={{ fontSize: zhScale(7) }}
-                onClick={() => handlePurchase('ultimate', currency === 'USD' ? '19.9' : '129.9', 500)}
+                onClick={() => handlePurchase('ultimate', currency === 'USD' ? '29.9' : '199.9', 1000)}
               >
                 {loading ? 'WAIT...' : t.power}
               </PixelButton>
