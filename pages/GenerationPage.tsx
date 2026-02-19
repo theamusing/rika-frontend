@@ -299,6 +299,18 @@ const GenerationPage: React.FC<GenerationPageProps> = ({
                         </label>
                       </div>
                     )}
+                    
+                    {/* Instructional Tips for the Start Image */}
+                    {idx === 0 && (
+                      <div className={`mt-2 space-y-1 text-white/40 uppercase tracking-tight ${!expandImages ? 'max-w-md mx-auto w-full' : 'text-center'}`}>
+                        <p style={{ fontSize: zhScale(7) }}>
+                          {isZh ? '1. 请确保角色面朝右侧，否则请勾选 flip 来翻转到面朝右侧' : '1. Please ensure the character is facing right, otherwise check \'flip\' to flip it right.'}
+                        </p>
+                        <p style={{ fontSize: zhScale(7) }}>
+                          {isZh ? '2. 如果角色边缘离图像边缘太近，请勾选 padding' : '2. If the character\'s edges are too close to the image edges, check \'padding\'.'}
+                        </p>
+                      </div>
+                    )}
                   </div>
                 );
               })}
