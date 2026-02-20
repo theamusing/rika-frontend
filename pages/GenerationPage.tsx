@@ -54,7 +54,7 @@ const GenerationPage: React.FC<GenerationPageProps> = ({
     pixel_size: '128',
     strength_low: 0.8,
     strength_high: 0.8,
-    seed: 42,
+    seed: Math.floor(Math.random() * 1000000)
     use_mid_image: false,
     use_end_image: false,
     scale_factor: 4, 
