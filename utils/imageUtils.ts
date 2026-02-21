@@ -85,7 +85,8 @@ export const processImage = async (
   source: File | string, 
   padding: boolean = false, 
   flip: boolean = false,
-  pixelSize: string = '128'
+  pixelSize: string = '128',
+  overrideBgColor?: string
 ): Promise<string> => {
   return new Promise(async (resolve, reject) => {
     let sourceDataUrl: string | null = null;
@@ -137,9 +138,9 @@ export const processImage = async (
         ];
 
         const hasTransparency = cornerData.some(pixel => pixel[3] < 255);
-        let bgColor = 'rgb(0, 60, 60)';
+        let bgColor = overrideBgColor || 'rgb(128, 128, 128)';
 
-        if (!hasTransparency) {
+        if (!hasTransparency && !overrideBgColor) {
           const avgR = Math.round(cornerData.reduce((acc, p) => acc + p[0], 0) / 4);
           const avgG = Math.round(cornerData.reduce((acc, p) => acc + p[1], 0) / 4);
           const avgB = Math.round(cornerData.reduce((acc, p) => acc + p[2], 0) / 4);

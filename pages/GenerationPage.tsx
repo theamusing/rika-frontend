@@ -60,7 +60,9 @@ const GenerationPage: React.FC<GenerationPageProps> = ({
     scale_factor: 4, 
     fix_seed: false,
     length: 25,
-    use_padding: false
+    use_padding: false,
+    bg_color: '#808080',
+    attack_type: 'melee'
   });
 
   const userHasEditedPrompt = useRef(false);
@@ -77,14 +79,42 @@ const GenerationPage: React.FC<GenerationPageProps> = ({
 
       setParams(prev => {
         const nextParams = { ...prev, length: 2 * defaultUiLength + 1 };
-        const currentIsStandardDefault = Object.values(DEFAULT_PROMPTS).includes(prev.prompt);
+        
+        const attackPrompts = [
+          DEFAULT_PROMPTS['attack'],
+          'side-view, 2D game character points his weapon forward and shoot a powerful bullet.',
+          '[describe the attack]'
+        ];
+        
+        const currentIsStandardDefault = Object.values(DEFAULT_PROMPTS).includes(prev.prompt) || attackPrompts.includes(prev.prompt);
+        
         if (prev.prompt === '' || currentIsStandardDefault || !userHasEditedPrompt.current) {
-          nextParams.prompt = DEFAULT_PROMPTS[prev.motion_type];
+          if (isAttack) {
+            const aType = prev.attack_type || 'melee';
+            if (aType === 'ranged') {
+              nextParams.prompt = 'side-view, 2D game character points his weapon forward and shoot a powerful bullet.';
+              nextParams.strength_low = 0.3;
+              nextParams.strength_high = 0.3;
+            } else if (aType === 'other') {
+              nextParams.prompt = '[describe the attack]';
+              nextParams.strength_low = 0.3;
+              nextParams.strength_high = 0.3;
+            } else {
+              nextParams.prompt = DEFAULT_PROMPTS['attack'];
+              nextParams.strength_low = 0.8;
+              nextParams.strength_high = 0.8;
+            }
+          } else {
+            nextParams.prompt = DEFAULT_PROMPTS[prev.motion_type];
+            // Reset strengths to default if not attack
+            nextParams.strength_low = 0.8;
+            nextParams.strength_high = 0.8;
+          }
         }
         return nextParams;
       });
     }
-  }, [params.motion_type, initialParams]);
+  }, [params.motion_type, params.attack_type, initialParams]);
 
   useEffect(() => {
     const reprocessAll = async () => {
@@ -96,7 +126,7 @@ const GenerationPage: React.FC<GenerationPageProps> = ({
         const source = sourceFiles[i];
         if (source) {
           try {
-            const b64 = await processImage(source, usePadding, flipStates[i], params.pixel_size);
+            const b64 = await processImage(source, usePadding, flipStates[i], params.pixel_size, params.bg_color);
             if (newImages[i] !== b64) {
               newImages[i] = b64;
               changed = true;
@@ -121,7 +151,7 @@ const GenerationPage: React.FC<GenerationPageProps> = ({
       }
     };
     reprocessAll();
-  }, [usePadding, sourceFiles, flipStates, params.pixel_size]);
+  }, [usePadding, sourceFiles, flipStates, params.pixel_size, params.bg_color]);
 
   useEffect(() => {
     const loadInitial = async () => {
@@ -394,6 +424,22 @@ const GenerationPage: React.FC<GenerationPageProps> = ({
                         {MOTION_TYPES.map(m => <option key={m} value={m}>{m.toUpperCase()}</option>)}
                     </select>
                 </div>
+                {params.motion_type === 'attack' && (
+                  <div className="space-y-2">
+                      <label className="text-[10px] block text-white/60 uppercase" style={{ fontSize: zhScale(10) }}>
+                        {isZh ? "攻击类型" : "ATTACK TYPE"}
+                      </label>
+                      <select 
+                        className="w-full bg-[#0d0221] p-2 text-[10px] outline-none border-2 border-[#5a2d9c] text-white" 
+                        value={params.attack_type || 'melee'} 
+                        onChange={(e) => setParams({...params, attack_type: e.target.value as any})}
+                      >
+                          <option value="melee">{isZh ? '近战' : 'MELEE'}</option>
+                          <option value="ranged">{isZh ? '远程' : 'RANGED'}</option>
+                          <option value="other">{isZh ? '其他' : 'OTHER'}</option>
+                      </select>
+                  </div>
+                )}
                 <div className="space-y-2">
                     <label className="text-[10px] block text-white/60 uppercase" style={{ fontSize: zhScale(10) }}>
                       {isZh ? "像素尺寸" : "PIXELS"}
@@ -401,6 +447,19 @@ const GenerationPage: React.FC<GenerationPageProps> = ({
                     <select className="w-full bg-[#0d0221] p-2 text-[10px] outline-none border-2 border-[#5a2d9c] text-white" value={params.pixel_size} onChange={(e) => setParams({...params, pixel_size: e.target.value as PixelSize})}>
                         {PIXEL_SIZES.map(s => <option key={s} value={s}>{s}x{s}</option>)}
                     </select>
+                </div>
+                <div className="space-y-2">
+                    <label className="text-[10px] block text-white/60 uppercase" style={{ fontSize: zhScale(10) }}>
+                      {isZh ? "背景颜色" : "BG COLOR"}
+                    </label>
+                    <div className="flex gap-2">
+                      <input 
+                        type="color" 
+                        className="w-full h-9 bg-[#0d0221] border-2 border-[#5a2d9c] cursor-pointer" 
+                        value={params.bg_color || '#808080'} 
+                        onChange={(e) => setParams({...params, bg_color: e.target.value})} 
+                      />
+                    </div>
                 </div>
              </div>
 

@@ -15,6 +15,8 @@ export interface GenerationParams {
   fix_seed: boolean;
   length: number;
   use_padding: boolean;
+  bg_color?: string;
+  attack_type?: 'melee' | 'ranged' | 'other';
 }
 
 export interface Job {

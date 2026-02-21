@@ -25,8 +25,23 @@ const App: React.FC = () => {
   const [isPaymentSuccessOpen, setIsPaymentSuccessOpen] = useState(false);
   const [loginMode, setLoginMode] = useState<'login' | 'forgot' | 'update'>('login');
   const [lang, setLang] = useState<'en' | 'zh'>('en');
+  const [showUserDropdown, setShowUserDropdown] = useState(false);
   
   const lastFetchTime = useRef<number>(0);
+  const dropdownRef = useRef<HTMLDivElement>(null);
+
+  const isZh = lang === 'zh';
+  const zhScale = (enSize: number) => isZh ? `${enSize + 3}px` : `${enSize}px`;
+
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
+        setShowUserDropdown(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
 
   const fetchCredits = useCallback(async () => {
     if (Date.now() - lastFetchTime.current < 300) return;
@@ -195,7 +210,7 @@ const App: React.FC = () => {
           </div>
 
           {user ? (
-            <>
+            <div className="flex items-center gap-4 relative" ref={dropdownRef}>
               <div 
                 className="flex flex-col items-end cursor-pointer group"
                 onClick={() => setIsPricingOpen(true)}
@@ -204,8 +219,51 @@ const App: React.FC = () => {
                 <span className="text-[8px] opacity-40 text-white group-hover:text-[#f7d51d]">CREDITS</span>
                 <span className="text-sm font-bold text-[#f7d51d] group-hover:scale-105 transition-transform">{credits}</span>
               </div>
-              <button onClick={handleLogout} className="text-[10px] font-bold uppercase text-white/60 hover:text-white">LOGOUT</button>
-            </>
+              
+              <div className="relative">
+                <button 
+                  onClick={() => setShowUserDropdown(!showUserDropdown)}
+                  className="text-[10px] font-bold text-white/60 hover:text-white flex items-center gap-1 uppercase"
+                >
+                  {user.email.split('@')[0]}
+                  <span className={`transition-transform duration-200 ${showUserDropdown ? 'rotate-180' : ''}`}>▼</span>
+                </button>
+                
+                {showUserDropdown && (
+                  <div className="absolute right-0 mt-2 w-48 bg-[#2d1b4e] pixel-border border-[#5a2d9c] z-[100] shadow-xl">
+                    <div className="p-2 border-b-2 border-[#5a2d9c] bg-black/20">
+                      <p className="opacity-40 uppercase mb-1" style={{ fontSize: zhScale(8) }}>
+                        {isZh ? '当前登录' : 'Signed in as'}
+                      </p>
+                      <p className="text-white truncate font-bold" style={{ fontSize: zhScale(9) }}>
+                        {user.email}
+                      </p>
+                    </div>
+                    <button 
+                      onClick={async () => {
+                        await handleLogout();
+                        navigateTo('generate');
+                        setShowUserDropdown(false);
+                      }}
+                      className="w-full text-left px-4 py-3 font-bold text-white/60 hover:text-[#f7d51d] hover:bg-white/5 transition-colors uppercase"
+                      style={{ fontSize: zhScale(10) }}
+                    >
+                      {isZh ? '切换账号' : 'Switch Account'}
+                    </button>
+                    <button 
+                      onClick={() => {
+                        handleLogout();
+                        setShowUserDropdown(false);
+                      }}
+                      className="w-full text-left px-4 py-3 font-bold text-white/60 hover:text-red-400 hover:bg-white/5 transition-colors border-t-2 border-[#5a2d9c] uppercase"
+                      style={{ fontSize: zhScale(10) }}
+                    >
+                      {isZh ? '退出登录' : 'Log Out'}
+                    </button>
+                  </div>
+                )}
+              </div>
+            </div>
           ) : (
             <PixelButton 
               variant="primary" 

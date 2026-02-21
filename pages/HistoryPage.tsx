@@ -10,7 +10,7 @@ interface HistoryPageProps {
   lang?: 'en' | 'zh';
 }
 
-const PAGE_SIZE = 20;
+const PAGE_SIZE = 8;
 
 const HistoryPage: React.FC<HistoryPageProps> = ({ onJobSelected, onRegenerate, lang = 'en' }) => {
   const [jobs, setJobs] = useState<Job[]>([]);
@@ -114,7 +114,12 @@ const HistoryPage: React.FC<HistoryPageProps> = ({ onJobSelected, onRegenerate, 
             </div>
           ) : jobs.map((job) => (
               <PixelCard key={job.gen_id} className="group hover:bg-[#5a2d9c]/20 transition-all cursor-pointer" onClick={() => setSelectedJob(job)}>
-                  <div className="aspect-square bg-black/40 mb-4 overflow-hidden pixel-border border-2 border-[#5a2d9c] group-hover:border-white/40">
+                  <div className="aspect-square bg-black/40 mb-4 overflow-hidden pixel-border border-2 border-[#5a2d9c] group-hover:border-white/40 relative">
+                      {job.input_params?.motion_type && (
+                          <div className="absolute top-1 right-1 z-20 px-1.5 py-0.5 bg-[#f7d51d] text-[#2d1b4e] text-[8px] font-bold uppercase">
+                              {job.input_params.motion_type}
+                          </div>
+                      )}
                       {job.input_images?.[0] && (
                           <PixelImage 
                             src={job.input_images[0].url} 
