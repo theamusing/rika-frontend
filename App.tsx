@@ -160,7 +160,7 @@ const App: React.FC = () => {
       <header className="sticky top-0 z-50 bg-[#2d1b4e] border-b-4 border-[#5a2d9c] p-4 flex flex-wrap items-center justify-between gap-4">
         <div className="flex items-center gap-6">
           <img 
-            src="https://cdn.rika-ai.com/assets/frontpage/icons/icon1.png" 
+            src="https://cdn.rika-ai.com/assets/frontpage/icons/icon2.png" 
             className="h-10 w-auto cursor-pointer" 
             style={{ imageRendering: 'pixelated' }}
             onClick={() => navigateTo('intro')}
