@@ -159,12 +159,13 @@ const App: React.FC = () => {
     <div className="min-h-screen flex flex-col bg-[#0d0221]">
       <header className="sticky top-0 z-50 bg-[#2d1b4e] border-b-4 border-[#5a2d9c] p-4 flex flex-wrap items-center justify-between gap-4">
         <div className="flex items-center gap-6">
-          <h1 
-            className="text-xl font-bold tracking-tighter text-white cursor-pointer"
+          <img 
+            src="https://cdn.rika-ai.com/assets/frontpage/icons/icon1.png" 
+            className="h-10 w-auto cursor-pointer" 
+            style={{ imageRendering: 'pixelated' }}
             onClick={() => navigateTo('intro')}
-          >
-            RIKA AI
-          </h1>
+            alt="RIKA AI"
+          />
           <nav className="flex gap-2">
             <button 
               onClick={() => navigateTo('generate')}
