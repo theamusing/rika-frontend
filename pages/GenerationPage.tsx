@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import { PixelButton, PixelCard, PixelInput, PixelModal, PixelImage } from '../components/PixelComponents.tsx';
-import { processImage, unprocessImage } from '../utils/imageUtils.ts';
+import { processImage, unprocessImage, extractPalette, quantizeImage } from '../utils/imageUtils.ts';
 import { apiService } from '../services/apiService.ts';
 import { MOTION_TYPES, PIXEL_SIZES } from '../constants.ts';
 import { GenerationParams, MotionType, PixelSize } from '../types.ts';
@@ -45,6 +45,7 @@ const GenerationPage: React.FC<GenerationPageProps> = ({
   const [error, setError] = useState('');
   const [usePadding, setUsePadding] = useState(false);
   const [showCreditModal, setShowCreditModal] = useState(false);
+  const [palette, setPalette] = useState<string[]>([]);
 
   const [uiLength, setUiLength] = useState(12);
 
@@ -62,7 +63,8 @@ const GenerationPage: React.FC<GenerationPageProps> = ({
     length: 25,
     use_padding: false,
     bg_color: '#004040',
-    attack_type: 'melee'
+    attack_type: 'melee',
+    palette_size: 32
   });
 
   const userHasEditedPrompt = useRef(false);
@@ -115,6 +117,27 @@ const GenerationPage: React.FC<GenerationPageProps> = ({
       });
     }
   }, [params.motion_type, params.attack_type, initialParams]);
+
+  useEffect(() => {
+    const updatePalette = async () => {
+      const validSources = sourceFiles.filter(s => s !== null);
+      if (validSources.length === 0) {
+        setPalette([]);
+        return;
+      }
+      
+      try {
+        // Extract from the first available image as a base, or combine?
+        // Let's just use the first one for simplicity or combine if possible.
+        // The user said "获取图像的主颜色色盘", implying from the uploaded image.
+        const colors = await extractPalette(validSources[0]!, params.palette_size || 32);
+        setPalette(colors);
+      } catch (err) {
+        console.error("Palette extraction failed:", err);
+      }
+    };
+    updatePalette();
+  }, [sourceFiles, params.palette_size]);
 
   useEffect(() => {
     const reprocessAll = async () => {
@@ -222,19 +245,41 @@ const GenerationPage: React.FC<GenerationPageProps> = ({
       finalParams.length = 2 * uiLength + 1;
       finalParams.use_padding = usePadding;
       const pixelInt = parseInt(params.pixel_size);
-      if (usePadding) finalParams.scale_factor = 384 / pixelInt;
-      else finalParams.scale_factor = 512 / pixelInt;
+      if (usePadding) {
+        finalParams.scale_factor = 384 / pixelInt;
+      } else {
+        if (pixelInt === 64 || pixelInt === 128) {
+          finalParams.scale_factor = 512 / pixelInt;
+        } else {
+          finalParams.scale_factor = 768 / pixelInt;
+        }
+      }
       if (!params.fix_seed) finalParams.seed = Math.floor(Math.random() * 1000000);
-      payloadImages.push(images[0] as string);
+      
+      const quantizeIfPossible = async (img: string | null) => {
+        if (!img || palette.length === 0) return img;
+        return await quantizeImage(img, palette);
+      };
+
+      const startImg = await quantizeIfPossible(images[0]);
+      payloadImages.push(startImg as string);
+
       if (expandImages) {
-        if (params.use_mid_image && images[1]) payloadImages.push(images[1]);
-        else finalParams.use_mid_image = false;
-        if (params.use_end_image && images[2]) payloadImages.push(images[2]);
-        else finalParams.use_end_image = false;
+        if (params.use_mid_image && images[1]) {
+          const midImg = await quantizeIfPossible(images[1]);
+          payloadImages.push(midImg as string);
+        } else finalParams.use_mid_image = false;
+
+        if (params.use_end_image && images[2]) {
+          const endImg = await quantizeIfPossible(images[2]);
+          payloadImages.push(endImg as string);
+        } else finalParams.use_end_image = false;
       } else {
         finalParams.use_mid_image = false;
         finalParams.use_end_image = false;
       }
+      
+      finalParams.palette = palette;
       const res = await apiService.generate(payloadImages, finalParams);
       refreshCredits();
       onJobCreated(res.gen_id);
@@ -505,6 +550,24 @@ const GenerationPage: React.FC<GenerationPageProps> = ({
                         </div>
                         <PixelInput type="number" className="w-full" value={params.seed} onChange={e => setParams({...params, seed: parseInt(e.target.value)})} />
                     </div>
+                    <div className="space-y-2">
+                        <label className="text-[10px] block flex justify-between" style={{ fontSize: zhScale(10) }}>
+                          {isZh ? "调色板颜色数量" : "PALETTE SIZE"} <span>{params.palette_size}</span>
+                        </label>
+                        <input type="range" min="8" max="64" step="1" className="w-full accent-white" value={params.palette_size} onChange={e => setParams({...params, palette_size: parseInt(e.target.value)})} />
+                    </div>
+                    {palette.length > 0 && (
+                      <div className="space-y-2">
+                        <label className="text-[10px] block text-white/60 uppercase" style={{ fontSize: zhScale(10) }}>
+                          {isZh ? "当前色盘" : "CURRENT PALETTE"}
+                        </label>
+                        <div className="flex flex-wrap gap-1">
+                          {palette.map((color, i) => (
+                            <div key={i} className="w-3 h-3 border border-white/20" style={{ backgroundColor: color }} />
+                          ))}
+                        </div>
+                      </div>
+                    )}
                 </div>
              )}
           </div>

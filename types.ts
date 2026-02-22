@@ -17,6 +17,8 @@ export interface GenerationParams {
   use_padding: boolean;
   bg_color?: string;
   attack_type?: 'melee' | 'ranged' | 'other';
+  palette_size?: number;
+  palette?: string[];
 }
 
 export interface Job {
