@@ -61,7 +61,7 @@ const GenerationPage: React.FC<GenerationPageProps> = ({
     fix_seed: false,
     length: 25,
     use_padding: false,
-    bg_color: '#808080',
+    bg_color: '#004040',
     attack_type: 'melee'
   });
 
@@ -456,7 +456,7 @@ const GenerationPage: React.FC<GenerationPageProps> = ({
                       <input 
                         type="color" 
                         className="w-full h-9 bg-[#0d0221] border-2 border-[#5a2d9c] cursor-pointer" 
-                        value={params.bg_color || '#808080'} 
+                        value={params.bg_color || '#004000'} 
                         onChange={(e) => setParams({...params, bg_color: e.target.value})} 
                       />
                     </div>

@@ -223,6 +223,48 @@ export const unprocessImage = async (url: string, pixelSize: string = '128'): Pr
   }
 };
 
+/**
+ * Downscales and then upscales an image using nearest-neighbor sampling.
+ * This ensures the image sent to the backend has the exact pixel grid expected.
+ */
+export const pixelateImage = async (dataUrl: string, scaleFactor: number): Promise<string> => {
+  if (scaleFactor <= 1) return dataUrl;
+  
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    img.onload = () => {
+      const canvas = document.createElement('canvas');
+      canvas.width = img.width;
+      canvas.height = img.height;
+      const ctx = canvas.getContext('2d');
+      if (!ctx) return reject('No context');
+
+      // Calculate small dimensions
+      const smallW = Math.round(img.width / scaleFactor);
+      const smallH = Math.round(img.height / scaleFactor);
+
+      // Create a small temporary canvas
+      const tempCanvas = document.createElement('canvas');
+      tempCanvas.width = smallW;
+      tempCanvas.height = smallH;
+      const tempCtx = tempCanvas.getContext('2d');
+      if (!tempCtx) return reject('No temp context');
+
+      // Step 1: Downscale using nearest-neighbor
+      tempCtx.imageSmoothingEnabled = false;
+      tempCtx.drawImage(img, 0, 0, smallW, smallH);
+
+      // Step 2: Upscale back to original size using nearest-neighbor
+      ctx.imageSmoothingEnabled = false;
+      ctx.drawImage(tempCanvas, 0, 0, smallW, smallH, 0, 0, img.width, img.height);
+
+      resolve(canvas.toDataURL('image/png'));
+    };
+    img.onerror = () => reject('Failed to load image for pixelation');
+    img.src = dataUrl;
+  });
+};
+
 export const sliceSpriteSheet = async (url: string, apiLength: number = 25): Promise<string[]> => {
   try {
     const sourceDataUrl = await fetchAsDataUrl(url);
