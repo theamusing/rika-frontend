@@ -234,7 +234,13 @@ const GenerationPage: React.FC<GenerationPageProps> = ({
       const wasPadded = jobParams.use_padding === true;
       setUsePadding(wasPadded);
       const loadedPixelSize = String(parseInt(jobParams.pixel_size || "128")) as PixelSize;
-      setParams({ ...params, ...jobParams, pixel_size: loadedPixelSize });
+      setParams({ 
+        ...params, 
+        ...jobParams, 
+        pixel_size: loadedPixelSize,
+        use_quantization: false,
+        quantization_colors: 32
+      });
       userHasEditedPrompt.current = true;
       const newFiles: (File | string | null)[] = [null, null, null];
       if (inputImgs.length > 0) {
