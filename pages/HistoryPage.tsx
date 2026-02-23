@@ -3,6 +3,7 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { apiService } from '../services/apiService.ts';
 import { Job } from '../types.ts';
 import { PixelButton, PixelCard, PixelImage } from '../components/PixelComponents.tsx';
+import { Heart } from 'lucide-react';
 
 interface HistoryPageProps {
   onJobSelected: (id: string) => void;
@@ -11,6 +12,7 @@ interface HistoryPageProps {
 }
 
 const PAGE_SIZE = 8;
+const LIKED_JOBS_KEY = 'rika_liked_jobs';
 
 const HistoryPage: React.FC<HistoryPageProps> = ({ onJobSelected, onRegenerate, lang = 'en' }) => {
   const [jobs, setJobs] = useState<Job[]>([]);
@@ -18,10 +20,41 @@ const HistoryPage: React.FC<HistoryPageProps> = ({ onJobSelected, onRegenerate, 
   const [selectedJob, setSelectedJob] = useState<Job | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [currentPage, setCurrentPage] = useState(0);
+  const [likedJobs, setLikedJobs] = useState<Set<string>>(new Set());
+  const [showLikedOnly, setShowLikedOnly] = useState(false);
   
   const lastRefreshTime = useRef<number>(0);
   const isMounted = useRef(true);
   const isFetching = useRef(false);
+
+  // Load liked jobs from localStorage
+  useEffect(() => {
+    const stored = localStorage.getItem(LIKED_JOBS_KEY);
+    if (stored) {
+      try {
+        const parsed = JSON.parse(stored);
+        if (Array.isArray(parsed)) {
+          setLikedJobs(new Set(parsed));
+        }
+      } catch (e) {
+        console.error("Failed to parse liked jobs", e);
+      }
+    }
+  }, []);
+
+  const toggleLike = (e: React.MouseEvent, genId: string) => {
+    e.stopPropagation();
+    setLikedJobs(prev => {
+      const next = new Set(prev);
+      if (next.has(genId)) {
+        next.delete(genId);
+      } else {
+        next.add(genId);
+      }
+      localStorage.setItem(LIKED_JOBS_KEY, JSON.stringify(Array.from(next)));
+      return next;
+    });
+  };
 
   const fetchHistory = useCallback(async (isInitial = false, page: number = currentPage) => {
     if (isFetching.current) return;
@@ -101,6 +134,17 @@ const HistoryPage: React.FC<HistoryPageProps> = ({ onJobSelected, onRegenerate, 
             <div className={`px-3 py-1 bg-[#5a2d9c]/40 pixel-border border-[#5a2d9c] text-white/60 text-[10px]`}>
               PAGE {String(currentPage + 1).padStart(2, '0')}
             </div>
+            <button 
+              onClick={() => {
+                setShowLikedOnly(!showLikedOnly);
+                setCurrentPage(0);
+              }}
+              className={`flex items-center gap-2 px-3 py-1 pixel-border transition-all ${showLikedOnly ? 'bg-red-500/20 border-red-500 text-red-500' : 'bg-[#5a2d9c]/20 border-[#5a2d9c] text-white/40 hover:text-white/60'}`}
+              style={{ fontSize: zhScale(8) }}
+            >
+              <Heart size={12} className={showLikedOnly ? 'fill-red-500' : ''} />
+              {isZh ? '仅显示收藏' : 'LIKED ONLY'}
+            </button>
           </div>
           <PixelButton variant="secondary" onClick={handleManualRefresh} style={{ fontSize: zhScale(10) }}>
             {isZh ? '刷新' : 'Refresh'}
@@ -108,13 +152,32 @@ const HistoryPage: React.FC<HistoryPageProps> = ({ onJobSelected, onRegenerate, 
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-          {jobs.length === 0 ? (
-            <div className={`col-span-full text-center py-20 opacity-50 uppercase`} style={{ fontSize: zhScale(10) }}>
-              {isZh ? '此页暂无记录' : 'No records found on this page'}
-            </div>
-          ) : jobs.map((job) => (
+          {(() => {
+            const displayedJobs = showLikedOnly 
+              ? jobs.filter(j => likedJobs.has(j.gen_id))
+              : jobs;
+            
+            if (displayedJobs.length === 0) {
+              return (
+                <div className={`col-span-full text-center py-20 opacity-50 uppercase`} style={{ fontSize: zhScale(10) }}>
+                  {isZh ? (showLikedOnly ? '暂无收藏记录' : '此页暂无记录') : (showLikedOnly ? 'No liked records found' : 'No records found on this page')}
+                </div>
+              );
+            }
+
+            return displayedJobs.map((job) => (
               <PixelCard key={job.gen_id} className="group hover:bg-[#5a2d9c]/20 transition-all cursor-pointer" onClick={() => setSelectedJob(job)}>
                   <div className="aspect-square bg-black/40 mb-4 overflow-hidden pixel-border border-2 border-[#5a2d9c] group-hover:border-white/40 relative">
+                      <div 
+                        className="absolute top-1 left-1 z-30 p-1 cursor-pointer transition-transform hover:scale-110 active:scale-95"
+                        onClick={(e) => toggleLike(e, job.gen_id)}
+                      >
+                        <Heart 
+                          size={16} 
+                          className={`${likedJobs.has(job.gen_id) ? 'fill-red-500 text-red-500' : 'text-white/40 hover:text-white/70'}`} 
+                          strokeWidth={likedJobs.has(job.gen_id) ? 0 : 2}
+                        />
+                      </div>
                       {job.input_params?.motion_type && (
                           <div className="absolute top-1 right-1 z-20 px-1.5 py-0.5 bg-[#f7d51d] text-[#2d1b4e] text-[8px] font-bold uppercase">
                               {job.input_params.motion_type}
@@ -148,7 +211,8 @@ const HistoryPage: React.FC<HistoryPageProps> = ({ onJobSelected, onRegenerate, 
                       </p>
                   </div>
               </PixelCard>
-          ))}
+            ));
+          })()}
       </div>
 
       <div className="flex justify-center items-center gap-8 py-4 border-t-4 border-[#5a2d9c]/30">
@@ -193,7 +257,17 @@ const HistoryPage: React.FC<HistoryPageProps> = ({ onJobSelected, onRegenerate, 
                                   <p className={`opacity-50 uppercase mb-2`} style={{ fontSize: zhScale(8) }}>
                                     {isZh ? '生成结果' : 'Generated Output'}
                                   </p>
-                                  <div className="aspect-square bg-black/40 pixel-border border-[#5a2d9c]">
+                                  <div className="aspect-square bg-black/40 pixel-border border-[#5a2d9c] relative">
+                                      <div 
+                                        className="absolute top-2 left-2 z-30 p-2 cursor-pointer transition-transform hover:scale-110 active:scale-95 bg-black/20 rounded-full"
+                                        onClick={(e) => toggleLike(e, selectedJob.gen_id)}
+                                      >
+                                        <Heart 
+                                          size={24} 
+                                          className={`${likedJobs.has(selectedJob.gen_id) ? 'fill-red-500 text-red-500' : 'text-white/40 hover:text-white/70'}`} 
+                                          strokeWidth={likedJobs.has(selectedJob.gen_id) ? 0 : 2}
+                                        />
+                                      </div>
                                       <PixelImage 
                                         src={selectedJob.output_images[0].url} 
                                         className="w-full h-full object-contain" 
