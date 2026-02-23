@@ -68,79 +68,132 @@ export const floodFill = (
 };
 
 /**
- * K-means 全局颜色量化
+ * Median Cut 算法实现
  */
-export const quantizeFrames = async (
-  framesData: ImageData[],
-  k: number
-): Promise<ImageData[]> => {
-  // 1. 收集所有非透明像素
-  let pixels: RGB[] = [];
-  framesData.forEach(img => {
-    for (let i = 0; i < img.data.length; i += 4) {
-      if (img.data[i + 3] > 128) { // 忽略透明像素
-        pixels.push({ r: img.data[i], g: img.data[i+1], b: img.data[i+2], a: 255 });
+const medianCut = (pixels: RGB[], maxColors: number): RGB[] => {
+  let boxes = [pixels];
+
+  while (boxes.length < maxColors) {
+    let boxToSplit = -1;
+    let maxRange = -1;
+
+    for (let i = 0; i < boxes.length; i++) {
+      if (boxes[i].length <= 1) continue;
+      
+      let minR = 255, maxR = 0, minG = 255, maxG = 0, minB = 255, maxB = 0;
+      for (const p of boxes[i]) {
+        minR = Math.min(minR, p.r); maxR = Math.max(maxR, p.r);
+        minG = Math.min(minG, p.g); maxG = Math.max(maxG, p.g);
+        minB = Math.min(minB, p.b); maxB = Math.max(maxB, p.b);
+      }
+      
+      const range = Math.max(maxR - minR, maxG - minG, maxB - minB);
+      if (range > maxRange) {
+        maxRange = range;
+        boxToSplit = i;
       }
     }
-  });
 
-  if (pixels.length === 0) return framesData;
+    if (boxToSplit === -1) break;
 
-  // 2. 初始化质心 (随机采样)
-  let centroids: RGB[] = [];
-  for (let i = 0; i < k; i++) {
-    centroids.push(pixels[Math.floor(Math.random() * pixels.length)]);
+    const box = boxes.splice(boxToSplit, 1)[0];
+    let minR = 255, maxR = 0, minG = 255, maxG = 0, minB = 255, maxB = 0;
+    for (const p of box) {
+      minR = Math.min(minR, p.r); maxR = Math.max(maxR, p.r);
+      minG = Math.min(minG, p.g); maxG = Math.max(maxG, p.g);
+      minB = Math.min(minB, p.b); maxB = Math.max(maxB, p.b);
+    }
+
+    const rRange = maxR - minR;
+    const gRange = maxG - minG;
+    const bRange = maxB - minB;
+
+    let component: 'r' | 'g' | 'b' = 'r';
+    if (gRange >= rRange && gRange >= bRange) component = 'g';
+    else if (bRange >= rRange && bRange >= gRange) component = 'b';
+
+    box.sort((a, b) => a[component] - b[component]);
+    const mid = Math.floor(box.length / 2);
+    boxes.push(box.slice(0, mid));
+    boxes.push(box.slice(mid));
   }
 
-  // 3. 迭代 (简化版，3次迭代足以在像素画中产生不错的效果)
-  for (let iter = 0; iter < 3; iter++) {
-    const clusters: RGB[][] = Array.from({ length: k }, () => []);
+  return boxes.map(box => {
+    const sum = box.reduce((acc, p) => ({ r: acc.r + p.r, g: acc.g + p.g, b: acc.b + p.b, a: 255 }), { r: 0, g: 0, b: 0, a: 255 });
+    return {
+      r: Math.round(sum.r / box.length),
+      g: Math.round(sum.g / box.length),
+      b: Math.round(sum.b / box.length),
+      a: 255
+    };
+  });
+};
+
+/**
+ * 从 ImageData 中提取主导颜色 (质心)
+ * 使用 Median Cut 算法
+ */
+export const extractCentroids = (
+  imageData: ImageData,
+  k: number,
+  excludeColor?: RGB
+): RGB[] => {
+  const { data } = imageData;
+  const pixels: RGB[] = [];
+  
+  for (let i = 0; i < data.length; i += 4) {
+    if (data[i+3] < 128) continue;
+    const p = { r: data[i], g: data[i+1], b: data[i+2], a: 255 };
+    if (excludeColor && colorDistance(p, excludeColor) < 2) continue;
+    pixels.push(p);
+  }
+
+  if (pixels.length === 0) return [];
+  
+  return medianCut(pixels, k);
+};
+
+/**
+ * 将指定的质心应用到 ImageData
+ */
+export const applyCentroids = (
+  imageData: ImageData,
+  centroids: RGB[],
+  excludeColor?: RGB
+): void => {
+  const { data } = imageData;
+  if (centroids.length === 0) return;
+
+  for (let i = 0; i < data.length; i += 4) {
+    if (data[i+3] < 128) continue;
+    const p = { r: data[i], g: data[i+1], b: data[i+2], a: 255 };
+    if (excludeColor && colorDistance(p, excludeColor) < 1) continue;
     
-    pixels.forEach(p => {
-      let minDist = Infinity;
-      let clusterIdx = 0;
-      centroids.forEach((c, idx) => {
-        const d = colorDistance(p, c);
-        if (d < minDist) {
-          minDist = d;
-          clusterIdx = idx;
-        }
-      });
-      clusters[clusterIdx].push(p);
-    });
-
-    centroids = clusters.map((cluster, i) => {
-      if (cluster.length === 0) return centroids[i];
-      const sum = cluster.reduce((acc, p) => ({ r: acc.r + p.r, g: acc.g + p.g, b: acc.b + p.b, a: 255 }), { r: 0, g: 0, b: 0, a: 255 });
-      return {
-        r: Math.round(sum.r / cluster.length),
-        g: Math.round(sum.g / cluster.length),
-        b: Math.round(sum.b / cluster.length),
-        a: 255
-      };
-    });
-  }
-
-  // 4. 映射像素
-  return framesData.map(img => {
-    const newImg = new ImageData(new Uint8ClampedArray(img.data), img.width, img.height);
-    for (let i = 0; i < newImg.data.length; i += 4) {
-      if (newImg.data[i + 3] > 128) {
-        const p = { r: newImg.data[i], g: newImg.data[i+1], b: newImg.data[i+2], a: 255 };
-        let minDist = Infinity;
-        let closest = centroids[0];
-        centroids.forEach(c => {
-          const d = colorDistance(p, c);
-          if (d < minDist) {
-            minDist = d;
-            closest = c;
-          }
-        });
-        newImg.data[i] = closest.r;
-        newImg.data[i+1] = closest.g;
-        newImg.data[i+2] = closest.b;
+    let minDist = Infinity;
+    let closest = centroids[0];
+    centroids.forEach(c => {
+      const d = colorDistance(p, c);
+      if (d < minDist) {
+        minDist = d;
+        closest = c;
       }
-    }
-    return newImg;
-  });
+    });
+    
+    data[i] = closest.r;
+    data[i+1] = closest.g;
+    data[i+2] = closest.b;
+  }
+};
+
+/**
+ * 对单个 ImageData 进行颜色量化，可选择排除背景色
+ */
+export const quantizeImageData = (
+  imageData: ImageData,
+  k: number,
+  excludeColor?: RGB
+): ImageData => {
+  const centroids = extractCentroids(imageData, k, excludeColor);
+  applyCentroids(imageData, centroids, excludeColor);
+  return imageData;
 };

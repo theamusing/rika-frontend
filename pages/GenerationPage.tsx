@@ -1,10 +1,11 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import { PixelButton, PixelCard, PixelInput, PixelModal, PixelImage } from '../components/PixelComponents.tsx';
-import { processImage, unprocessImage, extractPalette, quantizeImage } from '../utils/imageUtils.ts';
+import { processImage, unprocessImage, getPaletteSourceImageData } from '../utils/imageUtils.ts';
 import { apiService } from '../services/apiService.ts';
 import { MOTION_TYPES, PIXEL_SIZES } from '../constants.ts';
 import { GenerationParams, MotionType, PixelSize } from '../types.ts';
+import { extractCentroids, RGB } from '../utils/editorUtils.ts';
 
 interface GenerationPageProps {
   onJobCreated: (id: string) => void;
@@ -45,9 +46,11 @@ const GenerationPage: React.FC<GenerationPageProps> = ({
   const [error, setError] = useState('');
   const [usePadding, setUsePadding] = useState(false);
   const [showCreditModal, setShowCreditModal] = useState(false);
-  const [palette, setPalette] = useState<string[]>([]);
 
   const [uiLength, setUiLength] = useState(12);
+  const [paletteSource, setPaletteSource] = useState<ImageData | null>(null);
+  const [centroids, setCentroids] = useState<RGB[]>([]);
+  const [fullProcessedImages, setFullProcessedImages] = useState<(string | null)[]>([null, null, null]);
 
   const [params, setParams] = useState<GenerationParams>({
     prompt: DEFAULT_PROMPTS['idle'],
@@ -62,9 +65,10 @@ const GenerationPage: React.FC<GenerationPageProps> = ({
     fix_seed: false,
     length: 25,
     use_padding: false,
+    use_quantization: false,
+    quantization_colors: 32,
     bg_color: '#004040',
-    attack_type: 'melee',
-    palette_size: 32
+    attack_type: 'melee'
   });
 
   const userHasEditedPrompt = useRef(false);
@@ -119,40 +123,50 @@ const GenerationPage: React.FC<GenerationPageProps> = ({
   }, [params.motion_type, params.attack_type, initialParams]);
 
   useEffect(() => {
-    const updatePalette = async () => {
-      const validSources = sourceFiles.filter(s => s !== null);
-      if (validSources.length === 0) {
-        setPalette([]);
-        return;
-      }
-      
-      try {
-        // Extract from the first available image as a base, or combine?
-        // Let's just use the first one for simplicity or combine if possible.
-        // The user said "获取图像的主颜色色盘", implying from the uploaded image.
-        const colors = await extractPalette(validSources[0]!, params.palette_size || 32);
-        setPalette(colors);
-      } catch (err) {
-        console.error("Palette extraction failed:", err);
-      }
-    };
-    updatePalette();
-  }, [sourceFiles, params.palette_size]);
-
-  useEffect(() => {
     const reprocessAll = async () => {
       let changed = false;
+      let fullChanged = false;
       let processingError = '';
       const newImages = [...images];
+      const newFullImages = [...fullProcessedImages];
       
       for (let i = 0; i < sourceFiles.length; i++) {
         const source = sourceFiles[i];
         if (source) {
           try {
-            const b64 = await processImage(source, usePadding, flipStates[i], params.pixel_size, params.bg_color);
-            if (newImages[i] !== b64) {
-              newImages[i] = b64;
+            // Process for display (downscaled)
+            const displayB64 = await processImage(
+              source, 
+              usePadding, 
+              flipStates[i], 
+              params.pixel_size, 
+              params.bg_color,
+              params.use_quantization,
+              params.quantization_colors,
+              centroids,
+              true
+            );
+            
+            // Process for backend (full size)
+            const fullB64 = await processImage(
+              source, 
+              usePadding, 
+              flipStates[i], 
+              params.pixel_size, 
+              params.bg_color,
+              params.use_quantization,
+              params.quantization_colors,
+              centroids,
+              false
+            );
+
+            if (newImages[i] !== displayB64) {
+              newImages[i] = displayB64;
               changed = true;
+            }
+            if (newFullImages[i] !== fullB64) {
+              newFullImages[i] = fullB64;
+              fullChanged = true;
             }
           } catch (err: any) {
             console.error(`[IMAGE PROCESSOR] Error at index ${i}:`, err);
@@ -163,10 +177,15 @@ const GenerationPage: React.FC<GenerationPageProps> = ({
             newImages[i] = null;
             changed = true;
           }
+          if (newFullImages[i] !== null) {
+            newFullImages[i] = null;
+            fullChanged = true;
+          }
         }
       }
       
       if (changed) setImages(newImages);
+      if (fullChanged) setFullProcessedImages(newFullImages);
       if (processingError) {
         setError(processingError);
       } else if (error && (error.includes("Asset") || error.includes("CORS"))) {
@@ -174,7 +193,34 @@ const GenerationPage: React.FC<GenerationPageProps> = ({
       }
     };
     reprocessAll();
-  }, [usePadding, sourceFiles, flipStates, params.pixel_size, params.bg_color]);
+  }, [usePadding, sourceFiles, flipStates, params.pixel_size, params.bg_color, params.use_quantization, params.quantization_colors, centroids]);
+
+  // Update palette source when start image changes
+  useEffect(() => {
+    const updatePaletteSource = async () => {
+      if (sourceFiles[0]) {
+        try {
+          const imgData = await getPaletteSourceImageData(sourceFiles[0]);
+          setPaletteSource(imgData);
+        } catch (err) {
+          console.error("Failed to get palette source:", err);
+        }
+      } else {
+        setPaletteSource(null);
+      }
+    };
+    updatePaletteSource();
+  }, [sourceFiles[0]]);
+
+  // Update centroids when palette source or color count changes
+  useEffect(() => {
+    if (paletteSource && params.use_quantization) {
+      const newCentroids = extractCentroids(paletteSource, params.quantization_colors || 32);
+      setCentroids(newCentroids);
+    } else {
+      setCentroids([]);
+    }
+  }, [paletteSource, params.quantization_colors, params.use_quantization]);
 
   useEffect(() => {
     const loadInitial = async () => {
@@ -234,7 +280,7 @@ const GenerationPage: React.FC<GenerationPageProps> = ({
   };
 
   const handleGenerate = async () => {
-    if (!images[0]) { setError("Start Image is required!"); return; }
+    if (!fullProcessedImages[0]) { setError("Start Image is required!"); return; }
     if (credits < 5) { setShowCreditModal(true); setError("INSUFFICIENT CREDITS: 5 credits required."); return; }
     setError('');
     setLoading(true);
@@ -255,31 +301,16 @@ const GenerationPage: React.FC<GenerationPageProps> = ({
         }
       }
       if (!params.fix_seed) finalParams.seed = Math.floor(Math.random() * 1000000);
-      
-      const quantizeIfPossible = async (img: string | null) => {
-        if (!img || palette.length === 0) return img;
-        return await quantizeImage(img, palette);
-      };
-
-      const startImg = await quantizeIfPossible(images[0]);
-      payloadImages.push(startImg as string);
-
+      payloadImages.push(fullProcessedImages[0] as string);
       if (expandImages) {
-        if (params.use_mid_image && images[1]) {
-          const midImg = await quantizeIfPossible(images[1]);
-          payloadImages.push(midImg as string);
-        } else finalParams.use_mid_image = false;
-
-        if (params.use_end_image && images[2]) {
-          const endImg = await quantizeIfPossible(images[2]);
-          payloadImages.push(endImg as string);
-        } else finalParams.use_end_image = false;
+        if (params.use_mid_image && fullProcessedImages[1]) payloadImages.push(fullProcessedImages[1]);
+        else finalParams.use_mid_image = false;
+        if (params.use_end_image && fullProcessedImages[2]) payloadImages.push(fullProcessedImages[2]);
+        else finalParams.use_end_image = false;
       } else {
         finalParams.use_mid_image = false;
         finalParams.use_end_image = false;
       }
-      
-      finalParams.palette = palette;
       const res = await apiService.generate(payloadImages, finalParams);
       refreshCredits();
       onJobCreated(res.gen_id);
@@ -508,6 +539,51 @@ const GenerationPage: React.FC<GenerationPageProps> = ({
                 </div>
              </div>
 
+             <div className="space-y-2 border-t border-[#5a2d9c]/30 pt-4">
+                <div className="flex justify-between items-center">
+                    <label className="text-[10px] block uppercase text-white/60" style={{ fontSize: zhScale(10) }}>
+                      {isZh ? "颜色调色盘" : "COLOR PALETTE"}
+                    </label>
+                    <label className="text-[8px] flex items-center gap-1 cursor-pointer text-white/40 hover:text-white transition-colors">
+                        <input 
+                          type="checkbox" 
+                          checked={params.use_quantization} 
+                          onChange={e => setParams({...params, use_quantization: e.target.checked})} 
+                        />
+                        {isZh ? "启用" : "ENABLE"}
+                    </label>
+                </div>
+                {params.use_quantization && (
+                  <div className="space-y-2 animate-fade-in">
+                    <div className="flex justify-between text-[8px] text-white/40">
+                      <span>{isZh ? "颜色数量" : "COLORS"}</span>
+                      <span>{params.quantization_colors}</span>
+                    </div>
+                    <input 
+                      type="range" 
+                      min="8" 
+                      max="64" 
+                      step="1" 
+                      className="w-full accent-white" 
+                      value={params.quantization_colors} 
+                      onChange={e => setParams({...params, quantization_colors: parseInt(e.target.value)})} 
+                    />
+                    {centroids.length > 0 && (
+                      <div className="flex flex-wrap gap-1 mt-2 max-h-16 overflow-y-auto p-1 bg-black/20 border border-[#5a2d9c]/30">
+                        {centroids.map((c, i) => (
+                          <div 
+                            key={i} 
+                            className="w-3 h-3 border border-white/10 flex-shrink-0" 
+                            style={{ backgroundColor: `rgb(${c.r},${c.g},${c.b})` }}
+                            title={`RGB(${c.r},${c.g},${c.b})`}
+                          />
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )}
+            </div>
+
              <div className="pt-2">
                 <PixelButton variant="secondary" className="w-full text-[9px]" onClick={() => setShowAdvanced(!showAdvanced)} style={{ fontSize: zhScale(9) }}>
                   {showAdvanced 
@@ -550,24 +626,6 @@ const GenerationPage: React.FC<GenerationPageProps> = ({
                         </div>
                         <PixelInput type="number" className="w-full" value={params.seed} onChange={e => setParams({...params, seed: parseInt(e.target.value)})} />
                     </div>
-                    <div className="space-y-2">
-                        <label className="text-[10px] block flex justify-between" style={{ fontSize: zhScale(10) }}>
-                          {isZh ? "调色板颜色数量" : "PALETTE SIZE"} <span>{params.palette_size}</span>
-                        </label>
-                        <input type="range" min="8" max="64" step="1" className="w-full accent-white" value={params.palette_size} onChange={e => setParams({...params, palette_size: parseInt(e.target.value)})} />
-                    </div>
-                    {palette.length > 0 && (
-                      <div className="space-y-2">
-                        <label className="text-[10px] block text-white/60 uppercase" style={{ fontSize: zhScale(10) }}>
-                          {isZh ? "当前色盘" : "CURRENT PALETTE"}
-                        </label>
-                        <div className="flex flex-wrap gap-1">
-                          {palette.map((color, i) => (
-                            <div key={i} className="w-3 h-3 border border-white/20" style={{ backgroundColor: color }} />
-                          ))}
-                        </div>
-                      </div>
-                    )}
                 </div>
              )}
           </div>

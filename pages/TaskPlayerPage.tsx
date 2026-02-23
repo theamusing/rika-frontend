@@ -191,7 +191,15 @@ const TaskPlayerPage: React.FC<TaskPlayerPageProps> = ({ selectedJobId, onJobSel
     } else if (job.status === 'running' || job.status === 'queued') {
       if (job.input_images?.[0]?.url) {
         try {
-          const firstFrame = await processImage(job.input_images[0].url, job.input_params?.use_padding, false, job.input_params?.pixel_size);
+          const firstFrame = await processImage(
+            job.input_images[0].url, 
+            job.input_params?.use_padding, 
+            false, 
+            job.input_params?.pixel_size,
+            job.input_params?.bg_color,
+            job.input_params?.use_quantization,
+            job.input_params?.quantization_colors
+          );
           if (isMounted.current) { setFrames([firstFrame]); setInitialFrames([firstFrame]); setExcludedFrames(new Set()); setCurrentFrameIndex(0); }
         } catch (e) {}
       }

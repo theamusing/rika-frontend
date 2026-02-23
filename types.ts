@@ -15,10 +15,10 @@ export interface GenerationParams {
   fix_seed: boolean;
   length: number;
   use_padding: boolean;
+  use_quantization?: boolean;
+  quantization_colors?: number;
   bg_color?: string;
   attack_type?: 'melee' | 'ranged' | 'other';
-  palette_size?: number;
-  palette?: string[];
 }
 
 export interface Job {

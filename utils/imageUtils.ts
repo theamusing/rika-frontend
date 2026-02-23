@@ -1,5 +1,6 @@
 
 import { getAssetFromCache, saveAssetToCache } from './dbUtils.ts';
+import { quantizeImageData, RGB, extractCentroids, applyCentroids } from './editorUtils.ts';
 
 /**
  * Checks if a URL points to a user-generated image that should be cached.
@@ -86,7 +87,11 @@ export const processImage = async (
   padding: boolean = false, 
   flip: boolean = false,
   pixelSize: string = '128',
-  overrideBgColor?: string
+  overrideBgColor?: string,
+  useQuantization: boolean = false,
+  quantizationColors: number = 32,
+  externalCentroids?: RGB[],
+  downscale: boolean = false
 ): Promise<string> => {
   return new Promise(async (resolve, reject) => {
     let sourceDataUrl: string | null = null;
@@ -156,14 +161,27 @@ export const processImage = async (
 
         const hasTransparency = cornerData.some(pixel => pixel[3] < 255);
         let bgColor: string;
+        let bgRGB: RGB;
 
         if (hasTransparency) {
           bgColor = overrideBgColor || 'rgb(128, 128, 128)';
+          // Parse bgColor to RGB for quantization exclusion
+          const match = bgColor.match(/rgb\((\d+),\s*(\d+),\s*(\d+)\)/) || bgColor.match(/#([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})/i);
+          if (match) {
+            if (match[0].startsWith('rgb')) {
+              bgRGB = { r: parseInt(match[1]), g: parseInt(match[2]), b: parseInt(match[3]), a: 255 };
+            } else {
+              bgRGB = { r: parseInt(match[1], 16), g: parseInt(match[2], 16), b: parseInt(match[3], 16), a: 255 };
+            }
+          } else {
+            bgRGB = { r: 128, g: 128, b: 128, a: 255 };
+          }
         } else {
           const avgR = Math.round(cornerData.reduce((acc, p) => acc + p[0], 0) / 4);
           const avgG = Math.round(cornerData.reduce((acc, p) => acc + p[1], 0) / 4);
           const avgB = Math.round(cornerData.reduce((acc, p) => acc + p[2], 0) / 4);
           bgColor = `rgb(${avgR}, ${avgG}, ${avgB})`;
+          bgRGB = { r: avgR, g: avgG, b: avgB, a: 255 };
         }
 
         ctx.fillStyle = bgColor;
@@ -183,8 +201,34 @@ export const processImage = async (
         ctx.drawImage(img, x, y, img.width * scale, img.height * scale);
         ctx.restore();
 
-        if (isRevocable && sourceDataUrl) URL.revokeObjectURL(sourceDataUrl);
-        resolve(canvas.toDataURL('image/png'));
+        // Apply quantization if enabled
+        if (useQuantization) {
+          const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+          if (externalCentroids && externalCentroids.length > 0) {
+            applyCentroids(imageData, externalCentroids, bgRGB);
+          } else {
+            quantizeImageData(imageData, quantizationColors, bgRGB);
+          }
+          ctx.putImageData(imageData, 0, 0);
+        }
+
+        if (downscale) {
+          const scaleFactor = contentDim / pixelInt;
+          const displaySize = Math.round(canvasDim / scaleFactor);
+          
+          const downCanvas = document.createElement('canvas');
+          downCanvas.width = displaySize;
+          downCanvas.height = displaySize;
+          const downCtx = downCanvas.getContext('2d')!;
+          downCtx.imageSmoothingEnabled = false;
+          downCtx.drawImage(canvas, 0, 0, canvasDim, canvasDim, 0, 0, displaySize, displaySize);
+          
+          if (isRevocable && sourceDataUrl) URL.revokeObjectURL(sourceDataUrl);
+          resolve(downCanvas.toDataURL('image/png'));
+        } else {
+          if (isRevocable && sourceDataUrl) URL.revokeObjectURL(sourceDataUrl);
+          resolve(canvas.toDataURL('image/png'));
+        }
       };
 
       img.onerror = () => {
@@ -198,6 +242,39 @@ export const processImage = async (
       if (isRevocable && sourceDataUrl) URL.revokeObjectURL(sourceDataUrl);
       reject(err instanceof Error ? err.message : 'Unknown image load error');
     }
+  });
+};
+
+/**
+ * 获取用于调色盘提取的原图图像数据 (缩放到 256px)
+ */
+export const getPaletteSourceImageData = async (source: File | string): Promise<ImageData> => {
+  let sourceDataUrl: string;
+  if (source instanceof File) {
+    sourceDataUrl = URL.createObjectURL(source);
+  } else {
+    sourceDataUrl = await fetchAsDataUrl(source);
+  }
+
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    if (!sourceDataUrl.startsWith('data:')) img.crossOrigin = "anonymous";
+    img.onload = () => {
+      const canvas = document.createElement('canvas');
+      const scale = Math.min(1, 256 / Math.max(img.width, img.height));
+      canvas.width = img.width * scale;
+      canvas.height = img.height * scale;
+      const ctx = canvas.getContext('2d')!;
+      ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+      const data = ctx.getImageData(0, 0, canvas.width, canvas.height);
+      if (source instanceof File) URL.revokeObjectURL(sourceDataUrl);
+      resolve(data);
+    };
+    img.onerror = (e) => {
+      if (source instanceof File) URL.revokeObjectURL(sourceDataUrl);
+      reject(e);
+    };
+    img.src = sourceDataUrl;
   });
 };
 
@@ -239,183 +316,6 @@ export const unprocessImage = async (url: string, pixelSize: string = '128'): Pr
   } catch (err) {
     throw err;
   }
-};
-
-/**
- * Extracts a color palette from an image (excluding transparent pixels).
- */
-export const extractPalette = async (source: string | File, maxColors: number = 32): Promise<string[]> => {
-  return new Promise(async (resolve, reject) => {
-    try {
-      let dataUrl: string;
-      if (source instanceof File) {
-        dataUrl = URL.createObjectURL(source);
-      } else {
-        dataUrl = source.startsWith('data:') ? source : await fetchAsDataUrl(source);
-      }
-
-      const img = new Image();
-      if (!dataUrl.startsWith('data:')) img.crossOrigin = "anonymous";
-
-      img.onload = () => {
-        const canvas = document.createElement('canvas');
-        const ctx = canvas.getContext('2d');
-        if (!ctx) return reject('No context');
-
-        // Scale down for faster processing if needed, but for palette extraction 
-        // we can just use a reasonable size.
-        const scale = Math.min(1, 256 / Math.max(img.width, img.height));
-        canvas.width = img.width * scale;
-        canvas.height = img.height * scale;
-        ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
-
-        const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
-        const pixels = imageData.data;
-        const colors: {r: number, g: number, b: number}[] = [];
-
-        for (let i = 0; i < pixels.length; i += 4) {
-          if (pixels[i + 3] > 128) { // Only non-transparent
-            colors.push({ r: pixels[i], g: pixels[i + 1], b: pixels[i + 2] });
-          }
-        }
-
-        if (source instanceof File) URL.revokeObjectURL(dataUrl);
-
-        if (colors.length === 0) return resolve([]);
-
-        // Simple Median Cut or K-Means would be better, but for now let's do a basic popularity/clustering
-        // Actually, let's implement a simple Median Cut.
-        const palette = medianCut(colors, maxColors);
-        resolve(palette.map(c => rgbToHex(c.r, c.g, c.b)));
-      };
-      img.onerror = () => reject('Failed to load image for palette');
-      img.src = dataUrl;
-    } catch (e) {
-      reject(e);
-    }
-  });
-};
-
-const rgbToHex = (r: number, g: number, b: number) => 
-  "#" + [r, g, b].map(x => x.toString(16).padStart(2, '0')).join('');
-
-const hexToRgb = (hex: string) => {
-  const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
-  return result ? {
-    r: parseInt(result[1], 16),
-    g: parseInt(result[2], 16),
-    b: parseInt(result[3], 16)
-  } : { r: 0, g: 0, b: 0 };
-};
-
-const medianCut = (pixels: {r: number, g: number, b: number}[], maxColors: number): {r: number, g: number, b: number}[] => {
-  let boxes = [pixels];
-  
-  while (boxes.length < maxColors) {
-    let boxToSplit = -1;
-    let maxRange = -1;
-
-    for (let i = 0; i < boxes.length; i++) {
-      if (boxes[i].length <= 1) continue;
-      
-      let minR = 255, maxR = 0, minG = 255, maxG = 0, minB = 255, maxB = 0;
-      for (const p of boxes[i]) {
-        minR = Math.min(minR, p.r); maxR = Math.max(maxR, p.r);
-        minG = Math.min(minG, p.g); maxG = Math.max(maxG, p.g);
-        minB = Math.min(minB, p.b); maxB = Math.max(maxB, p.b);
-      }
-      
-      const range = Math.max(maxR - minR, maxG - minG, maxB - minB);
-      if (range > maxRange) {
-        maxRange = range;
-        boxToSplit = i;
-      }
-    }
-
-    if (boxToSplit === -1) break;
-
-    const box = boxes.splice(boxToSplit, 1)[0];
-    let minR = 255, maxR = 0, minG = 255, maxG = 0, minB = 255, maxB = 0;
-    for (const p of box) {
-      minR = Math.min(minR, p.r); maxR = Math.max(maxR, p.r);
-      minG = Math.min(minG, p.g); maxG = Math.max(maxG, p.g);
-      minB = Math.min(minB, p.b); maxB = Math.max(maxB, p.b);
-    }
-
-    const rRange = maxR - minR;
-    const gRange = maxG - minG;
-    const bRange = maxB - minB;
-
-    let component: 'r' | 'g' | 'b' = 'r';
-    if (gRange >= rRange && gRange >= bRange) component = 'g';
-    else if (bRange >= rRange && bRange >= gRange) component = 'b';
-
-    box.sort((a, b) => a[component] - b[component]);
-    const mid = Math.floor(box.length / 2);
-    boxes.push(box.slice(0, mid));
-    boxes.push(box.slice(mid));
-  }
-
-  return boxes.map(box => {
-    const sum = box.reduce((acc, p) => ({ r: acc.r + p.r, g: acc.g + p.g, b: acc.b + p.b }), { r: 0, g: 0, b: 0 });
-    return {
-      r: Math.round(sum.r / box.length),
-      g: Math.round(sum.g / box.length),
-      b: Math.round(sum.b / box.length)
-    };
-  });
-};
-
-/**
- * Quantizes an image to a given palette.
- */
-export const quantizeImage = async (dataUrl: string, palette: string[]): Promise<string> => {
-  if (palette.length === 0) return dataUrl;
-  
-  const paletteRgb = palette.map(hexToRgb);
-
-  return new Promise((resolve, reject) => {
-    const img = new Image();
-    img.onload = () => {
-      const canvas = document.createElement('canvas');
-      canvas.width = img.width;
-      canvas.height = img.height;
-      const ctx = canvas.getContext('2d');
-      if (!ctx) return reject('No context');
-
-      ctx.drawImage(img, 0, 0);
-      const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
-      const pixels = imageData.data;
-
-      for (let i = 0; i < pixels.length; i += 4) {
-        if (pixels[i + 3] > 0) {
-          const r = pixels[i];
-          const g = pixels[i + 1];
-          const b = pixels[i + 2];
-
-          let bestColor = paletteRgb[0];
-          let minDistance = Infinity;
-
-          for (const color of paletteRgb) {
-            const dist = Math.pow(r - color.r, 2) + Math.pow(g - color.g, 2) + Math.pow(b - color.b, 2);
-            if (dist < minDistance) {
-              minDistance = dist;
-              bestColor = color;
-            }
-          }
-
-          pixels[i] = bestColor.r;
-          pixels[i + 1] = bestColor.g;
-          pixels[i + 2] = bestColor.b;
-        }
-      }
-
-      ctx.putImageData(imageData, 0, 0);
-      resolve(canvas.toDataURL('image/png'));
-    };
-    img.onerror = () => reject('Failed to load image for quantization');
-    img.src = dataUrl;
-  });
 };
 
 export const sliceSpriteSheet = async (url: string, apiLength: number = 25): Promise<string[]> => {
