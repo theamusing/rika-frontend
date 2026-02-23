@@ -277,6 +277,12 @@ const GenerationPage: React.FC<GenerationPageProps> = ({
     newFiles[index] = file;
     if (index === 0 && loopAnimation) newFiles[2] = file;
     setSourceFiles(newFiles);
+    
+    if (index === 1) {
+      setParams(prev => ({ ...prev, use_mid_image: true }));
+    } else if (index === 2) {
+      setParams(prev => ({ ...prev, use_end_image: true }));
+    }
   };
 
   const handleFlipToggle = (index: number) => {

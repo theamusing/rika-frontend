@@ -19,6 +19,7 @@ const App: React.FC = () => {
   const [activeTab, setActiveTab] = useState<'intro' | 'generate' | 'player' | 'history' | 'docs'>('intro');
   const [pendingTab, setPendingTab] = useState<'generate' | 'player' | 'history' | 'docs' | null>(null);
   const [selectedJobId, setSelectedJobId] = useState<string | null>(null);
+  const [navigationSource, setNavigationSource] = useState<{ tab: string, page?: number } | null>(null);
   const [initialParams, setInitialParams] = useState<any>(null);
   const [isAuthChecking, setIsAuthChecking] = useState(true);
   const [isPricingOpen, setIsPricingOpen] = useState(false);
@@ -125,6 +126,10 @@ const App: React.FC = () => {
       setActiveTab(target); 
       return;
     }
+
+    if (tab === 'player' && activeTab !== 'player') {
+      setNavigationSource({ tab: activeTab });
+    }
     
     setActiveTab(tab);
     setPendingTab(null);
@@ -137,9 +142,20 @@ const App: React.FC = () => {
     setLoginMode('login');
   };
 
-  const handleJobSelected = (jobId: string) => {
+  const handleJobSelected = (jobId: string, page?: number) => {
     setSelectedJobId(jobId);
+    setNavigationSource({ tab: 'history', page });
     setActiveTab('player');
+  };
+
+  const handleBack = () => {
+    if (navigationSource) {
+      setActiveTab(navigationSource.tab as any);
+      // If we need to pass page back to history, we might need more complex state, 
+      // but for now history keeps its own page state if not unmounted.
+    } else {
+      setActiveTab('generate');
+    }
   };
 
   const handleRegenerate = (params: any) => {
@@ -302,6 +318,7 @@ const App: React.FC = () => {
                 selectedJobId={selectedJobId} 
                 onJobSelected={setSelectedJobId}
                 onRegenerate={handleRegenerate}
+                onBack={handleBack}
                 lang={lang}
               />
             )}
@@ -309,6 +326,7 @@ const App: React.FC = () => {
               <HistoryPage 
                 onJobSelected={handleJobSelected} 
                 onRegenerate={handleRegenerate}
+                initialPage={navigationSource?.tab === 'history' ? navigationSource.page : undefined}
                 lang={lang}
               />
             )}

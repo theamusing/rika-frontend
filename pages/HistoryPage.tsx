@@ -6,20 +6,21 @@ import { PixelButton, PixelCard, PixelImage } from '../components/PixelComponent
 import { Heart } from 'lucide-react';
 
 interface HistoryPageProps {
-  onJobSelected: (id: string) => void;
+  onJobSelected: (id: string, page?: number) => void;
   onRegenerate: (params: any) => void;
+  initialPage?: number;
   lang?: 'en' | 'zh';
 }
 
 const PAGE_SIZE = 8;
 const LIKED_JOBS_KEY = 'rika_liked_jobs';
 
-const HistoryPage: React.FC<HistoryPageProps> = ({ onJobSelected, onRegenerate, lang = 'en' }) => {
+const HistoryPage: React.FC<HistoryPageProps> = ({ onJobSelected, onRegenerate, initialPage, lang = 'en' }) => {
   const [jobs, setJobs] = useState<Job[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedJob, setSelectedJob] = useState<Job | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [currentPage, setCurrentPage] = useState(0);
+  const [currentPage, setCurrentPage] = useState(initialPage || 0);
   const [likedJobs, setLikedJobs] = useState<Set<string>>(new Set());
   const [showLikedOnly, setShowLikedOnly] = useState(false);
   
@@ -298,7 +299,7 @@ const HistoryPage: React.FC<HistoryPageProps> = ({ onJobSelected, onRegenerate, 
                               )}
                           </div>
                           <div className="flex flex-col gap-3">
-                              <PixelButton variant="primary" onClick={() => onJobSelected(selectedJob.gen_id)} disabled={selectedJob.status === 'failed'} style={{ fontSize: zhScale(10) }}>
+                              <PixelButton variant="primary" onClick={() => onJobSelected(selectedJob.gen_id, currentPage)} disabled={selectedJob.status === 'failed'} style={{ fontSize: zhScale(10) }}>
                                 {isZh ? '预览' : 'View In Player'}
                               </PixelButton>
                               <PixelButton variant="secondary" onClick={() => onRegenerate(selectedJob)} style={{ fontSize: zhScale(10) }}>

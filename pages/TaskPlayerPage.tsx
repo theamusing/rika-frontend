@@ -6,6 +6,7 @@ import { PixelButton, PixelCard } from '../components/PixelComponents.tsx';
 import { sliceSpriteSheet, reconstructSpriteSheet, processImage } from '../utils/imageUtils.ts';
 import { floodFill, RGB, colorDistance } from '../utils/editorUtils.ts';
 import { saveSpriteToCache, getSpriteFromCache, CachedSprite } from '../utils/dbUtils.ts';
+import { Heart, ArrowLeft } from 'lucide-react';
 // @ts-ignore
 import gifshot from 'gifshot';
 
@@ -16,15 +17,18 @@ interface TaskPlayerPageProps {
   selectedJobId: string | null;
   onJobSelected: (id: string) => void;
   onRegenerate: (job: Job) => void;
+  onBack?: () => void;
   lang?: 'en' | 'zh';
 }
 
 const CDN_BASE = "https://cdn.rika-ai.com/assets/frontpage/";
 const ICON_BASE = `${CDN_BASE}icons/`;
+const LIKED_JOBS_KEY = 'rika_liked_jobs';
 
-const TaskPlayerPage: React.FC<TaskPlayerPageProps> = ({ selectedJobId, onJobSelected, onRegenerate, lang = 'en' }) => {
+const TaskPlayerPage: React.FC<TaskPlayerPageProps> = ({ selectedJobId, onJobSelected, onRegenerate, onBack, lang = 'en' }) => {
   const [currentJob, setCurrentJob] = useState<Job | null>(null);
   const [frames, setFrames] = useState<string[]>([]);
+  const [likedJobs, setLikedJobs] = useState<Set<string>>(new Set());
   const [undoStack, setUndoStack] = useState<string[][]>([]);
   const [redoStack, setRedoStack] = useState<string[][]>([]);
   const [initialFrames, setInitialFrames] = useState<string[]>([]);
@@ -67,6 +71,35 @@ const TaskPlayerPage: React.FC<TaskPlayerPageProps> = ({ selectedJobId, onJobSel
 
   const isZh = lang === 'zh';
   const zhScale = (enSize: number) => isZh ? `${enSize + 3}px` : `${enSize}px`;
+
+  // Load liked jobs from localStorage
+  useEffect(() => {
+    const stored = localStorage.getItem(LIKED_JOBS_KEY);
+    if (stored) {
+      try {
+        const parsed = JSON.parse(stored);
+        if (Array.isArray(parsed)) {
+          setLikedJobs(new Set(parsed));
+        }
+      } catch (e) {
+        console.error("Failed to parse liked jobs", e);
+      }
+    }
+  }, []);
+
+  const toggleLike = (e: React.MouseEvent, genId: string) => {
+    e.stopPropagation();
+    setLikedJobs(prev => {
+      const next = new Set(prev);
+      if (next.has(genId)) {
+        next.delete(genId);
+      } else {
+        next.add(genId);
+      }
+      localStorage.setItem(LIKED_JOBS_KEY, JSON.stringify(Array.from(next)));
+      return next;
+    });
+  };
 
   const pushToHistory = (newFrames: string[]) => {
     setUndoStack(prev => [...prev.slice(-31), frames]);
@@ -500,14 +533,25 @@ const TaskPlayerPage: React.FC<TaskPlayerPageProps> = ({ selectedJobId, onJobSel
   return (
     <div className="flex flex-col gap-6 w-full overflow-hidden text-white">
       <div className="flex justify-between items-center bg-[#121212]/80 p-3 pixel-border border-[#5a2d9c] w-full">
-        <div className="flex gap-4 text-[10px] text-white/60 uppercase">
-          <span>JOB: <span className="text-white">{selectedJobId?.slice(0,8) || 'NONE'}</span></span>
-          <span>MODE: <span className="text-white">{currentJob?.input_params?.motion_type || 'MANUAL'}</span></span>
-          <span>STATUS: <span className={
-            currentJob?.status === 'succeeded' ? 'text-green-500' : 
-            (currentJob?.status === 'running' || currentJob?.status === 'queued') ? 'text-yellow-500' : 
-            'text-white/40'
-          }>{currentJob?.status || 'READY'}</span></span>
+        <div className="flex items-center gap-4">
+          {onBack && (
+            <button 
+              onClick={onBack}
+              className="p-1 hover:bg-white/10 pixel-border border-[#5a2d9c] transition-colors group"
+              title={isZh ? "返回" : "BACK"}
+            >
+              <ArrowLeft size={16} className="text-white/60 group-hover:text-white" />
+            </button>
+          )}
+          <div className="flex gap-4 text-[10px] text-white/60 uppercase">
+            <span>JOB: <span className="text-white">{selectedJobId?.slice(0,8) || 'NONE'}</span></span>
+            <span>MODE: <span className="text-white">{currentJob?.input_params?.motion_type || 'MANUAL'}</span></span>
+            <span>STATUS: <span className={
+              currentJob?.status === 'succeeded' ? 'text-green-500' : 
+              (currentJob?.status === 'running' || currentJob?.status === 'queued') ? 'text-yellow-500' : 
+              'text-white/40'
+            }>{currentJob?.status || 'READY'}</span></span>
+          </div>
         </div>
         <div className="flex items-center gap-4 text-[10px] uppercase text-white/60">
           <div className="flex items-center gap-2">
@@ -547,6 +591,18 @@ const TaskPlayerPage: React.FC<TaskPlayerPageProps> = ({ selectedJobId, onJobSel
 
         <div className="flex flex-col gap-4 min-w-0 w-full overflow-hidden">
           <PixelCard className={`relative p-0 overflow-hidden h-[512px] flex items-center justify-center ${isLightBg ? 'bg-[#f5f5dc]' : 'bg-[#121212]'}`}>
+            {selectedJobId && (
+              <div 
+                className="absolute top-4 left-4 z-30 p-2 cursor-pointer transition-transform hover:scale-110 active:scale-95 bg-black/20 rounded-full"
+                onClick={(e) => toggleLike(e, selectedJobId)}
+              >
+                <Heart 
+                  size={24} 
+                  className={`${likedJobs.has(selectedJobId) ? 'fill-red-500 text-red-500' : 'text-white/40 hover:text-white/70'}`} 
+                  strokeWidth={likedJobs.has(selectedJobId) ? 0 : 2}
+                />
+              </div>
+            )}
             <div ref={editorContainerRef} className="relative origin-center" style={{ width: '512px', height: '512px', transform: `translate(${pan.x}px, ${pan.y}px) scale(${zoom})`, imageRendering: 'pixelated', backgroundImage: isLightBg ? lightChecker : darkChecker, backgroundSize: `16px 16px` }} onMouseDown={handleMouseDown} onMouseMove={handleCanvasInteraction} onMouseUp={handleMouseUp}>
               {(loading || isJobRunning) && <div className="absolute inset-0 z-50 bg-black/60 flex items-center justify-center text-[10px] uppercase text-white animate-pulse">{isJobRunning ? 'Rendering...' : 'Syncing...'}</div>}
               <canvas ref={canvasRef} className="w-full h-full block" />
