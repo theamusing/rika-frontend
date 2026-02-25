@@ -235,6 +235,24 @@ export const processImage = async (
           if (isRevocable && sourceDataUrl) URL.revokeObjectURL(sourceDataUrl);
           resolve(downCanvas.toDataURL('image/png'));
         } else {
+          // Special case for 256x256 + padding: downscale then upscale back to original size to ensure pixelation
+          if (padding && pixelInt === 256) {
+            const scaleFactor = contentDim / pixelInt;
+            const displaySize = Math.round(canvasDim / scaleFactor);
+            
+            const downCanvas = document.createElement('canvas');
+            downCanvas.width = displaySize;
+            downCanvas.height = displaySize;
+            const downCtx = downCanvas.getContext('2d')!;
+            downCtx.imageSmoothingEnabled = false;
+            downCtx.drawImage(canvas, 0, 0, canvasDim, canvasDim, 0, 0, displaySize, displaySize);
+            
+            // Draw back to original canvas size using nearest neighbor
+            ctx.clearRect(0, 0, canvasDim, canvasDim);
+            ctx.imageSmoothingEnabled = false;
+            ctx.drawImage(downCanvas, 0, 0, displaySize, displaySize, 0, 0, canvasDim, canvasDim);
+          }
+
           if (isRevocable && sourceDataUrl) URL.revokeObjectURL(sourceDataUrl);
           resolve(canvas.toDataURL('image/png'));
         }
