@@ -27,7 +27,6 @@ const FALLBACK_IMAGE = `${GIF_BASE}1.gif`;
 const TRANSLATIONS = {
   en: {
     heroSub: "make your pixel art to live",
-    maintenanceNotice: "Server is under maintenance, sorry for the inconvenience.",
     heroDesc: "The ultimate ai animation toolkit for 2D game developers. Transform static pixel-style character into frame sequences.",
     heroFoot: "Imagination is All you need.",
     sec2Title: "Automatic Animation Generator",
@@ -75,7 +74,6 @@ const TRANSLATIONS = {
   },
   zh: {
     heroSub: "让像素动起来",
-    maintenanceNotice: "服务器正在维修，抱歉带来麻烦",
     heroDesc: "专业级像素游戏动画工具，将静态像素角色转换为动作帧序列。",
     heroFoot: "Imagination is All you need.",
     sec2Title: "像素动画生成器",
@@ -146,11 +144,6 @@ const LandingPage: React.FC<LandingPageProps> = ({ onGetStarted, onViewDocs, lan
       {/* SECTION 1: HERO */}
       <section className="min-h-[80vh] flex flex-col lg:flex-row items-center justify-center px-6 lg:px-24 gap-12 py-16">
         <div className="flex-1 space-y-6 text-center lg:text-left">
-          <div className="bg-red-500/10 border border-red-500/30 px-3 py-1.5 inline-block animate-pulse">
-            <p className={`text-red-400 font-bold uppercase tracking-widest ${isZh ? 'text-[10px]' : 'text-[8px]'}`}>
-              {t.maintenanceNotice}
-            </p>
-          </div>
           <h1 className="text-3xl md:text-4xl font-bold tracking-tight uppercase text-[#f7d51d] text-pretty">
             RIKA AI
           </h1>
