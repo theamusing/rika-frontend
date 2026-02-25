@@ -46,6 +46,7 @@ const GenerationPage: React.FC<GenerationPageProps> = ({
   const [error, setError] = useState('');
   const [usePadding, setUsePadding] = useState(false);
   const [showCreditModal, setShowCreditModal] = useState(false);
+  const [forcedScaleFactor, setForcedScaleFactor] = useState<number | null>(null);
 
   const [uiLength, setUiLength] = useState(12);
   const [paletteSource, setPaletteSource] = useState<ImageData | null>(null);
@@ -144,7 +145,8 @@ const GenerationPage: React.FC<GenerationPageProps> = ({
               params.use_quantization,
               params.quantization_colors,
               centroids,
-              true
+              true,
+              forcedScaleFactor || undefined
             );
             
             // Process for backend (full size)
@@ -157,7 +159,8 @@ const GenerationPage: React.FC<GenerationPageProps> = ({
               params.use_quantization,
               params.quantization_colors,
               centroids,
-              false
+              false,
+              forcedScaleFactor || undefined
             );
 
             if (newImages[i] !== displayB64) {
@@ -193,7 +196,7 @@ const GenerationPage: React.FC<GenerationPageProps> = ({
       }
     };
     reprocessAll();
-  }, [usePadding, sourceFiles, flipStates, params.pixel_size, params.bg_color, params.use_quantization, params.quantization_colors, centroids]);
+  }, [usePadding, sourceFiles, flipStates, params.pixel_size, params.bg_color, params.use_quantization, params.quantization_colors, centroids, forcedScaleFactor]);
 
   // Update palette source when start image changes
   useEffect(() => {
@@ -234,6 +237,14 @@ const GenerationPage: React.FC<GenerationPageProps> = ({
       const wasPadded = jobParams.use_padding === true;
       setUsePadding(wasPadded);
       const loadedPixelSize = String(parseInt(jobParams.pixel_size || "128")) as PixelSize;
+      const loadedScaleFactor = jobParams.scale_factor;
+      
+      if (wasPadded && loadedPixelSize === "256") {
+        setForcedScaleFactor(loadedScaleFactor);
+      } else {
+        setForcedScaleFactor(null);
+      }
+
       setParams({ 
         ...params, 
         ...jobParams, 
@@ -244,7 +255,7 @@ const GenerationPage: React.FC<GenerationPageProps> = ({
       userHasEditedPrompt.current = true;
       const newFiles: (File | string | null)[] = [null, null, null];
       if (inputImgs.length > 0) {
-        const processUrl = async (url: string) => wasPadded ? await unprocessImage(url, loadedPixelSize) : url;
+        const processUrl = async (url: string) => wasPadded ? await unprocessImage(url, loadedPixelSize, loadedScaleFactor) : url;
         try {
           newFiles[0] = await processUrl(inputImgs[0].url);
           let nextIdx = 1;
@@ -304,7 +315,13 @@ const GenerationPage: React.FC<GenerationPageProps> = ({
       finalParams.use_padding = usePadding;
       const pixelInt = parseInt(params.pixel_size);
       if (usePadding) {
-        finalParams.scale_factor = 384 / pixelInt;
+        if (forcedScaleFactor) {
+          finalParams.scale_factor = forcedScaleFactor;
+        } else if (pixelInt === 256) {
+          finalParams.scale_factor = 2;
+        } else {
+          finalParams.scale_factor = 384 / pixelInt;
+        }
       } else {
         if (pixelInt === 64 || pixelInt === 128) {
           finalParams.scale_factor = 512 / pixelInt;
@@ -457,7 +474,14 @@ const GenerationPage: React.FC<GenerationPageProps> = ({
                
                <div className="flex flex-col items-end gap-2 text-white/60">
                  <label className="flex items-center gap-2 text-[10px] cursor-pointer">
-                   <input type="checkbox" checked={usePadding} onChange={(e) => setUsePadding(e.target.checked)} />
+                   <input 
+                     type="checkbox" 
+                     checked={usePadding} 
+                     onChange={(e) => {
+                       setUsePadding(e.target.checked);
+                       setForcedScaleFactor(null); // Reset forced scale factor on manual change
+                     }} 
+                   />
                    PADDING
                  </label>
                  <label className="flex items-center gap-2 text-[10px] cursor-pointer">
@@ -532,7 +556,14 @@ const GenerationPage: React.FC<GenerationPageProps> = ({
                     <label className="text-[10px] block text-white/60 uppercase" style={{ fontSize: zhScale(10) }}>
                       {isZh ? "像素尺寸" : "PIXELS"}
                     </label>
-                    <select className="w-full bg-[#0d0221] p-2 text-[10px] outline-none border-2 border-[#5a2d9c] text-white" value={params.pixel_size} onChange={(e) => setParams({...params, pixel_size: e.target.value as PixelSize})}>
+                    <select 
+                      className="w-full bg-[#0d0221] p-2 text-[10px] outline-none border-2 border-[#5a2d9c] text-white" 
+                      value={params.pixel_size} 
+                      onChange={(e) => {
+                        setParams({...params, pixel_size: e.target.value as PixelSize});
+                        setForcedScaleFactor(null); // Reset forced scale factor on manual change
+                      }}
+                    >
                         {PIXEL_SIZES.map(s => <option key={s} value={s}>{s}x{s}</option>)}
                     </select>
                 </div>

@@ -91,7 +91,8 @@ export const processImage = async (
   useQuantization: boolean = false,
   quantizationColors: number = 32,
   externalCentroids?: RGB[],
-  downscale: boolean = false
+  downscale: boolean = false,
+  forcedScaleFactor?: number
 ): Promise<string> => {
   return new Promise(async (resolve, reject) => {
     let sourceDataUrl: string | null = null;
@@ -121,7 +122,15 @@ export const processImage = async (
 
         if (padding) {
           canvasDim = 768;
-          contentDim = 384;
+          if (forcedScaleFactor) {
+            contentDim = pixelInt * forcedScaleFactor;
+          } else {
+            if (pixelInt === 256) {
+              contentDim = 512;
+            } else {
+              contentDim = 384;
+            }
+          }
         } else {
           if (pixelInt === 64 || pixelInt === 128) {
             canvasDim = 512;
@@ -278,7 +287,7 @@ export const getPaletteSourceImageData = async (source: File | string): Promise<
   });
 };
 
-export const unprocessImage = async (url: string, pixelSize: string = '128'): Promise<string> => {
+export const unprocessImage = async (url: string, pixelSize: string = '128', forcedScaleFactor?: number): Promise<string> => {
   try {
     const sourceDataUrl = await fetchAsDataUrl(url);
     const isDataUrl = sourceDataUrl.startsWith('data:');
@@ -297,7 +306,16 @@ export const unprocessImage = async (url: string, pixelSize: string = '128'): Pr
         ctx.imageSmoothingEnabled = false;
         
         if (img.width === 768) {
-            const contentDim = 384;
+            let contentDim = 384;
+            const pixelInt = parseInt(pixelSize);
+            
+            if (forcedScaleFactor) {
+                contentDim = pixelInt * forcedScaleFactor;
+            } else if (pixelInt === 256) {
+                // Default to new logic if not forced
+                contentDim = 512;
+            }
+            
             const offset = (768 - contentDim) / 2;
             ctx.drawImage(img, offset, offset, contentDim, contentDim, 0, 0, 512, 512);
         } else {
