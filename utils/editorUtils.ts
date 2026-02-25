@@ -131,7 +131,7 @@ const medianCut = (pixels: RGB[], maxColors: number): RGB[] => {
 
 /**
  * 从 ImageData 中提取主导颜色 (质心)
- * 使用 Median Cut 算法
+ * 使用 Median Cut 算法，并始终保留图像中最深和最浅的两个颜色
  */
 export const extractCentroids = (
   imageData: ImageData,
@@ -150,7 +150,60 @@ export const extractCentroids = (
 
   if (pixels.length === 0) return [];
   
-  return medianCut(pixels, k);
+  // 找到最深和最浅的颜色
+  let darkest = pixels[0];
+  let lightest = pixels[0];
+  let minLum = Infinity;
+  let maxLum = -Infinity;
+
+  pixels.forEach(p => {
+    const lum = 0.299 * p.r + 0.587 * p.g + 0.114 * p.b;
+    if (lum < minLum) {
+      minLum = lum;
+      darkest = p;
+    }
+    if (lum > maxLum) {
+      maxLum = lum;
+      lightest = p;
+    }
+  });
+
+  // 如果 k 很小，直接返回这两个
+  if (k <= 2) {
+    const result = [darkest];
+    if (k === 2 && colorDistance(darkest, lightest) > 0) {
+      result.push(lightest);
+    }
+    return result;
+  }
+
+  // 过滤掉最深和最浅的颜色，对剩下的进行 Median Cut
+  const remainingPixels = pixels.filter(p => 
+    colorDistance(p, darkest) > 0 && colorDistance(p, lightest) > 0
+  );
+
+  if (remainingPixels.length === 0) {
+    return colorDistance(darkest, lightest) > 0 ? [darkest, lightest] : [darkest];
+  }
+
+  const palette = medianCut(remainingPixels, k - 2);
+  
+  // 合并结果
+  const finalPalette = [darkest, lightest, ...palette];
+  
+  // 确保唯一性 (以防 medianCut 产生的颜色与 darkest/lightest 重合)
+  const uniquePalette: RGB[] = [];
+  const seen = new Set<string>();
+  
+  finalPalette.forEach(p => {
+    const key = `${p.r},${p.g},${p.b}`;
+    if (!seen.has(key)) {
+      seen.add(key);
+      uniquePalette.push(p);
+    }
+  });
+
+  return uniquePalette.slice(0, k);
 };
 
 /**
