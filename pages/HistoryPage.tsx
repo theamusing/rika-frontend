@@ -6,7 +6,7 @@ import { PixelButton, PixelCard, PixelImage } from '../components/PixelComponent
 import { Heart } from 'lucide-react';
 
 interface HistoryPageProps {
-  onJobSelected: (id: string, page?: number) => void;
+  onJobSelected: (job: Job, page?: number) => void;
   onRegenerate: (params: any) => void;
   initialPage?: number;
   lang?: 'en' | 'zh';
@@ -320,7 +320,7 @@ const HistoryPage: React.FC<HistoryPageProps> = ({ onJobSelected, onRegenerate, 
                               )}
                           </div>
                           <div className="flex flex-col gap-3">
-                              <PixelButton variant="primary" onClick={() => onJobSelected(selectedJob.gen_id, currentPage)} disabled={selectedJob.status === 'failed'} style={{ fontSize: zhScale(10) }}>
+                              <PixelButton variant="primary" onClick={() => onJobSelected(selectedJob, currentPage)} disabled={selectedJob.status === 'failed'} style={{ fontSize: zhScale(10) }}>
                                 {isZh ? '预览' : 'View In Player'}
                               </PixelButton>
                               <PixelButton variant="secondary" onClick={() => onRegenerate(selectedJob)} style={{ fontSize: zhScale(10) }}>

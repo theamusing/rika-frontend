@@ -19,6 +19,7 @@ const App: React.FC = () => {
   const [activeTab, setActiveTab] = useState<'intro' | 'generate' | 'player' | 'history' | 'docs'>('intro');
   const [pendingTab, setPendingTab] = useState<'generate' | 'player' | 'history' | 'docs' | null>(null);
   const [selectedJobId, setSelectedJobId] = useState<string | null>(null);
+  const [selectedJob, setSelectedJob] = useState<Job | null>(null);
   const [navigationSource, setNavigationSource] = useState<{ tab: string, page?: number } | null>(null);
   const [initialParams, setInitialParams] = useState<any>(null);
   const [isAuthChecking, setIsAuthChecking] = useState(true);
@@ -142,8 +143,9 @@ const App: React.FC = () => {
     setLoginMode('login');
   };
 
-  const handleJobSelected = (jobId: string, page?: number) => {
-    setSelectedJobId(jobId);
+  const handleJobSelected = (job: Job, page?: number) => {
+    setSelectedJobId(job.gen_id);
+    setSelectedJob(job);
     setNavigationSource({ tab: 'history', page });
     setActiveTab('player');
   };
@@ -316,7 +318,8 @@ const App: React.FC = () => {
             {activeTab === 'player' && (
               <TaskPlayerPage 
                 selectedJobId={selectedJobId} 
-                onJobSelected={setSelectedJobId}
+                initialJob={selectedJob}
+                onJobSelected={(id) => { setSelectedJobId(id); setSelectedJob(null); }}
                 onRegenerate={handleRegenerate}
                 onBack={handleBack}
                 lang={lang}

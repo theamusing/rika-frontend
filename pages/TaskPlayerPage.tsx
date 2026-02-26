@@ -15,6 +15,7 @@ type WandMode = 'select' | 'add' | 'remove';
 
 interface TaskPlayerPageProps {
   selectedJobId: string | null;
+  initialJob?: Job | null;
   onJobSelected: (id: string) => void;
   onRegenerate: (job: Job) => void;
   onBack?: () => void;
@@ -23,12 +24,9 @@ interface TaskPlayerPageProps {
 
 const CDN_BASE = "https://cdn.rika-ai.com/assets/frontpage/";
 const ICON_BASE = `${CDN_BASE}icons/`;
-const LIKED_JOBS_KEY = 'rika_liked_jobs';
-
-const TaskPlayerPage: React.FC<TaskPlayerPageProps> = ({ selectedJobId, onJobSelected, onRegenerate, onBack, lang = 'en' }) => {
+const TaskPlayerPage: React.FC<TaskPlayerPageProps> = ({ selectedJobId, initialJob, onJobSelected, onRegenerate, onBack, lang = 'en' }) => {
   const [currentJob, setCurrentJob] = useState<Job | null>(null);
   const [frames, setFrames] = useState<string[]>([]);
-  const [likedJobs, setLikedJobs] = useState<Set<string>>(new Set());
   const [undoStack, setUndoStack] = useState<string[][]>([]);
   const [redoStack, setRedoStack] = useState<string[][]>([]);
   const [initialFrames, setInitialFrames] = useState<string[]>([]);
@@ -72,33 +70,20 @@ const TaskPlayerPage: React.FC<TaskPlayerPageProps> = ({ selectedJobId, onJobSel
   const isZh = lang === 'zh';
   const zhScale = (enSize: number) => isZh ? `${enSize + 3}px` : `${enSize}px`;
 
-  // Load liked jobs from localStorage
-  useEffect(() => {
-    const stored = localStorage.getItem(LIKED_JOBS_KEY);
-    if (stored) {
-      try {
-        const parsed = JSON.parse(stored);
-        if (Array.isArray(parsed)) {
-          setLikedJobs(new Set(parsed));
-        }
-      } catch (e) {
-        console.error("Failed to parse liked jobs", e);
-      }
-    }
-  }, []);
-
-  const toggleLike = (e: React.MouseEvent, genId: string) => {
+  const toggleLike = async (e: React.MouseEvent, job: Job) => {
     e.stopPropagation();
-    setLikedJobs(prev => {
-      const next = new Set(prev);
-      if (next.has(genId)) {
-        next.delete(genId);
-      } else {
-        next.add(genId);
-      }
-      localStorage.setItem(LIKED_JOBS_KEY, JSON.stringify(Array.from(next)));
-      return next;
-    });
+    const newLiked = !job.liked;
+    
+    // Optimistic update
+    setCurrentJob(prev => prev && prev.gen_id === job.gen_id ? { ...prev, liked: newLiked } : prev);
+
+    try {
+      await apiService.setLiked(job.gen_id, newLiked);
+    } catch (err) {
+      console.error("Failed to set liked status", err);
+      // Rollback on error
+      setCurrentJob(prev => prev && prev.gen_id === job.gen_id ? { ...prev, liked: !newLiked } : prev);
+    }
   };
 
   const pushToHistory = (newFrames: string[]) => {
@@ -245,6 +230,14 @@ const TaskPlayerPage: React.FC<TaskPlayerPageProps> = ({ selectedJobId, onJobSel
       setLoading(true);
       const fetchJob = async () => {
         try {
+          if (initialJob && initialJob.gen_id === selectedJobId) {
+            setCurrentJob(initialJob);
+            await updateFramesFromJob(initialJob);
+            if (initialJob.status === 'succeeded') {
+              setLoading(false);
+              return;
+            }
+          }
           const job = await apiService.getJobInfo(selectedJobId);
           if (isMounted.current) {
             setCurrentJob(job); await updateFramesFromJob(job); setLoading(false);
@@ -440,7 +433,7 @@ const TaskPlayerPage: React.FC<TaskPlayerPageProps> = ({ selectedJobId, onJobSel
     return () => { if (playbackRef.current) clearInterval(playbackRef.current); };
   }, [isPlaying, frames.length, fps, excludedFrames, isJobRunning]);
 
-  const ToolButton = ({ id, content, hasParams }: { id: Tool, content: React.ReactNode, hasParams?: boolean }) => {
+  const renderToolButton = (id: Tool, content: React.ReactNode, hasParams?: boolean) => {
     const isActive = effectiveTool === id;
     const getToolTitle = () => {
       if (!isZh) return id.toUpperCase();
@@ -454,7 +447,7 @@ const TaskPlayerPage: React.FC<TaskPlayerPageProps> = ({ selectedJobId, onJobSel
     };
 
     return (
-      <div className="relative flex items-center justify-center w-full group">
+      <div key={id} className="relative flex items-center justify-center w-full group">
         <button 
           onClick={() => { setActiveTool(id); setIsPlaying(false); }}
           className={`w-10 h-10 flex items-center justify-center pixel-border border-2 transition-all shrink-0 ${isActive ? 'bg-[#f7d51d] text-[#2d1b4e] border-white' : 'bg-black/40 text-white border-[#5a2d9c] hover:border-white/50'}`}
@@ -475,7 +468,10 @@ const TaskPlayerPage: React.FC<TaskPlayerPageProps> = ({ selectedJobId, onJobSel
           > ▶ </button>
         )}
         {menuOpenFor === id && (
-          <div className="absolute left-14 top-0 z-[100] bg-[#1e1e1e] pixel-border p-4 w-48 shadow-2xl animate-fade-in border-[#5a2d9c]">
+          <div 
+            onMouseDown={(e) => e.stopPropagation()}
+            className="absolute left-14 top-0 z-[100] bg-[#1e1e1e] pixel-border p-4 w-48 shadow-2xl animate-fade-in border-[#5a2d9c]"
+          >
             <div className="flex justify-between items-center mb-3">
               <span className="font-bold text-white/80 uppercase" style={{ fontSize: zhScale(10) }}>
                 {isZh ? (id === 'brush' ? '笔刷' : id === 'eraser' ? '橡皮' : '魔棒') : id.toUpperCase()}
@@ -507,7 +503,7 @@ const TaskPlayerPage: React.FC<TaskPlayerPageProps> = ({ selectedJobId, onJobSel
                     <span style={{ fontSize: zhScale(8) }}>{isZh ? '容差' : 'TOLERANCE'}:</span>
                     <span style={{ fontSize: '8px' }}>{wandTolerance}</span>
                   </div>
-                  <input type="range" min="0" max="255" value={wandTolerance} onChange={e => setWandTolerance(parseInt(e.target.value))} className="w-full accent-white" />
+                  <input type="range" min="1" max="100" value={wandTolerance} onChange={e => setWandTolerance(parseInt(e.target.value))} className="w-full accent-white" />
                 </div>
                 <div className="space-y-2">
                   <p className="opacity-60 uppercase text-white/60" style={{ fontSize: zhScale(8) }}>{isZh ? '模式' : 'MODE'}</p>
@@ -531,7 +527,7 @@ const TaskPlayerPage: React.FC<TaskPlayerPageProps> = ({ selectedJobId, onJobSel
   const lightChecker = `linear-gradient(45deg, #e1e1bc 25%, transparent 25%), linear-gradient(-45deg, #e1e1bc 25%, transparent 25%), linear-gradient(45deg, transparent 75%, #e1e1bc 75%), linear-gradient(-45deg, transparent 75%, #e1e1bc 75%)`;
 
   return (
-    <div className="flex flex-col gap-6 w-full overflow-hidden text-white">
+    <div className="flex flex-col gap-6 w-full overflow-hidden text-white select-none">
       <div className="flex justify-between items-center bg-[#121212]/80 p-3 pixel-border border-[#5a2d9c] w-full">
         <div className="flex items-center gap-4">
           {onBack && (
@@ -563,10 +559,10 @@ const TaskPlayerPage: React.FC<TaskPlayerPageProps> = ({ selectedJobId, onJobSel
 
       <div className="grid grid-cols-1 lg:grid-cols-[auto_1fr_auto] gap-6 w-full items-start">
         <div className={`flex flex-col items-center gap-4 p-2 bg-[#1e1e1e]/60 pixel-border border-[#5a2d9c] w-14 shrink-0 ${isJobRunning ? 'opacity-30 pointer-events-none' : ''}`}>
-           <ToolButton id="brush" content={<img src={`${ICON_BASE}brush.png`} style={{ imageRendering: 'auto' }} className="w-full h-full object-contain" alt="Brush" />} hasParams />
-           <ToolButton id="eraser" content={<img src={`${ICON_BASE}eraser.png`} style={{ imageRendering: 'auto' }} className="w-full h-full object-contain" alt="Eraser" />} hasParams />
-           <ToolButton id="wand" content={<img src={`${ICON_BASE}wand.png`} style={{ imageRendering: 'auto' }} className="w-full h-full object-contain" alt="Wand" />} hasParams />
-           <ToolButton id="move" content={<img src={`${ICON_BASE}drag.png`} style={{ imageRendering: 'auto' }} className="w-full h-full object-contain" alt="Drag" />} />
+           {renderToolButton("brush", <img src={`${ICON_BASE}brush.png`} style={{ imageRendering: 'auto' }} className="w-full h-full object-contain" alt="Brush" />, true)}
+           {renderToolButton("eraser", <img src={`${ICON_BASE}eraser.png`} style={{ imageRendering: 'auto' }} className="w-full h-full object-contain" alt="Eraser" />, true)}
+           {renderToolButton("wand", <img src={`${ICON_BASE}wand.png`} style={{ imageRendering: 'auto' }} className="w-full h-full object-contain" alt="Wand" />, true)}
+           {renderToolButton("move", <img src={`${ICON_BASE}drag.png`} style={{ imageRendering: 'auto' }} className="w-full h-full object-contain" alt="Drag" />)}
            <div className="mt-4 border-t-2 border-[#5a2d9c] pt-4 flex flex-col items-center gap-4 w-full">
               <div 
                 className="relative w-10 h-10 pixel-border border-2 border-[#5a2d9c] bg-black/40 overflow-hidden shrink-0" 
@@ -591,15 +587,15 @@ const TaskPlayerPage: React.FC<TaskPlayerPageProps> = ({ selectedJobId, onJobSel
 
         <div className="flex flex-col gap-4 min-w-0 w-full overflow-hidden">
           <PixelCard className={`relative p-0 overflow-hidden h-[512px] flex items-center justify-center ${isLightBg ? 'bg-[#f5f5dc]' : 'bg-[#121212]'}`}>
-            {selectedJobId && (
+            {currentJob && (
               <div 
                 className="absolute top-4 left-4 z-30 p-2 cursor-pointer transition-transform hover:scale-110 active:scale-95 bg-black/20 rounded-full"
-                onClick={(e) => toggleLike(e, selectedJobId)}
+                onClick={(e) => toggleLike(e, currentJob)}
               >
                 <Heart 
                   size={24} 
-                  className={`${likedJobs.has(selectedJobId) ? 'fill-red-500 text-red-500' : 'text-white/40 hover:text-white/70'}`} 
-                  strokeWidth={likedJobs.has(selectedJobId) ? 0 : 2}
+                  className={`${currentJob.liked ? 'fill-red-500 text-red-500' : 'text-white/40 hover:text-white/70'}`} 
+                  strokeWidth={currentJob.liked ? 0 : 2}
                 />
               </div>
             )}
@@ -636,7 +632,7 @@ const TaskPlayerPage: React.FC<TaskPlayerPageProps> = ({ selectedJobId, onJobSel
                       <span style={{ fontSize: zhScale(8) }}>{isZh ? '容差' : 'TOLERANCE'}:</span>
                       <span style={{ fontSize: '8px' }}>{bgRemovalTolerance}</span>
                     </div>
-                    <input type="range" min="0" max="255" value={bgRemovalTolerance} onChange={e => setBgRemovalTolerance(parseInt(e.target.value))} className="w-full accent-white" />
+                    <input type="range" min="1" max="100" value={bgRemovalTolerance} onChange={e => setBgRemovalTolerance(parseInt(e.target.value))} className="w-full accent-white" />
                  </div>
               </div>
            </PixelCard>
