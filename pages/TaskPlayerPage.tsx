@@ -380,6 +380,25 @@ const TaskPlayerPage: React.FC<TaskPlayerPageProps> = ({ selectedJobId, initialJ
     pushToHistory(newFrames); setLoading(false);
   };
 
+  const restoreFrames = async () => {
+    if (isJobRunning || !currentJob) return;
+    const outputUrl = currentJob.output_images?.[0]?.url;
+    if (!outputUrl) return;
+    
+    setLoading(true);
+    try {
+      const apiLength = currentJob.input_params?.length || 33;
+      const sliced = await sliceSpriteSheet(outputUrl, apiLength);
+      setIsPlaying(false);
+      pushToHistory([...sliced]);
+      setExcludedFrames(new Set());
+    } catch (err) {
+      console.error("Failed to restore original", err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const toggleFrameExclusion = (index: number, e: React.MouseEvent) => {
     e.stopPropagation(); setExcludedFrames(prev => { const next = new Set(prev); if (next.has(index)) next.delete(index); else next.add(index); return next; });
   };
@@ -634,6 +653,9 @@ const TaskPlayerPage: React.FC<TaskPlayerPageProps> = ({ selectedJobId, initialJ
                     </div>
                     <input type="range" min="1" max="100" value={bgRemovalTolerance} onChange={e => setBgRemovalTolerance(parseInt(e.target.value))} className="w-full accent-white" />
                  </div>
+                 <PixelButton variant="secondary" className="w-full" onClick={restoreFrames} style={{ fontSize: zhScale(9) }}>
+                    {isZh ? '还原初始' : 'RESTORE ORIGINAL'}
+                 </PixelButton>
               </div>
            </PixelCard>
            <PixelCard title={isZh ? '历史记录' : 'HISTORY'}>
