@@ -1,5 +1,5 @@
 
-import { API_BASE } from '../constants.ts';
+import { API_BASE, SUPABASE_FUNCTIONS_URL, SUPABASE_ANON_KEY } from '../constants.ts';
 import { Job } from '../types.ts';
 
 class ApiService {
@@ -24,10 +24,7 @@ class ApiService {
     
     const baseUrl = API_BASE.endsWith('/') ? API_BASE : `${API_BASE}/`;
     const cleanEndpoint = endpoint.startsWith('/') ? endpoint.slice(1) : endpoint;
-    let url = `${baseUrl}${cleanEndpoint}`;
-    if (!url.endsWith('/')) {
-        if (!url.includes('?')) url += '/';
-    }
+    const url = `${baseUrl}${cleanEndpoint}`;
 
     if (this.inFlight.has(key)) {
       return this.inFlight.get(key);
@@ -124,8 +121,47 @@ class ApiService {
     return this.request('GET', `jobs/${genId}`);
   }
 
-  async getHistory(start: number = 0, k: number = 20): Promise<{ jobs: Job[] }> {
-    return this.request('GET', `history?start=${start}&k=${k}`);
+  async getHistory(start: number = 0, k: number = 20, get_liked: boolean = false): Promise<{ jobs: Job[] }> {
+    return this.request('GET', `history?start=${start}&k=${k}&get_liked=${get_liked}`);
+  }
+
+  async getHistoryNum(get_liked: boolean = false): Promise<{ total: number }> {
+    return this.request('POST', `history_num?get_liked=${get_liked}`);
+  }
+
+  async setLiked(generationId: string, liked: boolean, retryCount = 0): Promise<any> {
+    const url = `${SUPABASE_FUNCTIONS_URL}set-liked`;
+    const headers: Record<string, string> = {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${this.token}`,
+      'apikey': SUPABASE_ANON_KEY,
+    };
+    
+    try {
+      const response = await fetch(url, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({ generation_id: generationId, liked }),
+        mode: 'cors',
+        credentials: 'omit',
+      });
+
+      if (!response.ok) {
+        let detail = response.statusText;
+        try {
+          const data = await response.json();
+          detail = data.detail || data.message || detail;
+        } catch (e) {}
+        throw new Error(`Failed to set liked status: ${detail}`);
+      }
+      return response.json();
+    } catch (error: any) {
+      if (error.message === 'Failed to fetch' && retryCount < this.MAX_RETRIES) {
+        await this.sleep(1000);
+        return this.setLiked(generationId, liked, retryCount + 1);
+      }
+      throw error;
+    }
   }
 }
 

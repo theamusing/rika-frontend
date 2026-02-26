@@ -12,8 +12,8 @@ interface HistoryPageProps {
   lang?: 'en' | 'zh';
 }
 
-const PAGE_SIZE = 8;
-const LIKED_JOBS_KEY = 'rika_liked_jobs';
+const PAGE_SIZE = 20;
+const SHOW_LIKED_ONLY_KEY = 'rika_show_liked_only';
 
 const HistoryPage: React.FC<HistoryPageProps> = ({ onJobSelected, onRegenerate, initialPage, lang = 'en' }) => {
   const [jobs, setJobs] = useState<Job[]>([]);
@@ -21,43 +21,38 @@ const HistoryPage: React.FC<HistoryPageProps> = ({ onJobSelected, onRegenerate, 
   const [selectedJob, setSelectedJob] = useState<Job | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [currentPage, setCurrentPage] = useState(initialPage || 0);
-  const [likedJobs, setLikedJobs] = useState<Set<string>>(new Set());
-  const [showLikedOnly, setShowLikedOnly] = useState(false);
+  const [totalJobs, setTotalJobs] = useState(0);
+  const [showLikedOnly, setShowLikedOnly] = useState(() => {
+    return localStorage.getItem(SHOW_LIKED_ONLY_KEY) === 'true';
+  });
   
   const lastRefreshTime = useRef<number>(0);
   const isMounted = useRef(true);
   const isFetching = useRef(false);
 
-  // Load liked jobs from localStorage
-  useEffect(() => {
-    const stored = localStorage.getItem(LIKED_JOBS_KEY);
-    if (stored) {
-      try {
-        const parsed = JSON.parse(stored);
-        if (Array.isArray(parsed)) {
-          setLikedJobs(new Set(parsed));
-        }
-      } catch (e) {
-        console.error("Failed to parse liked jobs", e);
+  const toggleLike = async (e: React.MouseEvent, job: Job) => {
+    e.stopPropagation();
+    const newLiked = !job.liked;
+    
+    // Optimistic update
+    setJobs(prev => prev.map(j => j.gen_id === job.gen_id ? { ...j, liked: newLiked } : j));
+    if (selectedJob?.gen_id === job.gen_id) {
+      setSelectedJob(prev => prev ? { ...prev, liked: newLiked } : null);
+    }
+
+    try {
+      await apiService.setLiked(job.gen_id, newLiked);
+    } catch (err) {
+      console.error("Failed to set liked status", err);
+      // Rollback on error
+      setJobs(prev => prev.map(j => j.gen_id === job.gen_id ? { ...j, liked: !newLiked } : j));
+      if (selectedJob?.gen_id === job.gen_id) {
+        setSelectedJob(prev => prev ? { ...prev, liked: !newLiked } : null);
       }
     }
-  }, []);
-
-  const toggleLike = (e: React.MouseEvent, genId: string) => {
-    e.stopPropagation();
-    setLikedJobs(prev => {
-      const next = new Set(prev);
-      if (next.has(genId)) {
-        next.delete(genId);
-      } else {
-        next.add(genId);
-      }
-      localStorage.setItem(LIKED_JOBS_KEY, JSON.stringify(Array.from(next)));
-      return next;
-    });
   };
 
-  const fetchHistory = useCallback(async (isInitial = false, page: number = currentPage) => {
+  const fetchHistory = useCallback(async (isInitial = false, page: number = currentPage, likedOnly: boolean = showLikedOnly) => {
     if (isFetching.current) return;
     isFetching.current = true;
     try {
@@ -65,8 +60,16 @@ const HistoryPage: React.FC<HistoryPageProps> = ({ onJobSelected, onRegenerate, 
         setLoading(true);
         setError(null);
       }
+      
+      // Fetch total count with liked filter
+      const numRes = await apiService.getHistoryNum(likedOnly);
+      if (isMounted.current) {
+        setTotalJobs(numRes.total);
+      }
+
       const start = page * PAGE_SIZE;
-      const res = await apiService.getHistory(start, PAGE_SIZE);
+      const res = await apiService.getHistory(start, PAGE_SIZE, likedOnly);
+      
       if (isMounted.current) {
         setJobs(res.jobs || []);
         setError(null);
@@ -79,24 +82,26 @@ const HistoryPage: React.FC<HistoryPageProps> = ({ onJobSelected, onRegenerate, 
         isFetching.current = false;
       }
     }
-  }, [currentPage]);
+  }, [currentPage, showLikedOnly]);
 
   useEffect(() => {
     isMounted.current = true;
-    fetchHistory(true, currentPage);
-    const pollInterval = setInterval(() => fetchHistory(false, currentPage), 5000); 
+    fetchHistory(true, currentPage, showLikedOnly);
+    const pollInterval = setInterval(() => fetchHistory(false, currentPage, showLikedOnly), 5000); 
     return () => {
       isMounted.current = false;
       clearInterval(pollInterval);
     };
-  }, [fetchHistory, currentPage]);
+  }, [fetchHistory, currentPage, showLikedOnly]);
 
   const handleManualRefresh = () => {
     const now = Date.now();
     if (now - lastRefreshTime.current < 1000) return; 
     lastRefreshTime.current = now;
-    fetchHistory(false, currentPage);
+    fetchHistory(false, currentPage, showLikedOnly);
   };
+
+  const totalPages = Math.ceil(totalJobs / PAGE_SIZE);
 
   const handleNextPage = () => setCurrentPage(prev => prev + 1);
   const handlePrevPage = () => setCurrentPage(prev => Math.max(0, prev - 1));
@@ -106,25 +111,6 @@ const HistoryPage: React.FC<HistoryPageProps> = ({ onJobSelected, onRegenerate, 
   // Helper to apply larger font only if text is Chinese
   const zhScale = (enSize: number) => isZh ? `${enSize + 3}px` : `${enSize}px`;
 
-  if (loading) return (
-    <div className={`text-center p-20 animate-pulse uppercase text-white/50`} style={{ fontSize: zhScale(10) }}>
-      {isZh ? '扫描数据库中...' : 'Scanning Database...'}
-    </div>
-  );
-
-  if (error) return (
-    <div className="text-center p-20 space-y-4">
-      <p className={`text-red-500 uppercase`} style={{ fontSize: zhScale(10) }}>
-        {isZh ? '加载失败: ' : 'Archive Error: '}{error}
-      </p>
-      <PixelButton onClick={() => fetchHistory(true, currentPage)} style={{ fontSize: zhScale(10) }}>
-        {isZh ? '重试连接' : 'Retry Connection'}
-      </PixelButton>
-    </div>
-  );
-
-  const hasNextPage = jobs.length === PAGE_SIZE;
-
   return (
     <div className="space-y-8 text-white">
       <div className="flex justify-between items-center">
@@ -132,12 +118,16 @@ const HistoryPage: React.FC<HistoryPageProps> = ({ onJobSelected, onRegenerate, 
             <h2 className={`font-bold uppercase text-white/80 ${isZh ? 'text-[24px]' : 'text-xl'}`}>
               {isZh ? '历史记录' : 'GENERATION ARCHIVE'}
             </h2>
-            <div className={`px-3 py-1 bg-[#5a2d9c]/40 pixel-border border-[#5a2d9c] text-white/60 text-[10px]`}>
-              PAGE {String(currentPage + 1).padStart(2, '0')}
+            <div className="flex items-center gap-2">
+              <div className={`px-3 py-1 bg-[#5a2d9c]/40 pixel-border border-[#5a2d9c] text-white/60 text-[10px]`}>
+                PAGE {String(currentPage + 1).padStart(2, '0')} / {String(totalPages || 1).padStart(2, '0')}
+              </div>
             </div>
             <button 
               onClick={() => {
-                setShowLikedOnly(!showLikedOnly);
+                const newValue = !showLikedOnly;
+                setShowLikedOnly(newValue);
+                localStorage.setItem(SHOW_LIKED_ONLY_KEY, String(newValue));
                 setCurrentPage(0);
               }}
               className={`flex items-center gap-2 px-3 py-1 pixel-border transition-all ${showLikedOnly ? 'bg-red-500/20 border-red-500 text-red-500' : 'bg-[#5a2d9c]/20 border-[#5a2d9c] text-white/40 hover:text-white/60'}`}
@@ -152,13 +142,24 @@ const HistoryPage: React.FC<HistoryPageProps> = ({ onJobSelected, onRegenerate, 
           </PixelButton>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+      {loading ? (
+        <div className={`text-center p-20 animate-pulse uppercase text-white/50`} style={{ fontSize: zhScale(10) }}>
+          {isZh ? '扫描数据库中...' : 'Scanning Database...'}
+        </div>
+      ) : error ? (
+        <div className="text-center p-20 space-y-4">
+          <p className={`text-red-500 uppercase`} style={{ fontSize: zhScale(10) }}>
+            {isZh ? '加载失败: ' : 'Archive Error: '}{error}
+          </p>
+          <PixelButton onClick={() => fetchHistory(true, currentPage)} style={{ fontSize: zhScale(10) }}>
+            {isZh ? '重试连接' : 'Retry Connection'}
+          </PixelButton>
+        </div>
+      ) : (
+        <>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
           {(() => {
-            const displayedJobs = showLikedOnly 
-              ? jobs.filter(j => likedJobs.has(j.gen_id))
-              : jobs;
-            
-            if (displayedJobs.length === 0) {
+            if (jobs.length === 0) {
               return (
                 <div className={`col-span-full text-center py-20 opacity-50 uppercase`} style={{ fontSize: zhScale(10) }}>
                   {isZh ? (showLikedOnly ? '暂无收藏记录' : '此页暂无记录') : (showLikedOnly ? 'No liked records found' : 'No records found on this page')}
@@ -166,17 +167,17 @@ const HistoryPage: React.FC<HistoryPageProps> = ({ onJobSelected, onRegenerate, 
               );
             }
 
-            return displayedJobs.map((job) => (
+            return jobs.map((job) => (
               <PixelCard key={job.gen_id} className="group hover:bg-[#5a2d9c]/20 transition-all cursor-pointer" onClick={() => setSelectedJob(job)}>
                   <div className="aspect-square bg-black/40 mb-4 overflow-hidden pixel-border border-2 border-[#5a2d9c] group-hover:border-white/40 relative">
                       <div 
                         className="absolute top-1 left-1 z-30 p-1 cursor-pointer transition-transform hover:scale-110 active:scale-95"
-                        onClick={(e) => toggleLike(e, job.gen_id)}
+                        onClick={(e) => toggleLike(e, job)}
                       >
                         <Heart 
                           size={16} 
-                          className={`${likedJobs.has(job.gen_id) ? 'fill-red-500 text-red-500' : 'text-white/40 hover:text-white/70'}`} 
-                          strokeWidth={likedJobs.has(job.gen_id) ? 0 : 2}
+                          className={`${job.liked ? 'fill-red-500 text-red-500' : 'text-white/40 hover:text-white/70'}`} 
+                          strokeWidth={job.liked ? 0 : 2}
                         />
                       </div>
                       {job.input_params?.motion_type && (
@@ -214,22 +215,42 @@ const HistoryPage: React.FC<HistoryPageProps> = ({ onJobSelected, onRegenerate, 
               </PixelCard>
             ));
           })()}
-      </div>
+          </div>
 
-      <div className="flex justify-center items-center gap-8 py-4 border-t-4 border-[#5a2d9c]/30">
-          <PixelButton variant="secondary" disabled={currentPage === 0} onClick={handlePrevPage} className="w-32" style={{ fontSize: zhScale(10) }}>
-            {isZh ? '上一页' : '< PREV'}
-          </PixelButton>
-          <div className={`opacity-40`} style={{ fontSize: zhScale(10) }}>
-            {isZh ? '显示' : 'SHOWING'}
+          <div className="flex flex-col md:flex-row justify-center items-center gap-6 py-6 border-t-4 border-[#5a2d9c]/30">
+              <div className="flex items-center gap-4">
+                <PixelButton variant="secondary" disabled={currentPage === 0} onClick={handlePrevPage} className="w-24" style={{ fontSize: zhScale(10) }}>
+                  {isZh ? '上一页' : '< PREV'}
+                </PixelButton>
+                
+                <div className="flex items-center gap-2">
+                  <span className="text-white/40 text-[10px] uppercase">{isZh ? '第' : 'PAGE'}</span>
+                  <span className="text-white/60 text-[10px]">{currentPage + 1}</span>
+                  <span className="text-white/40 text-[10px] uppercase"> / {totalPages || 1} {isZh ? '页' : ''}</span>
+                </div>
+
+                <PixelButton 
+                  variant="secondary" 
+                  disabled={currentPage >= totalPages - 1} 
+                  onClick={handleNextPage} 
+                  className="w-24" 
+                  style={{ fontSize: zhScale(10) }}
+                >
+                  {isZh ? '下一页' : 'NEXT >'}
+                </PixelButton>
+              </div>
+
+              <div className="flex items-center gap-2 text-white/40 text-[10px] uppercase">
+                <span>{isZh ? (showLikedOnly ? '显示收藏' : '显示') : (showLikedOnly ? 'SHOWING LIKED' : 'SHOWING')}</span>
+                <span className="text-white/60">
+                  {totalJobs > 0 ? currentPage * PAGE_SIZE + 1 : 0} - {Math.min((currentPage + 1) * PAGE_SIZE, totalJobs)}
+                </span>
+                <span>/</span>
+                <span className="text-white/60">{totalJobs}</span>
+              </div>
           </div>
-          <div className={`opacity-40`} style={{ fontSize: 10 }}>
-            {currentPage * PAGE_SIZE + 1} - {currentPage * PAGE_SIZE + jobs.length}
-          </div>
-          <PixelButton variant="secondary" disabled={!hasNextPage} onClick={handleNextPage} className="w-32" style={{ fontSize: zhScale(10) }}>
-            {isZh ? '下一页' : 'NEXT >'}
-          </PixelButton>
-      </div>
+        </>
+      )}
 
       {selectedJob && (
           <div className="fixed inset-0 z-[60] bg-black/90 flex items-center justify-center p-4">
@@ -261,12 +282,12 @@ const HistoryPage: React.FC<HistoryPageProps> = ({ onJobSelected, onRegenerate, 
                                   <div className="aspect-square bg-black/40 pixel-border border-[#5a2d9c] relative">
                                       <div 
                                         className="absolute top-2 left-2 z-30 p-2 cursor-pointer transition-transform hover:scale-110 active:scale-95 bg-black/20 rounded-full"
-                                        onClick={(e) => toggleLike(e, selectedJob.gen_id)}
+                                        onClick={(e) => toggleLike(e, selectedJob)}
                                       >
                                         <Heart 
                                           size={24} 
-                                          className={`${likedJobs.has(selectedJob.gen_id) ? 'fill-red-500 text-red-500' : 'text-white/40 hover:text-white/70'}`} 
-                                          strokeWidth={likedJobs.has(selectedJob.gen_id) ? 0 : 2}
+                                          className={`${selectedJob.liked ? 'fill-red-500 text-red-500' : 'text-white/40 hover:text-white/70'}`} 
+                                          strokeWidth={selectedJob.liked ? 0 : 2}
                                         />
                                       </div>
                                       <PixelImage 

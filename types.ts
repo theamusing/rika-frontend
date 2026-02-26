@@ -30,6 +30,7 @@ export interface Job {
   input_images?: { url: string; key: string }[];
   output_images?: { url: string; key: string; base64?: string }[];
   error?: string;
+  liked?: boolean;
 }
 
 export interface AuthUser {
