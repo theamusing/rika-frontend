@@ -28,6 +28,7 @@ const App: React.FC = () => {
   const [loginMode, setLoginMode] = useState<'login' | 'forgot' | 'update'>('login');
   const [lang, setLang] = useState<'en' | 'zh'>('en');
   const [showUserDropdown, setShowUserDropdown] = useState(false);
+  const [isBackendDown, setIsBackendDown] = useState(false);
   
   const lastFetchTime = useRef<number>(0);
   const dropdownRef = useRef<HTMLDivElement>(null);
@@ -54,6 +55,17 @@ const App: React.FC = () => {
     } catch (err: any) {
       console.error("Failed to fetch credits", err);
     }
+  }, []);
+
+  useEffect(() => {
+    const checkHealth = async () => {
+      const isUp = await apiService.checkHealth();
+      setIsBackendDown(!isUp);
+    };
+
+    checkHealth();
+    const interval = setInterval(checkHealth, 30000);
+    return () => clearInterval(interval);
   }, []);
 
   useEffect(() => {
@@ -175,6 +187,13 @@ const App: React.FC = () => {
 
   return (
     <div className="min-h-screen flex flex-col bg-[#0d0221]">
+      {isBackendDown && (
+        <div className="bg-red-600 text-white text-center py-2 px-4 text-[10px] font-bold uppercase animate-pulse z-[100]">
+          {isZh 
+            ? '网站服务器维护中，暂时无法使用，请谅解。您的积分不会丢失，只是暂时无法显示。' 
+            : 'Server maintenance in progress. The site is temporarily unavailable. Your credits are safe but cannot be displayed at the moment.'}
+        </div>
+      )}
       <header className="sticky top-0 z-50 bg-[#2d1b4e] border-b-4 border-[#5a2d9c] p-4 flex flex-wrap items-center justify-between gap-4">
         <div className="flex items-center gap-6">
           <img 
@@ -231,12 +250,14 @@ const App: React.FC = () => {
           {user ? (
             <div className="flex items-center gap-4 relative" ref={dropdownRef}>
               <div 
-                className="flex flex-col items-end cursor-pointer group"
-                onClick={() => setIsPricingOpen(true)}
-                title="Click to buy more credits"
+                className={`flex flex-col items-end cursor-pointer group ${isBackendDown ? 'opacity-50 cursor-not-allowed' : ''}`}
+                onClick={() => !isBackendDown && setIsPricingOpen(true)}
+                title={isBackendDown ? (isZh ? "服务器维护中" : "Server Maintenance") : "Click to buy more credits"}
               >
                 <span className="text-[8px] opacity-40 text-white group-hover:text-[#f7d51d]">CREDITS</span>
-                <span className="text-sm font-bold text-[#f7d51d] group-hover:scale-105 transition-transform">{credits}</span>
+                <span className="text-sm font-bold text-[#f7d51d] group-hover:scale-105 transition-transform">
+                  {isBackendDown ? '???' : credits}
+                </span>
               </div>
               
               <div className="relative">
@@ -313,6 +334,7 @@ const App: React.FC = () => {
                 credits={credits}
                 onOpenPricing={() => setIsPricingOpen(true)}
                 lang={lang}
+                isBackendDown={isBackendDown}
               />
             )}
             {activeTab === 'player' && (
@@ -342,6 +364,7 @@ const App: React.FC = () => {
         onClose={() => setIsPricingOpen(false)} 
         onSimulatedSuccess={() => setIsPaymentSuccessOpen(true)}
         lang={lang}
+        isBackendDown={isBackendDown}
       />
       <PaymentSuccessModal 
         isOpen={isPaymentSuccessOpen} 

@@ -8,6 +8,7 @@ interface PricingModalProps {
   onClose: () => void;
   onSimulatedSuccess?: () => void;
   lang?: 'en' | 'zh';
+  isBackendDown?: boolean;
 }
 
 type Currency = 'USD' | 'CNY';
@@ -32,7 +33,7 @@ const postToGateway = (gateway: string, form: Record<string, string>) => {
   f.submit();
 };
 
-export const PricingModal: React.FC<PricingModalProps> = ({ isOpen, onClose, onSimulatedSuccess, lang = 'en' }) => {
+export const PricingModal: React.FC<PricingModalProps> = ({ isOpen, onClose, onSimulatedSuccess, lang = 'en', isBackendDown = false }) => {
   const [currency, setCurrency] = useState<Currency>('USD');
   const [loading, setLoading] = useState(false);
 
@@ -50,7 +51,8 @@ export const PricingModal: React.FC<PricingModalProps> = ({ isOpen, onClose, onS
     footerNote: isZh ? '每次生成消耗 5 个积分。积分永不过期。' : 'EACH GENERATION CONSUMES 5 CREDITS. NO EXPIRATION ON ACQUIRED CREDITS.',
     cancel: isZh ? '取消' : 'CANCEL',
     errorLogin: isZh ? '请先登录以进行购买。' : 'Please log in to make a purchase.',
-    errorGateway: isZh ? '支付网关连接失败，请稍后重试。' : 'Payment gateway connection failed. Please try again later.'
+    errorGateway: isZh ? '支付网关连接失败，请稍后重试。' : 'Payment gateway connection failed. Please try again later.',
+    maintenance: isZh ? '服务器维护中，暂时无法购买。' : 'Server maintenance. Purchases are temporarily disabled.'
   };
 
   const handlePurchase = async (tier: Tier) => {
@@ -138,12 +140,12 @@ export const PricingModal: React.FC<PricingModalProps> = ({ isOpen, onClose, onS
               </div>
               <PixelButton 
                 variant="secondary" 
-                disabled={loading}
+                disabled={loading || isBackendDown}
                 className="w-full h-10 mt-auto"
                 style={{ fontSize: zhScale(7) }}
                 onClick={() => handlePurchase('starter')}
               >
-                {loading ? 'WAIT...' : t.select}
+                {loading ? 'WAIT...' : (isBackendDown ? 'OFFLINE' : t.select)}
               </PixelButton>
             </PixelCard>
 
@@ -164,12 +166,12 @@ export const PricingModal: React.FC<PricingModalProps> = ({ isOpen, onClose, onS
               </div>
               <PixelButton 
                 variant="secondary" 
-                disabled={loading}
+                disabled={loading || isBackendDown}
                 className="w-full h-10 mt-auto bg-transparent border-white text-white hover:bg-white hover:text-[#0d0221]"
                 style={{ fontSize: zhScale(7) }}
                 onClick={() => handlePurchase('pro')}
               >
-                {loading ? 'WAIT...' : t.purchase}
+                {loading ? 'WAIT...' : (isBackendDown ? 'OFFLINE' : t.purchase)}
               </PixelButton>
             </PixelCard>
 
@@ -190,15 +192,21 @@ export const PricingModal: React.FC<PricingModalProps> = ({ isOpen, onClose, onS
               </div>
               <PixelButton 
                 variant="primary" 
-                disabled={loading}
+                disabled={loading || isBackendDown}
                 className="w-full h-10 mt-auto whitespace-nowrap"
                 style={{ fontSize: zhScale(7) }}
                 onClick={() => handlePurchase('ultimate')}
               >
-                {loading ? 'WAIT...' : t.power}
+                {loading ? 'WAIT...' : (isBackendDown ? 'OFFLINE' : t.power)}
               </PixelButton>
             </PixelCard>
           </div>
+
+          {isBackendDown && (
+            <div className="mt-4 p-2 bg-red-600/20 border border-red-600 text-red-500 text-[10px] font-bold uppercase text-center">
+              {t.maintenance}
+            </div>
+          )}
 
           <div className="mt-12 flex flex-col md:flex-row justify-between items-center gap-6 border-t-2 border-[#5a2d9c] pt-6">
             <div className="flex items-start gap-3">

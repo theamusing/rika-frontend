@@ -15,6 +15,7 @@ interface GenerationPageProps {
   credits: number;
   onOpenPricing?: () => void;
   lang?: 'en' | 'zh';
+  isBackendDown?: boolean;
 }
 
 const CDN_BASE = "https://cdn.rika-ai.com/assets/frontpage/";
@@ -34,7 +35,8 @@ const GenerationPage: React.FC<GenerationPageProps> = ({
   refreshCredits, 
   credits, 
   onOpenPricing,
-  lang = 'en'
+  lang = 'en',
+  isBackendDown = false
 }) => {
   const [images, setImages] = useState<(string | null)[]>([null, null, null]);
   const [sourceFiles, setSourceFiles] = useState<(File | string | null)[]>([null, null, null]);
@@ -378,12 +380,13 @@ const GenerationPage: React.FC<GenerationPageProps> = ({
             <PixelButton 
               variant="primary" 
               className="w-full h-12" 
+              disabled={isBackendDown}
               onClick={() => {
                 setShowCreditModal(false);
                 onOpenPricing?.();
               }}
             >
-              BUY CREDITS
+              {isBackendDown ? (isZh ? "维护中" : "MAINTENANCE") : "BUY CREDITS"}
             </PixelButton>
           </div>
         </div>

@@ -113,6 +113,22 @@ class ApiService {
     return this.request('GET', 'credits');
   }
 
+  async checkHealth(): Promise<boolean> {
+    try {
+      // Use a lightweight request to check if the server is up
+      // We use 'credits' because it's a valid endpoint, but we don't care about the result
+      // If it returns 401/403 it still means the server is UP. 
+      // Only network errors or 5xx (sometimes) mean it's DOWN.
+      // However, for a simple "ping", we can just try to fetch the base URL or a known public endpoint.
+      const baseUrl = API_BASE.endsWith('/') ? API_BASE : `${API_BASE}/`;
+      const response = await fetch(baseUrl, { method: 'GET', mode: 'cors' });
+      // If we get any response, even a 404 or 401, the server is reachable.
+      return response.status < 500;
+    } catch (e) {
+      return false;
+    }
+  }
+
   async generate(image_base64: string[], params: any) {
     return this.request('POST', 'generate', { image_base64, params });
   }
