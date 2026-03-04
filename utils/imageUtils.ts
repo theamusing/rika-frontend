@@ -354,7 +354,7 @@ export const unprocessImage = async (url: string, pixelSize: string = '128', for
   }
 };
 
-export const sliceSpriteSheet = async (url: string, apiLength: number = 25): Promise<string[]> => {
+export const sliceSpriteSheet = async (url: string, frameCount?: number, apiLength: number = 25): Promise<string[]> => {
   try {
     const sourceDataUrl = await fetchAsDataUrl(url);
     const isDataUrl = sourceDataUrl.startsWith('data:');
@@ -366,12 +366,12 @@ export const sliceSpriteSheet = async (url: string, apiLength: number = 25): Pro
       img.onload = () => {
         try {
           const frames: string[] = [];
-          const targetLength = (apiLength - 1) / 2;
+          const targetLength = frameCount !== undefined ? frameCount : (apiLength - 1) / 2;
           const cols = 4;
           const rows = Math.ceil(targetLength / cols);
           
           const frameWidth = Math.floor(img.width / cols);
-          const frameHeight = Math.floor(img.height / rows);
+          const frameHeight = rows > 0 ? Math.floor(img.height / rows) : 0;
           
           if (frameWidth === 0 || frameHeight === 0) {
             throw new Error("Invalid image dimensions");

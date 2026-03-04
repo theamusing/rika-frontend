@@ -24,19 +24,28 @@ interface TaskPlayerPageProps {
 
 const CDN_BASE = "https://cdn.rika-ai.com/assets/frontpage/";
 const ICON_BASE = `${CDN_BASE}icons/`;
+interface FrameData {
+  id: string;
+  url: string;
+  isOriginal: boolean;
+  isExcluded?: boolean;
+}
+
 const TaskPlayerPage: React.FC<TaskPlayerPageProps> = ({ selectedJobId, initialJob, onJobSelected, onRegenerate, onBack, lang = 'en' }) => {
   const [currentJob, setCurrentJob] = useState<Job | null>(null);
-  const [frames, setFrames] = useState<string[]>([]);
-  const [undoStack, setUndoStack] = useState<string[][]>([]);
-  const [redoStack, setRedoStack] = useState<string[][]>([]);
-  const [initialFrames, setInitialFrames] = useState<string[]>([]);
-  const [excludedFrames, setExcludedFrames] = useState<Set<number>>(new Set());
+  const [frames, setFrames] = useState<FrameData[]>([]);
+  const [undoStack, setUndoStack] = useState<FrameData[][]>([]);
+  const [redoStack, setRedoStack] = useState<FrameData[][]>([]);
+  const [initialFrames, setInitialFrames] = useState<FrameData[]>([]);
   const [currentFrameIndex, setCurrentFrameIndex] = useState(0);
   const [isPlaying, setIsPlaying] = useState(true);
   const [fps, setFps] = useState(12);
   const [loading, setLoading] = useState(false);
   const [isExporting, setIsExporting] = useState(false);
   const [isExportingGif, setIsExportingGif] = useState(false);
+
+  const [contextMenu, setContextMenu] = useState<{ x: number, y: number, index: number } | null>(null);
+  const [draggedIndex, setDraggedIndex] = useState<number | null>(null);
 
   const [activeTool, setActiveTool] = useState<Tool>('brush');
   const [brushColor, setBrushColor] = useState('#ffffff');
@@ -86,7 +95,7 @@ const TaskPlayerPage: React.FC<TaskPlayerPageProps> = ({ selectedJobId, initialJ
     }
   };
 
-  const pushToHistory = (newFrames: string[]) => {
+  const pushToHistory = (newFrames: FrameData[]) => {
     setUndoStack(prev => [...prev.slice(-31), frames]);
     setRedoStack([]);
     setFrames([...newFrames]);
@@ -113,16 +122,19 @@ const TaskPlayerPage: React.FC<TaskPlayerPageProps> = ({ selectedJobId, initialJ
   const handleSaveToCache = useCallback(async () => {
     if (!selectedJobId || frames.length === 0 || isJobRunning) return;
     try {
-      const spriteSheet = await reconstructSpriteSheet(frames);
+      const spriteSheet = await reconstructSpriteSheet(frames.map(f => f.url));
       const cacheData: CachedSprite = {
         gen_id: selectedJobId,
         spriteSheet,
-        excludedIndices: Array.from(excludedFrames),
-        updatedAt: Date.now()
+        updatedAt: Date.now(),
+        // Store frame metadata for persistence
+        customData: {
+          frameMetadata: frames.map(f => ({ id: f.id, isOriginal: f.isOriginal, isExcluded: f.isExcluded }))
+        }
       };
       await saveSpriteToCache(cacheData);
     } catch (err) { console.error("Cache fail", err); }
-  }, [selectedJobId, frames, excludedFrames, isJobRunning]);
+  }, [selectedJobId, frames, isJobRunning]);
 
   const deleteSelection = useCallback(() => {
     if (selection.size === 0 || isJobRunning) return;
@@ -135,7 +147,7 @@ const TaskPlayerPage: React.FC<TaskPlayerPageProps> = ({ selectedJobId, initialJ
       ctx.clearRect(sx, sy, 1, 1);
     });
     const newFrames = [...frames];
-    newFrames[currentFrameIndex] = canvas.toDataURL();
+    newFrames[currentFrameIndex] = { ...newFrames[currentFrameIndex], url: canvas.toDataURL() };
     pushToHistory(newFrames);
     setSelection(new Set());
   }, [selection, frames, currentFrameIndex, isJobRunning]);
@@ -188,11 +200,17 @@ const TaskPlayerPage: React.FC<TaskPlayerPageProps> = ({ selectedJobId, initialJ
     try {
       const cached = await getSpriteFromCache(job.gen_id);
       if (cached) {
-        const sliced = await sliceSpriteSheet(cached.spriteSheet, apiLength);
+        const frameMetadata = (cached.customData as any)?.frameMetadata;
+        const sliced = await sliceSpriteSheet(cached.spriteSheet, frameMetadata?.length, apiLength);
         if (isMounted.current) {
-          setFrames([...sliced]);
-          setInitialFrames([...sliced]);
-          setExcludedFrames(new Set(cached.excludedIndices || []));
+          const mappedFrames: FrameData[] = sliced.map((url, i) => ({
+            id: frameMetadata?.[i]?.id || `f-${Date.now()}-${i}`,
+            url,
+            isOriginal: frameMetadata?.[i]?.isOriginal ?? true,
+            isExcluded: frameMetadata?.[i]?.isExcluded ?? false
+          }));
+          setFrames(mappedFrames);
+          setInitialFrames(mappedFrames);
           setUndoStack([]); setRedoStack([]); setPan({ x: 0, y: 0 }); setSelection(new Set());
           return;
         }
@@ -201,15 +219,20 @@ const TaskPlayerPage: React.FC<TaskPlayerPageProps> = ({ selectedJobId, initialJ
     const outputUrl = job.output_images?.[0]?.url;
     if (job.status === 'succeeded' && outputUrl) {
       try {
-        const sliced = await sliceSpriteSheet(outputUrl, apiLength);
+        const sliced = await sliceSpriteSheet(outputUrl, undefined, apiLength);
         if (isMounted.current) {
-          setFrames([...sliced]); setInitialFrames([...sliced]); setUndoStack([]); setRedoStack([]); setExcludedFrames(new Set()); setPan({ x: 0, y: 0 }); setSelection(new Set());
+          const mappedFrames: FrameData[] = sliced.map((url, i) => ({
+            id: `f-${Date.now()}-${i}`,
+            url,
+            isOriginal: true
+          }));
+          setFrames(mappedFrames); setInitialFrames(mappedFrames); setUndoStack([]); setRedoStack([]); setPan({ x: 0, y: 0 }); setSelection(new Set());
         }
       } catch (err) {}
     } else if (job.status === 'running' || job.status === 'queued') {
       if (job.input_images?.[0]?.url) {
         try {
-          const firstFrame = await processImage(
+          const firstFrameUrl = await processImage(
             job.input_images[0].url, 
             job.input_params?.use_padding, 
             false, 
@@ -218,7 +241,10 @@ const TaskPlayerPage: React.FC<TaskPlayerPageProps> = ({ selectedJobId, initialJ
             job.input_params?.use_quantization,
             job.input_params?.quantization_colors
           );
-          if (isMounted.current) { setFrames([firstFrame]); setInitialFrames([firstFrame]); setExcludedFrames(new Set()); setCurrentFrameIndex(0); }
+          if (isMounted.current) { 
+            const firstFrame: FrameData = { id: `f-${Date.now()}-0`, url: firstFrameUrl, isOriginal: true, isExcluded: false };
+            setFrames([firstFrame]); setInitialFrames([firstFrame]); setCurrentFrameIndex(0); 
+          }
         } catch (e) {}
       }
     }
@@ -251,12 +277,12 @@ const TaskPlayerPage: React.FC<TaskPlayerPageProps> = ({ selectedJobId, initialJ
       blank.width = 128;
       blank.height = 128;
       const b64 = blank.toDataURL();
-      setFrames([b64]);
-      setInitialFrames([b64]);
+      const firstFrame: FrameData = { id: `f-${Date.now()}-0`, url: b64, isOriginal: true, isExcluded: false };
+      setFrames([firstFrame]);
+      setInitialFrames([firstFrame]);
       setCurrentJob(null);
       setUndoStack([]);
       setRedoStack([]);
-      setExcludedFrames(new Set());
     }
     return () => { isMounted.current = false; };
   }, [selectedJobId, updateFramesFromJob]);
@@ -272,7 +298,7 @@ const TaskPlayerPage: React.FC<TaskPlayerPageProps> = ({ selectedJobId, initialJ
         ctx.imageSmoothingEnabled = false; ctx.clearRect(0, 0, canvas.width, canvas.height); 
         ctx.drawImage(img, 0, 0);
       };
-      img.src = frames[currentFrameIndex];
+      img.src = frames[currentFrameIndex].url;
     } else {
       canvas.width = 128;
       canvas.height = 128;
@@ -359,9 +385,67 @@ const TaskPlayerPage: React.FC<TaskPlayerPageProps> = ({ selectedJobId, initialJ
 
   const handleMouseUp = () => {
     if (isJobRunning) return; if (isDrawing) {
-      const canvas = canvasRef.current; if (canvas) { const newFrames = [...frames]; newFrames[currentFrameIndex] = canvas.toDataURL(); pushToHistory(newFrames); }
+      const canvas = canvasRef.current; if (canvas) { 
+        const newFrames = [...frames]; 
+        newFrames[currentFrameIndex] = { ...newFrames[currentFrameIndex], url: canvas.toDataURL() }; 
+        pushToHistory(newFrames); 
+      }
     }
     setIsDrawing(false); setIsPanning(false);
+  };
+
+  const handleCopyFrame = (index: number) => {
+    if (frames.length >= 24) return;
+    const newFrames = [...frames];
+    const source = frames[index];
+    const copy: FrameData = {
+      id: `f-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+      url: source.url,
+      isOriginal: false
+    };
+    newFrames.splice(index + 1, 0, copy);
+    pushToHistory(newFrames);
+    setContextMenu(null);
+  };
+
+  const handleDeleteFrame = (index: number) => {
+    if (frames[index].isOriginal) return;
+    const newFrames = frames.filter((_, i) => i !== index);
+    if (currentFrameIndex >= newFrames.length) {
+      setCurrentFrameIndex(Math.max(0, newFrames.length - 1));
+    }
+    pushToHistory(newFrames);
+    setContextMenu(null);
+  };
+
+  const handleDragStart = (e: React.DragEvent, index: number) => {
+    setDraggedIndex(index);
+    e.dataTransfer.effectAllowed = 'move';
+    // Transparent ghost image
+    const img = new Image();
+    img.src = 'data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7';
+    e.dataTransfer.setDragImage(img, 0, 0);
+  };
+
+  const handleDragOver = (e: React.DragEvent, index: number) => {
+    e.preventDefault();
+    if (draggedIndex === null || draggedIndex === index) return;
+    
+    const newFrames = [...frames];
+    const item = newFrames.splice(draggedIndex, 1)[0];
+    newFrames.splice(index, 0, item);
+    
+    setFrames(newFrames);
+    setDraggedIndex(index);
+    if (currentFrameIndex === draggedIndex) setCurrentFrameIndex(index);
+    else if (currentFrameIndex === index) setCurrentFrameIndex(draggedIndex);
+  };
+
+  const handleDragEnd = () => {
+    if (draggedIndex !== null) {
+      pushToHistory(frames);
+    }
+    setDraggedIndex(null);
   };
 
   const removeBackground = async () => {
@@ -370,12 +454,12 @@ const TaskPlayerPage: React.FC<TaskPlayerPageProps> = ({ selectedJobId, initialJ
     setLoading(true);
     const newFrames = await Promise.all(frames.map(async (f) => {
       const canvas = document.createElement('canvas');
-      const img = await new Promise<HTMLImageElement>(res => { const i = new Image(); i.onload = () => res(i); i.src = f; });
+      const img = await new Promise<HTMLImageElement>(res => { const i = new Image(); i.onload = () => res(i); i.src = f.url; });
       canvas.width = img.width; canvas.height = img.height; const ctx = canvas.getContext('2d')!; ctx.drawImage(img, 0, 0);
       const data = ctx.getImageData(0, 0, canvas.width, canvas.height);
       floodFill(data, 0, 0, {r:0,g:0,b:0,a:0}, bgRemovalTolerance, null); floodFill(data, canvas.width-1, 0, {r:0,g:0,b:0,a:0}, bgRemovalTolerance, null);
       floodFill(data, 0, canvas.height-1, {r:0,g:0,b:0,a:0}, bgRemovalTolerance, null); floodFill(data, canvas.width-1, canvas.height-1, {r:0,g:0,b:0,a:0}, bgRemovalTolerance, null);
-      ctx.putImageData(data, 0, 0); return canvas.toDataURL();
+      ctx.putImageData(data, 0, 0); return { ...f, url: canvas.toDataURL() };
     }));
     pushToHistory(newFrames); setLoading(false);
   };
@@ -388,10 +472,14 @@ const TaskPlayerPage: React.FC<TaskPlayerPageProps> = ({ selectedJobId, initialJ
     setLoading(true);
     try {
       const apiLength = currentJob.input_params?.length || 33;
-      const sliced = await sliceSpriteSheet(outputUrl, apiLength);
+      const sliced = await sliceSpriteSheet(outputUrl, undefined, apiLength);
+      const mappedFrames: FrameData[] = sliced.map((url, i) => ({
+        id: `f-${Date.now()}-${i}`,
+        url,
+        isOriginal: true
+      }));
       setIsPlaying(false);
-      pushToHistory([...sliced]);
-      setExcludedFrames(new Set());
+      pushToHistory(mappedFrames);
     } catch (err) {
       console.error("Failed to restore original", err);
     } finally {
@@ -400,28 +488,31 @@ const TaskPlayerPage: React.FC<TaskPlayerPageProps> = ({ selectedJobId, initialJ
   };
 
   const toggleFrameExclusion = (index: number, e: React.MouseEvent) => {
-    e.stopPropagation(); setExcludedFrames(prev => { const next = new Set(prev); if (next.has(index)) next.delete(index); else next.add(index); return next; });
+    e.stopPropagation();
+    const newFrames = [...frames];
+    newFrames[index] = { ...newFrames[index], isExcluded: !newFrames[index].isExcluded };
+    pushToHistory(newFrames);
   };
 
   const handleDownload = async () => {
     if (frames.length === 0 || isJobRunning) return; setIsExporting(true);
     try {
-      const activeFrames = frames.filter((_, idx) => !excludedFrames.has(idx)); if (activeFrames.length === 0) return;
-      const spriteSheetData = await reconstructSpriteSheet(activeFrames); const link = document.createElement('a'); link.href = spriteSheetData; link.download = `rika_${selectedJobId?.slice(0,8) || 'work'}.png`; link.click();
+      const activeFrames = frames.filter(f => !f.isExcluded); if (activeFrames.length === 0) return;
+      const spriteSheetData = await reconstructSpriteSheet(activeFrames.map(f => f.url)); const link = document.createElement('a'); link.href = spriteSheetData; link.download = `rika_${selectedJobId?.slice(0,8) || 'work'}.png`; link.click();
     } catch (err) {} finally { setIsExporting(false); }
   };
 
   const handleExportGif = async () => {
     if (frames.length === 0 || isJobRunning) return;
-    const activeFrames = frames.filter((_, idx) => !excludedFrames.has(idx)); if (activeFrames.length === 0) return;
+    const activeFrames = frames.filter(f => !f.isExcluded); if (activeFrames.length === 0) return;
     setIsExportingGif(true); const bgColor = isLightBg ? '#f5f5dc' : '#121212';
     try {
-      const processedFrames = await Promise.all(activeFrames.map(async (frameData) => {
+      const processedFrames = await Promise.all(activeFrames.map(async (frame) => {
         return new Promise<string>((resolve) => {
           const img = new Image(); img.onload = () => {
             const canvas = document.createElement('canvas'); canvas.width = 512; canvas.height = 512; const ctx = canvas.getContext('2d')!;
             ctx.fillStyle = bgColor; ctx.fillRect(0, 0, 512, 512); ctx.imageSmoothingEnabled = false; ctx.drawImage(img, 0, 0, 512, 512); resolve(canvas.toDataURL('image/png'));
-          }; img.src = frameData;
+          }; img.src = frame.url;
         });
       }));
       gifshot.createGIF({ 
@@ -444,13 +535,13 @@ const TaskPlayerPage: React.FC<TaskPlayerPageProps> = ({ selectedJobId, initialJ
       playbackRef.current = window.setInterval(() => {
         setCurrentFrameIndex(prev => {
           let next = (prev + 1) % frames.length; let count = 0;
-          while (excludedFrames.has(next) && count < frames.length) { next = (next + 1) % frames.length; count++; }
+          while (frames[next].isExcluded && count < frames.length) { next = (next + 1) % frames.length; count++; }
           return next;
         });
       }, 1000 / fps);
     } else if (playbackRef.current) clearInterval(playbackRef.current);
     return () => { if (playbackRef.current) clearInterval(playbackRef.current); };
-  }, [isPlaying, frames.length, fps, excludedFrames, isJobRunning]);
+  }, [isPlaying, frames.length, fps, isJobRunning]);
 
   const renderToolButton = (id: Tool, content: React.ReactNode, hasParams?: boolean) => {
     const isActive = effectiveTool === id;
@@ -627,18 +718,60 @@ const TaskPlayerPage: React.FC<TaskPlayerPageProps> = ({ selectedJobId, initialJ
               FRAME {currentFrameIndex + 1}/{frames.length} | ZOOM {Math.round(zoom*100)}%
             </div>
           </PixelCard>
-          <div className={`bg-[#1e1e1e]/60 p-4 pixel-border border-[#5a2d9c] w-full overflow-x-auto ${isJobRunning ? 'opacity-30 pointer-events-none' : ''}`}>
+          <div 
+            className={`bg-[#1e1e1e]/60 p-4 pixel-border border-[#5a2d9c] w-full overflow-x-auto ${isJobRunning ? 'opacity-30 pointer-events-none' : ''}`}
+            onClick={() => setContextMenu(null)}
+          >
              <div className="flex gap-3 min-w-max pb-2">
                 {frames.map((f, i) => (
-                  <div key={i} onClick={() => { setCurrentFrameIndex(i); setIsPlaying(false); }} className={`relative w-16 h-16 pixel-border border-2 cursor-pointer flex-shrink-0 ${currentFrameIndex === i ? 'border-white scale-110 z-10' : 'border-[#5a2d9c] opacity-60 hover:opacity-100'}`}>
-                    <img src={f} className="w-full h-full object-contain" style={{ imageRendering: 'pixelated' }} alt={`F${i+1}`} />
-                    <button className="absolute -top-2 -right-2 w-5 h-5 bg-red-600 text-white text-[10px] flex items-center justify-center border border-white" onClick={(e) => toggleFrameExclusion(i, e)}> × </button>
-                    {excludedFrames.has(i) && <div className="absolute inset-0 bg-red-900/60 z-10 flex items-center justify-center"><div className="w-full h-0.5 bg-red-400 rotate-45 absolute" /></div>}
+                  <div 
+                    key={f.id} 
+                    onClick={() => { setCurrentFrameIndex(i); setIsPlaying(false); }} 
+                    onContextMenu={(e) => {
+                      e.preventDefault();
+                      setContextMenu({ x: e.clientX, y: e.clientY, index: i });
+                    }}
+                    draggable
+                    onDragStart={(e) => handleDragStart(e, i)}
+                    onDragOver={(e) => handleDragOver(e, i)}
+                    onDragEnd={handleDragEnd}
+                    className={`relative w-16 h-16 pixel-border border-2 cursor-pointer flex-shrink-0 transition-all ${
+                      currentFrameIndex === i ? 'border-[#f7d51d] scale-110 z-10' : 
+                      f.isOriginal ? 'border-[#5a2d9c] opacity-60 hover:opacity-100' : 'border-gray-500 opacity-60 hover:opacity-100'
+                    } ${draggedIndex === i ? 'opacity-20 scale-90' : ''}`}
+                  >
+                    <img src={f.url} className="w-full h-full object-contain" style={{ imageRendering: 'pixelated' }} alt={`F${i+1}`} />
+                    {f.isExcluded && <div className="absolute inset-0 bg-red-900/60 z-10 flex items-center justify-center"><div className="w-full h-0.5 bg-red-400 rotate-45 absolute" /></div>}
+                    <button className="absolute -top-2 -right-2 w-5 h-5 bg-red-600 text-white text-[10px] flex items-center justify-center border border-white z-20" onClick={(e) => toggleFrameExclusion(i, e)}> × </button>
                   </div>
                 ))}
              </div>
           </div>
         </div>
+
+        {contextMenu && (
+          <div 
+            className="fixed z-[1000] bg-[#1e1e1e] pixel-border border-[#5a2d9c] shadow-2xl py-1 min-w-[100px]"
+            style={{ left: contextMenu.x, top: contextMenu.y }}
+            onMouseLeave={() => setContextMenu(null)}
+          >
+            <button 
+              className="w-full px-4 py-2 text-left text-[10px] uppercase hover:bg-[#f7d51d] hover:text-[#2d1b4e] disabled:opacity-30"
+              disabled={frames.length >= 24}
+              onClick={() => handleCopyFrame(contextMenu.index)}
+            >
+              {isZh ? '复制' : 'COPY'}
+            </button>
+            {!frames[contextMenu.index].isOriginal && (
+              <button 
+                className="w-full px-4 py-2 text-left text-[10px] uppercase hover:bg-red-600 hover:text-white"
+                onClick={() => handleDeleteFrame(contextMenu.index)}
+              >
+                {isZh ? '删除' : 'DELETE'}
+              </button>
+            )}
+          </div>
+        )}
 
         <div className="flex flex-col gap-6 w-64 shrink-0">
            <PixelCard title={isZh ? '智能工具' : 'SMART ACTIONS'}>

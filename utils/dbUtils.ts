@@ -7,8 +7,9 @@ const DB_VERSION = 2;
 export interface CachedSprite {
   gen_id: string;
   spriteSheet: string;
-  excludedIndices: number[];
+  excludedIndices?: number[];
   updatedAt: number;
+  customData?: any;
 }
 
 export interface CachedAsset {
