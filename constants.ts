@@ -12,5 +12,5 @@ export const COLORS = {
   highlight: '#f7d51d'
 };
 
-export const MOTION_TYPES = ['idle', 'attack', 'walk', 'hit', 'defeated'];
+export const MOTION_TYPES = ['idle', 'attack', 'walk', 'run', 'hit', 'defeated'];
 export const PIXEL_SIZES = ['64', '128', '256'];

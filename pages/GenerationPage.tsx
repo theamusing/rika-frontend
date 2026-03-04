@@ -24,6 +24,7 @@ const DEFAULT_PROMPTS: Record<MotionType, string> = {
   idle: 'side-view, 2D game character standing in place, breathing motion,body sways up-and-down slightly, chest and shoulders rising and falling, head bob synchronized with breathing.',
   attack: 'side-view, 2D game character raises weapon to perform a powerful strike forward.',
   walk: 'side-view, 2D game character walks forward.',
+  run: 'side-view, 2D game character runs forward.',
   hit: 'side-view, 2D game character getting hit and knocked backward.',
   defeated: 'side-view 2D game character getting hit, kneel down and fall to the ground, lying motionlessly'
 };
@@ -73,6 +74,12 @@ const GenerationPage: React.FC<GenerationPageProps> = ({
     bg_color: '#004040',
     attack_type: 'melee'
   });
+
+  const [localColorCount, setLocalColorCount] = useState(params.quantization_colors || 32);
+
+  useEffect(() => {
+    setLocalColorCount(params.quantization_colors || 32);
+  }, [params.quantization_colors]);
 
   const userHasEditedPrompt = useRef(false);
   const isZh = lang === 'zh';
@@ -603,7 +610,7 @@ const GenerationPage: React.FC<GenerationPageProps> = ({
                   <div className="space-y-2 animate-fade-in">
                     <div className="flex justify-between text-[8px] text-white/40">
                       <span>{isZh ? "颜色数量" : "COLORS"}</span>
-                      <span>{params.quantization_colors}</span>
+                      <span>{localColorCount}</span>
                     </div>
                     <input 
                       type="range" 
@@ -611,8 +618,12 @@ const GenerationPage: React.FC<GenerationPageProps> = ({
                       max="64" 
                       step="1" 
                       className="w-full accent-white" 
-                      value={params.quantization_colors} 
-                      onChange={e => setParams({...params, quantization_colors: parseInt(e.target.value)})} 
+                      value={localColorCount} 
+                      onChange={e => setLocalColorCount(parseInt(e.target.value))} 
+                      onMouseUp={() => setParams({...params, quantization_colors: localColorCount})}
+                      onKeyUp={() => setParams({...params, quantization_colors: localColorCount})}
+                      onTouchEnd={() => setParams({...params, quantization_colors: localColorCount})}
+                      onBlur={() => setParams({...params, quantization_colors: localColorCount})}
                     />
                     {centroids.length > 0 && (
                       <div className="flex flex-wrap gap-1 mt-2 max-h-16 overflow-y-auto p-1 bg-black/20 border border-[#5a2d9c]/30">

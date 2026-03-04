@@ -17,6 +17,7 @@ const MOTION_PROMPTS: Record<string, string> = {
   idle: 'side-view, 2D game character standing in place, breathing motion, body sways up-and-down slightly.',
   attack: 'side-view, 2D game character raises weapon to perform a powerful strike forward.',
   walk: 'side-view, 2D game character walks forward.',
+  run: 'side-view, 2D game character runs forward.',
   hit: 'side-view, 2D game character getting hit and knocked backward.',
   defeated: 'side-view 2D game character getting hit, kneel down and fall to the ground.'
 };
