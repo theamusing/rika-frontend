@@ -1,5 +1,5 @@
 
-export type MotionType = 'idle' | 'attack' | 'walk' | 'run' | 'hit' | 'defeated';
+export type MotionType = 'idle' | 'walk' | 'run' | 'jump' | 'attack' | 'hit' | 'defeated';
 export type PixelSize = '64' | '128' | '256';
 
 export interface GenerationParams {

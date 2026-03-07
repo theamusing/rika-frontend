@@ -22,9 +22,10 @@ const CDN_BASE = "https://cdn.rika-ai.com/assets/frontpage/";
 
 const DEFAULT_PROMPTS: Record<MotionType, string> = {
   idle: 'side-view, 2D game character standing in place, breathing motion,body sways up-and-down slightly, chest and shoulders rising and falling, head bob synchronized with breathing.',
-  attack: 'side-view, 2D game character raises weapon to perform a powerful strike forward.',
   walk: 'side-view, 2D game character walks forward.',
   run: 'side-view, 2D game character runs forward.',
+  jump: 'side-view, 2D game character jumps in place,takeoff then fall',
+  attack: 'side-view, 2D game character raises weapon to perform a powerful strike forward.',
   hit: 'side-view, 2D game character getting hit and knocked backward.',
   defeated: 'side-view 2D game character getting hit, kneel down and fall to the ground, lying motionlessly'
 };
@@ -89,6 +90,7 @@ const GenerationPage: React.FC<GenerationPageProps> = ({
     if (!initialParams) {
       const isAttack = params.motion_type === 'attack';
       const isDefeated = params.motion_type === 'defeated';
+      const isJump = params.motion_type === 'jump';
       
       const defaultUiLength = (isAttack || isDefeated) ? 16 : 12;
       setUiLength(defaultUiLength);

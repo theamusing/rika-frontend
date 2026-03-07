@@ -132,7 +132,7 @@ export const processImage = async (
             }
           }
         } else {
-          if (pixelInt === 64 || pixelInt === 128) {
+          if (pixelInt === 64) {
             canvasDim = 512;
             contentDim = 512;
           } else {
