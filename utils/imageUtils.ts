@@ -127,12 +127,14 @@ export const processImage = async (
           } else {
             if (pixelInt === 256) {
               contentDim = 512;
+            } else if (pixelInt === 32) {
+              contentDim = 384;
             } else {
               contentDim = 384;
             }
           }
         } else {
-          if (pixelInt === 64) {
+          if (pixelInt === 32 || pixelInt === 64 || pixelInt === 128) {
             canvasDim = 512;
             contentDim = 512;
           } else {
@@ -235,23 +237,21 @@ export const processImage = async (
           if (isRevocable && sourceDataUrl) URL.revokeObjectURL(sourceDataUrl);
           resolve(downCanvas.toDataURL('image/png'));
         } else {
-          // Special case for 256x256 + padding: downscale then upscale back to original size to ensure pixelation
-          if (padding && pixelInt === 256) {
-            const scaleFactor = contentDim / pixelInt;
-            const displaySize = Math.round(canvasDim / scaleFactor);
-            
-            const downCanvas = document.createElement('canvas');
-            downCanvas.width = displaySize;
-            downCanvas.height = displaySize;
-            const downCtx = downCanvas.getContext('2d')!;
-            downCtx.imageSmoothingEnabled = false;
-            downCtx.drawImage(canvas, 0, 0, canvasDim, canvasDim, 0, 0, displaySize, displaySize);
-            
-            // Draw back to original canvas size using nearest neighbor
-            ctx.clearRect(0, 0, canvasDim, canvasDim);
-            ctx.imageSmoothingEnabled = false;
-            ctx.drawImage(downCanvas, 0, 0, displaySize, displaySize, 0, 0, canvasDim, canvasDim);
-          }
+          // General pixelation: downscale to target resolution then upscale back to original size using nearest neighbor
+          const scaleFactor = contentDim / pixelInt;
+          const pixelatedSize = Math.round(canvasDim / scaleFactor);
+          
+          const pixelatedCanvas = document.createElement('canvas');
+          pixelatedCanvas.width = pixelatedSize;
+          pixelatedCanvas.height = pixelatedSize;
+          const pCtx = pixelatedCanvas.getContext('2d')!;
+          pCtx.imageSmoothingEnabled = false;
+          pCtx.drawImage(canvas, 0, 0, canvasDim, canvasDim, 0, 0, pixelatedSize, pixelatedSize);
+          
+          // Draw back to original canvas size using nearest neighbor
+          ctx.clearRect(0, 0, canvasDim, canvasDim);
+          ctx.imageSmoothingEnabled = false;
+          ctx.drawImage(pixelatedCanvas, 0, 0, pixelatedSize, pixelatedSize, 0, 0, canvasDim, canvasDim);
 
           if (isRevocable && sourceDataUrl) URL.revokeObjectURL(sourceDataUrl);
           resolve(canvas.toDataURL('image/png'));
@@ -332,6 +332,8 @@ export const unprocessImage = async (url: string, pixelSize: string = '128', for
             } else if (pixelInt === 256) {
                 // Default to new logic if not forced
                 contentDim = 512;
+            } else if (pixelInt === 32) {
+                contentDim = 384;
             }
             
             const offset = (768 - contentDim) / 2;

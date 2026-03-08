@@ -3,7 +3,7 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { apiService } from '../services/apiService.ts';
 import { Job } from '../types.ts';
 import { PixelButton, PixelCard } from '../components/PixelComponents.tsx';
-import { sliceSpriteSheet, reconstructSpriteSheet, processImage } from '../utils/imageUtils.ts';
+import { sliceSpriteSheet, reconstructSpriteSheet, processImage, fetchAsDataUrl } from '../utils/imageUtils.ts';
 import { floodFill, RGB, colorDistance } from '../utils/editorUtils.ts';
 import { saveSpriteToCache, getSpriteFromCache, CachedSprite } from '../utils/dbUtils.ts';
 import { Heart, ArrowLeft } from 'lucide-react';
@@ -232,20 +232,17 @@ const TaskPlayerPage: React.FC<TaskPlayerPageProps> = ({ selectedJobId, initialJ
     } else if (job.status === 'running' || job.status === 'queued') {
       if (job.input_images?.[0]?.url) {
         try {
-          const firstFrameUrl = await processImage(
-            job.input_images[0].url, 
-            job.input_params?.use_padding, 
-            false, 
-            job.input_params?.pixel_size,
-            job.input_params?.bg_color,
-            job.input_params?.use_quantization,
-            job.input_params?.quantization_colors
-          );
+          const firstFrameUrl = await fetchAsDataUrl(job.input_images[0].url);
           if (isMounted.current) { 
             const firstFrame: FrameData = { id: `f-${Date.now()}-0`, url: firstFrameUrl, isOriginal: true, isExcluded: false };
             setFrames([firstFrame]); setInitialFrames([firstFrame]); setCurrentFrameIndex(0); 
           }
-        } catch (e) {}
+        } catch (e) {
+          if (isMounted.current) {
+            const firstFrame: FrameData = { id: `f-${Date.now()}-0`, url: job.input_images[0].url, isOriginal: true, isExcluded: false };
+            setFrames([firstFrame]); setInitialFrames([firstFrame]); setCurrentFrameIndex(0);
+          }
+        }
       }
     }
   }, []);

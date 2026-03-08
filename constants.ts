@@ -13,4 +13,4 @@ export const COLORS = {
 };
 
 export const MOTION_TYPES = ['idle', 'walk', 'run', 'jump', 'attack', 'hit', 'defeated'];
-export const PIXEL_SIZES = ['64', '128', '256'];
+export const PIXEL_SIZES = ['32', '64', '128', '256'];

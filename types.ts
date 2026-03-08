@@ -1,6 +1,6 @@
 
 export type MotionType = 'idle' | 'walk' | 'run' | 'jump' | 'attack' | 'hit' | 'defeated';
-export type PixelSize = '64' | '128' | '256';
+export type PixelSize = '32' | '64' | '128' | '256';
 
 export interface GenerationParams {
   prompt: string;

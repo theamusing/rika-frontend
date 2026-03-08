@@ -330,11 +330,13 @@ const GenerationPage: React.FC<GenerationPageProps> = ({
           finalParams.scale_factor = forcedScaleFactor;
         } else if (pixelInt === 256) {
           finalParams.scale_factor = 2;
+        } else if (pixelInt === 32) {
+          finalParams.scale_factor = 12; // 32 * 12 = 384
         } else {
           finalParams.scale_factor = 384 / pixelInt;
         }
       } else {
-        if (pixelInt === 64 || pixelInt === 128) {
+        if (pixelInt === 32 || pixelInt === 64 || pixelInt === 128) {
           finalParams.scale_factor = 512 / pixelInt;
         } else {
           finalParams.scale_factor = 768 / pixelInt;
