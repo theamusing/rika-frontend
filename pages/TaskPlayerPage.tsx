@@ -2,8 +2,8 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { apiService } from '../services/apiService.ts';
 import { Job } from '../types.ts';
-import { PixelButton, PixelCard } from '../components/PixelComponents.tsx';
-import { sliceSpriteSheet, reconstructSpriteSheet, processImage, fetchAsDataUrl } from '../utils/imageUtils.ts';
+import { PixelButton, PixelCard, PixelModal, PixelInput } from '../components/PixelComponents.tsx';
+import { sliceSpriteSheet, reconstructSpriteSheet, processImage, fetchAsDataUrl, sliceCustomSpriteSheet } from '../utils/imageUtils.ts';
 import { floodFill, RGB, colorDistance } from '../utils/editorUtils.ts';
 import { saveSpriteToCache, getSpriteFromCache, CachedSprite } from '../utils/dbUtils.ts';
 import { Heart, ArrowLeft } from 'lucide-react';
@@ -43,6 +43,12 @@ const TaskPlayerPage: React.FC<TaskPlayerPageProps> = ({ selectedJobId, initialJ
   const [loading, setLoading] = useState(false);
   const [isExporting, setIsExporting] = useState(false);
   const [isExportingGif, setIsExportingGif] = useState(false);
+  const [isCustomMode, setIsCustomMode] = useState(false);
+  const [showUploadModal, setShowUploadModal] = useState(false);
+  const [customFile, setCustomFile] = useState<File | null>(null);
+  const [uploadPreview, setUploadPreview] = useState<string | null>(null);
+  const [customRows, setCustomRows] = useState(1);
+  const [customCols, setCustomCols] = useState(1);
 
   const [contextMenu, setContextMenu] = useState<{ x: number, y: number, index: number } | null>(null);
   const [draggedIndex, setDraggedIndex] = useState<number | null>(null);
@@ -120,7 +126,7 @@ const TaskPlayerPage: React.FC<TaskPlayerPageProps> = ({ selectedJobId, initialJ
   }, [redoStack, frames, isJobRunning]);
 
   const handleSaveToCache = useCallback(async () => {
-    if (!selectedJobId || frames.length === 0 || isJobRunning) return;
+    if (!selectedJobId || frames.length === 0 || isJobRunning || isCustomMode) return;
     try {
       const spriteSheet = await reconstructSpriteSheet(frames.map(f => f.url));
       const cacheData: CachedSprite = {
@@ -251,6 +257,7 @@ const TaskPlayerPage: React.FC<TaskPlayerPageProps> = ({ selectedJobId, initialJ
     isMounted.current = true;
     if (selectedJobId) {
       setLoading(true);
+      setIsCustomMode(false);
       const fetchJob = async () => {
         try {
           if (initialJob && initialJob.gen_id === selectedJobId) {
@@ -278,6 +285,7 @@ const TaskPlayerPage: React.FC<TaskPlayerPageProps> = ({ selectedJobId, initialJ
       setFrames([firstFrame]);
       setInitialFrames([firstFrame]);
       setCurrentJob(null);
+      setIsCustomMode(false);
       setUndoStack([]);
       setRedoStack([]);
     }
@@ -630,11 +638,89 @@ const TaskPlayerPage: React.FC<TaskPlayerPageProps> = ({ selectedJobId, initialJ
     );
   };
 
+  const handleCustomUpload = async () => {
+    if (!customFile) return;
+    setLoading(true);
+    setShowUploadModal(false);
+    try {
+      const url = URL.createObjectURL(customFile);
+      const sliced = await sliceCustomSpriteSheet(url, customRows, customCols);
+      if (isMounted.current) {
+        const mappedFrames: FrameData[] = sliced.map((fUrl, i) => ({
+          id: `custom-${Date.now()}-${i}`,
+          url: fUrl,
+          isOriginal: true,
+          isExcluded: false
+        }));
+        setFrames(mappedFrames);
+        setInitialFrames(mappedFrames);
+        setCurrentFrameIndex(0);
+        setIsCustomMode(true);
+        setCurrentJob(null);
+        setUndoStack([]);
+        setRedoStack([]);
+        setPan({ x: 0, y: 0 });
+        setSelection(new Set());
+        // If there was a selected job, clear it in parent
+        if (selectedJobId) {
+          onJobSelected(""); // Passing empty string to indicate clearing
+        }
+      }
+    } catch (err) {
+      console.error("Custom upload failed", err);
+    } finally {
+      setLoading(false);
+      setCustomFile(null);
+      setUploadPreview(null);
+    }
+  };
+
   const darkChecker = `linear-gradient(45deg, #1e1e1e 25%, transparent 25%), linear-gradient(-45deg, #1e1e1e 25%, transparent 25%), linear-gradient(45deg, transparent 75%, #1e1e1e 75%), linear-gradient(-45deg, transparent 75%, #1e1e1e 75%)`;
   const lightChecker = `linear-gradient(45deg, #e1e1bc 25%, transparent 25%), linear-gradient(-45deg, #e1e1bc 25%, transparent 25%), linear-gradient(45deg, transparent 75%, #e1e1bc 75%), linear-gradient(-45deg, transparent 75%, #e1e1bc 75%)`;
 
   return (
     <div className="flex flex-col gap-6 w-full overflow-hidden text-white select-none">
+      <PixelModal 
+        isOpen={showUploadModal} 
+        onClose={() => setShowUploadModal(false)} 
+        title={isZh ? "上传序列帧" : "UPLOAD SPRITE SHEET"}
+      >
+        <div className="space-y-4">
+          <div className="relative aspect-video pixel-border border-[#5a2d9c] bg-black/20 flex items-center justify-center overflow-hidden">
+            {uploadPreview ? (
+              <img src={uploadPreview} className="max-w-full max-h-full object-contain" style={{ imageRendering: 'pixelated' }} alt="Preview" />
+            ) : (
+              <div className="text-[10px] opacity-40 uppercase">{isZh ? "点击上传图片" : "Click to upload image"}</div>
+            )}
+            <input 
+              type="file" 
+              accept="image/*" 
+              className="absolute inset-0 opacity-0 cursor-pointer" 
+              onChange={e => {
+                const file = e.target.files?.[0];
+                if (file) {
+                  setCustomFile(file);
+                  setUploadPreview(URL.createObjectURL(file));
+                }
+              }}
+            />
+          </div>
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-1">
+              <label className="text-[10px] opacity-60 uppercase">{isZh ? "行数" : "ROWS"}</label>
+              <PixelInput type="number" min="1" value={customRows} onChange={e => setCustomRows(parseInt(e.target.value) || 1)} />
+            </div>
+            <div className="space-y-1">
+              <label className="text-[10px] opacity-60 uppercase">{isZh ? "列数" : "COLS"}</label>
+              <PixelInput type="number" min="1" value={customCols} onChange={e => setCustomCols(parseInt(e.target.value) || 1)} />
+            </div>
+          </div>
+          <PixelButton variant="primary" className="w-full h-12" onClick={handleCustomUpload} disabled={!customFile}>
+            {isZh ? "上传" : "UPLOAD"}
+          </PixelButton>
+        </div>
+      </PixelModal>
+
       <div className="flex justify-between items-center bg-[#121212]/80 p-3 pixel-border border-[#5a2d9c] w-full">
         <div className="flex items-center gap-4">
           {onBack && (
@@ -647,8 +733,8 @@ const TaskPlayerPage: React.FC<TaskPlayerPageProps> = ({ selectedJobId, initialJ
             </button>
           )}
           <div className="flex gap-4 text-[10px] text-white/60 uppercase">
-            <span>JOB: <span className="text-white">{selectedJobId?.slice(0,8) || 'NONE'}</span></span>
-            <span>MODE: <span className="text-white">{currentJob?.input_params?.motion_type || 'MANUAL'}</span></span>
+            <span>JOB: <span className="text-white">{isCustomMode ? 'NONE' : (selectedJobId?.slice(0,8) || 'NONE')}</span></span>
+            <span>MODE: <span className="text-white">{isCustomMode ? 'CUSTOM' : (currentJob?.input_params?.motion_type || 'MANUAL')}</span></span>
             <span>STATUS: <span className={
               currentJob?.status === 'succeeded' ? 'text-green-500' : 
               (currentJob?.status === 'running' || currentJob?.status === 'queued') ? 'text-yellow-500' : 
@@ -657,6 +743,13 @@ const TaskPlayerPage: React.FC<TaskPlayerPageProps> = ({ selectedJobId, initialJ
           </div>
         </div>
         <div className="flex items-center gap-4 text-[10px] uppercase text-white/60">
+          <PixelButton 
+            variant="secondary" 
+            className="h-8 px-3 text-[8px]" 
+            onClick={() => setShowUploadModal(true)}
+          >
+            {isZh ? "上传" : "UPLOAD"}
+          </PixelButton>
           <div className="flex items-center gap-2">
             <div className={`w-3 h-3 rounded-full ${isJobRunning ? 'bg-yellow-500' : 'bg-green-500'} animate-pulse`} />
             <span>{isJobRunning ? 'RENDERING' : 'ACTIVE'}</span>

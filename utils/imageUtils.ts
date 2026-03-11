@@ -417,6 +417,56 @@ export const sliceSpriteSheet = async (url: string, frameCount?: number, apiLeng
   }
 };
 
+export const sliceCustomSpriteSheet = async (url: string, rows: number, cols: number): Promise<string[]> => {
+  try {
+    const sourceDataUrl = await fetchAsDataUrl(url);
+    const isDataUrl = sourceDataUrl.startsWith('data:');
+
+    return new Promise((resolve, reject) => {
+      const img = new Image();
+      if (!isDataUrl) img.crossOrigin = "anonymous";
+
+      img.onload = () => {
+        try {
+          const frames: string[] = [];
+          const frameWidth = Math.floor(img.width / cols);
+          const frameHeight = Math.floor(img.height / rows);
+          
+          if (frameWidth === 0 || frameHeight === 0) {
+            throw new Error("Invalid image dimensions");
+          }
+
+          for (let row = 0; row < rows; row++) {
+            for (let col = 0; col < cols; col++) {
+              const canvas = document.createElement('canvas');
+              canvas.width = frameWidth;
+              canvas.height = frameHeight;
+              const ctx = canvas.getContext('2d');
+              if (ctx) {
+                ctx.imageSmoothingEnabled = false;
+                ctx.drawImage(
+                  img, 
+                  col * frameWidth, row * frameHeight, frameWidth, frameHeight,
+                  0, 0, frameWidth, frameHeight
+                );
+                frames.push(canvas.toDataURL('image/png'));
+              }
+            }
+          }
+          resolve(frames);
+        } catch (e) {
+          reject(e);
+        }
+      };
+      img.onerror = () => reject(new Error("Image rendering failed"));
+      img.src = sourceDataUrl;
+    });
+  } catch (err) {
+    console.error("Custom sprite sheet fetch error:", err);
+    throw err;
+  }
+};
+
 export const reconstructSpriteSheet = async (frames: string[]): Promise<string> => {
   if (frames.length === 0) throw new Error("No frames provided");
 

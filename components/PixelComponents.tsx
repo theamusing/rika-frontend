@@ -56,13 +56,15 @@ export const PixelInput: React.FC<{
   placeholder?: string;
   type?: string;
   className?: string;
-}> = ({ value, onChange, placeholder, type = 'text', className = '' }) => (
+  [key: string]: any;
+}> = ({ value, onChange, placeholder, type = 'text', className = '', ...rest }) => (
   <input
     type={type}
     value={value}
     onChange={onChange}
     placeholder={placeholder}
     className={`bg-[#0d0221] pixel-border border-[#5a2d9c] p-2 text-white text-[10px] outline-none focus:border-[#f7d51d] placeholder-[#5a2d9c] ${className}`}
+    {...rest}
   />
 );
 
