@@ -36,13 +36,17 @@ export const PixelCard: React.FC<{
   className?: string;
   title?: string;
   onClick?: () => void;
-}> = ({ children, className = '', title, onClick }) => (
+  titleStyle?: React.CSSProperties;
+}> = ({ children, className = '', title, onClick, titleStyle }) => (
   <div 
     className={`pixel-border bg-[#2d1b4e]/50 p-4 relative ${className}`}
     onClick={onClick}
   >
     {title && (
-      <div className="absolute -top-4 left-4 bg-[#0d0221] px-2 text-[10px] text-white/70 uppercase">
+      <div 
+        className="absolute -top-4 left-4 bg-[#0d0221] px-2 text-[10px] text-white/70 uppercase"
+        style={titleStyle}
+      >
         {title}
       </div>
     )}
@@ -73,17 +77,19 @@ export const PixelModal: React.FC<{
   onClose: () => void;
   title: string;
   children: React.ReactNode;
-}> = ({ isOpen, onClose, title, children }) => {
+  titleStyle?: React.CSSProperties;
+  closeButtonStyle?: React.CSSProperties;
+}> = ({ isOpen, onClose, title, children, titleStyle, closeButtonStyle }) => {
   if (!isOpen) return null;
 
   return (
     <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-fade-in">
       <div className="max-w-md w-full relative">
-        <PixelCard title={title} className="bg-[#0d0221] shadow-2xl">
+        <PixelCard title={title} titleStyle={titleStyle} className="bg-[#0d0221] shadow-2xl">
           <div className="pt-2">
             {children}
             <div className="mt-6 flex justify-center">
-              <PixelButton onClick={onClose} variant="primary" className="w-full">
+              <PixelButton onClick={onClose} variant="primary" className="w-full" style={closeButtonStyle}>
                 CLOSE
               </PixelButton>
             </div>

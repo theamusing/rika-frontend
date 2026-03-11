@@ -684,13 +684,15 @@ const TaskPlayerPage: React.FC<TaskPlayerPageProps> = ({ selectedJobId, initialJ
         isOpen={showUploadModal} 
         onClose={() => setShowUploadModal(false)} 
         title={isZh ? "上传序列帧" : "UPLOAD SPRITE SHEET"}
+        titleStyle={{ fontSize: zhScale(10) }}
+        closeButtonStyle={{ fontSize: zhScale(12) }}
       >
         <div className="space-y-4">
           <div className="relative aspect-video pixel-border border-[#5a2d9c] bg-black/20 flex items-center justify-center overflow-hidden">
             {uploadPreview ? (
               <img src={uploadPreview} className="max-w-full max-h-full object-contain" style={{ imageRendering: 'pixelated' }} alt="Preview" />
             ) : (
-              <div className="text-[10px] opacity-40 uppercase">{isZh ? "点击上传图片" : "Click to upload image"}</div>
+              <div className="opacity-40 uppercase" style={{ fontSize: zhScale(10) }}>{isZh ? "点击上传图片" : "Click to upload image"}</div>
             )}
             <input 
               type="file" 
@@ -705,17 +707,17 @@ const TaskPlayerPage: React.FC<TaskPlayerPageProps> = ({ selectedJobId, initialJ
               }}
             />
           </div>
-          <div className="grid grid-cols-2 gap-4">
+          <div className="flex gap-8">
             <div className="space-y-1">
-              <label className="text-[10px] opacity-60 uppercase">{isZh ? "行数" : "ROWS"}</label>
-              <PixelInput type="number" min="1" value={customRows} onChange={e => setCustomRows(parseInt(e.target.value) || 1)} />
+              <label className="opacity-60 uppercase" style={{ fontSize: zhScale(10) }}>{isZh ? "行数" : "ROWS"}</label>
+              <PixelInput type="number" min="1" value={customRows} onChange={e => setCustomRows(parseInt(e.target.value) || 1)} className="w-20" style={{ fontSize: zhScale(10) }} />
             </div>
             <div className="space-y-1">
-              <label className="text-[10px] opacity-60 uppercase">{isZh ? "列数" : "COLS"}</label>
-              <PixelInput type="number" min="1" value={customCols} onChange={e => setCustomCols(parseInt(e.target.value) || 1)} />
+              <label className="opacity-60 uppercase" style={{ fontSize: zhScale(10) }}>{isZh ? "列数" : "COLS"}</label>
+              <PixelInput type="number" min="1" value={customCols} onChange={e => setCustomCols(parseInt(e.target.value) || 1)} className="w-20" style={{ fontSize: zhScale(10) }} />
             </div>
           </div>
-          <PixelButton variant="primary" className="w-full h-12" onClick={handleCustomUpload} disabled={!customFile}>
+          <PixelButton variant="secondary" className="w-full h-12" onClick={handleCustomUpload} disabled={!customFile} style={{ fontSize: zhScale(12) }}>
             {isZh ? "上传" : "UPLOAD"}
           </PixelButton>
         </div>
