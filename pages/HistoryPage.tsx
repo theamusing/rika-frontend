@@ -3,7 +3,7 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { apiService } from '../services/apiService.ts';
 import { Job } from '../types.ts';
 import { PixelButton, PixelCard, PixelImage } from '../components/PixelComponents.tsx';
-import { Heart } from 'lucide-react';
+import { Heart, Trash2, AlertTriangle } from 'lucide-react';
 
 interface HistoryPageProps {
   onJobSelected: (job: Job, page?: number) => void;
@@ -14,6 +14,7 @@ interface HistoryPageProps {
 
 const PAGE_SIZE = 20;
 const SHOW_LIKED_ONLY_KEY = 'rika_show_liked_only';
+const JOB_TYPE_KEY = 'rika_history_job_type';
 
 const HistoryPage: React.FC<HistoryPageProps> = ({ onJobSelected, onRegenerate, initialPage, lang = 'en' }) => {
   const [jobs, setJobs] = useState<Job[]>([]);
@@ -25,6 +26,11 @@ const HistoryPage: React.FC<HistoryPageProps> = ({ onJobSelected, onRegenerate, 
   const [showLikedOnly, setShowLikedOnly] = useState(() => {
     return localStorage.getItem(SHOW_LIKED_ONLY_KEY) === 'true';
   });
+  const [jobType, setJobType] = useState<string | undefined>(() => {
+    return localStorage.getItem(JOB_TYPE_KEY) || undefined;
+  });
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
   
   const lastRefreshTime = useRef<number>(0);
   const isMounted = useRef(true);
@@ -52,7 +58,7 @@ const HistoryPage: React.FC<HistoryPageProps> = ({ onJobSelected, onRegenerate, 
     }
   };
 
-  const fetchHistory = useCallback(async (isInitial = false, page: number = currentPage, likedOnly: boolean = showLikedOnly) => {
+  const fetchHistory = useCallback(async (isInitial = false, page: number = currentPage, likedOnly: boolean = showLikedOnly, type: string | undefined = jobType) => {
     if (isFetching.current) return;
     isFetching.current = true;
     try {
@@ -62,13 +68,13 @@ const HistoryPage: React.FC<HistoryPageProps> = ({ onJobSelected, onRegenerate, 
       }
       
       // Fetch total count with liked filter
-      const numRes = await apiService.getHistoryNum(likedOnly);
+      const numRes = await apiService.getHistoryNum(likedOnly, type);
       if (isMounted.current) {
         setTotalJobs(numRes.total);
       }
-
+      
       const start = page * PAGE_SIZE;
-      const res = await apiService.getHistory(start, PAGE_SIZE, likedOnly);
+      const res = await apiService.getHistory(start, PAGE_SIZE, likedOnly, type);
       
       if (isMounted.current) {
         setJobs(res.jobs || []);
@@ -82,23 +88,37 @@ const HistoryPage: React.FC<HistoryPageProps> = ({ onJobSelected, onRegenerate, 
         isFetching.current = false;
       }
     }
-  }, [currentPage, showLikedOnly]);
+  }, [currentPage, showLikedOnly, jobType]);
 
   useEffect(() => {
     isMounted.current = true;
-    fetchHistory(true, currentPage, showLikedOnly);
-    const pollInterval = setInterval(() => fetchHistory(false, currentPage, showLikedOnly), 5000); 
+    fetchHistory(true, currentPage, showLikedOnly, jobType);
     return () => {
       isMounted.current = false;
-      clearInterval(pollInterval);
     };
-  }, [fetchHistory, currentPage, showLikedOnly]);
+  }, [fetchHistory, currentPage, showLikedOnly, jobType]);
 
   const handleManualRefresh = () => {
     const now = Date.now();
     if (now - lastRefreshTime.current < 1000) return; 
     lastRefreshTime.current = now;
-    fetchHistory(false, currentPage, showLikedOnly);
+    fetchHistory(false, currentPage, showLikedOnly, jobType);
+  };
+
+  const handleDeleteJob = async () => {
+    if (!selectedJob) return;
+    setIsDeleting(true);
+    try {
+      await apiService.deleteHistory(selectedJob.gen_id);
+      setJobs(prev => prev.filter(j => j.gen_id !== selectedJob.gen_id));
+      setTotalJobs(prev => prev - 1);
+      setSelectedJob(null);
+      setShowDeleteConfirm(false);
+    } catch (err: any) {
+      alert(isZh ? `删除失败: ${err.message}` : `Delete failed: ${err.message}`);
+    } finally {
+      setIsDeleting(false);
+    }
   };
 
   const totalPages = Math.ceil(totalJobs / PAGE_SIZE);
@@ -122,6 +142,25 @@ const HistoryPage: React.FC<HistoryPageProps> = ({ onJobSelected, onRegenerate, 
               <div className={`px-3 py-1 bg-[#5a2d9c]/40 pixel-border border-[#5a2d9c] text-white/60 text-[10px]`}>
                 PAGE {String(currentPage + 1).padStart(2, '0')} / {String(totalPages || 1).padStart(2, '0')}
               </div>
+              <select 
+                value={jobType || ''} 
+                onChange={(e) => {
+                  const val = e.target.value || undefined;
+                  setJobType(val);
+                  if (val) {
+                    localStorage.setItem(JOB_TYPE_KEY, val);
+                  } else {
+                    localStorage.removeItem(JOB_TYPE_KEY);
+                  }
+                  setCurrentPage(0);
+                }}
+                className="bg-[#5a2d9c]/20 pixel-border border-[#5a2d9c] text-white/60 text-[10px] px-2 py-1 outline-none cursor-pointer hover:text-white"
+                style={{ fontSize: zhScale(8) }}
+              >
+                <option value="">{isZh ? '全部' : 'ALL'}</option>
+                <option value="character">{isZh ? '角色' : 'CHARACTER'}</option>
+                <option value="animation">{isZh ? '动画' : 'ANIMATION'}</option>
+              </select>
             </div>
             <button 
               onClick={() => {
@@ -180,14 +219,17 @@ const HistoryPage: React.FC<HistoryPageProps> = ({ onJobSelected, onRegenerate, 
                           strokeWidth={job.liked ? 0 : 2}
                         />
                       </div>
-                      {job.input_params?.motion_type && (
+                      {(job.job_type === 'character' || job.input_params?.motion_type) && (
                           <div className="absolute top-1 right-1 z-20 px-1.5 py-0.5 bg-[#f7d51d] text-[#2d1b4e] text-[8px] font-bold uppercase">
-                              {job.input_params.motion_type}
+                              {job.job_type === 'character' ? 'CHARACTER' : job.input_params.motion_type}
                           </div>
                       )}
-                      {job.input_images?.[0] && (
+                      {(job.input_images?.[0] || job.output_images?.[0]) && (
                           <PixelImage 
-                            src={job.input_images[0].url} 
+                            src={job.job_type === 'character' 
+                              ? (job.output_images?.[0]?.url || job.input_images?.[0]?.url)
+                              : (job.input_images?.[0]?.url || job.output_images?.[0]?.url)
+                            } 
                             className="w-full h-full object-contain" 
                             style={{ imageRendering: 'pixelated' }} 
                             alt="Job preview" 
@@ -323,17 +365,77 @@ const HistoryPage: React.FC<HistoryPageProps> = ({ onJobSelected, onRegenerate, 
                               <PixelButton variant="primary" onClick={() => onJobSelected(selectedJob, currentPage)} disabled={selectedJob.status === 'failed'} style={{ fontSize: zhScale(10) }}>
                                 {isZh ? '预览' : 'View In Player'}
                               </PixelButton>
+                              {selectedJob.job_type === 'character' && selectedJob.status === 'succeeded' && (
+                                <PixelButton 
+                                  variant="primary" 
+                                  onClick={() => onRegenerate({ ...selectedJob, action: 'animate' })} 
+                                  style={{ fontSize: zhScale(10), backgroundColor: '#f7d51d', color: '#2d1b4e' }}
+                                >
+                                  {isZh ? '制作动画' : 'ANIMATE'}
+                                </PixelButton>
+                              )}
                               <PixelButton variant="secondary" onClick={() => onRegenerate(selectedJob)} style={{ fontSize: zhScale(10) }}>
                                 {isZh ? '重新生成' : 'Re-generate'}
                               </PixelButton>
                               <PixelButton variant="secondary" onClick={() => setSelectedJob(null)} style={{ fontSize: zhScale(10) }}>
                                 {isZh ? '关闭' : 'Close Archive'}
                               </PixelButton>
+                              
+                              {selectedJob.status === 'succeeded' && (
+                                <div className="flex justify-end pt-4">
+                                  <button 
+                                    onClick={() => setShowDeleteConfirm(true)}
+                                    className="p-2 bg-red-900/40 hover:bg-red-600 text-red-500 hover:text-white transition-all pixel-border border-red-500"
+                                    title={isZh ? '删除任务' : 'Delete Job'}
+                                  >
+                                    <Trash2 size={16} />
+                                  </button>
+                                </div>
+                              )}
                           </div>
                       </div>
                   </div>
               </PixelCard>
           </div>
+      )}
+      {showDeleteConfirm && (
+        <div className="fixed inset-0 z-[100] bg-black/80 flex items-center justify-center p-4 backdrop-blur-sm">
+          <PixelCard className="max-w-sm w-full p-6 text-center space-y-6" title={isZh ? '确认删除' : 'CONFIRM DELETE'}>
+            <div className="flex justify-center">
+              <div className="w-12 h-12 bg-red-500/20 rounded-full flex items-center justify-center text-red-500">
+                <AlertTriangle size={24} />
+              </div>
+            </div>
+            <div className="space-y-2">
+              <p className="font-bold text-white" style={{ fontSize: zhScale(12) }}>
+                {isZh ? '确定要删除吗？' : 'Are you sure?'}
+              </p>
+              <p className="text-white/60" style={{ fontSize: zhScale(9) }}>
+                {isZh ? '此操作不可逆，任务数据将被永久移除。' : 'This action is irreversible. Task data will be permanently removed.'}
+              </p>
+            </div>
+            <div className="flex gap-4">
+              <PixelButton 
+                variant="danger" 
+                className="flex-1" 
+                onClick={handleDeleteJob} 
+                disabled={isDeleting}
+                style={{ fontSize: zhScale(10) }}
+              >
+                {isDeleting ? (isZh ? '删除中...' : 'DELETING...') : (isZh ? '确认删除' : 'CONFIRM')}
+              </PixelButton>
+              <PixelButton 
+                variant="secondary" 
+                className="flex-1" 
+                onClick={() => setShowDeleteConfirm(false)}
+                disabled={isDeleting}
+                style={{ fontSize: zhScale(10) }}
+              >
+                {isZh ? '取消' : 'CANCEL'}
+              </PixelButton>
+            </div>
+          </PixelCard>
+        </div>
       )}
     </div>
   );

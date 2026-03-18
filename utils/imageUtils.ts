@@ -134,7 +134,7 @@ export const processImage = async (
             }
           }
         } else {
-          if (pixelInt === 32 || pixelInt === 64 || pixelInt === 128) {
+          if (pixelInt === 32 || pixelInt === 64) {
             canvasDim = 512;
             contentDim = 512;
           } else {
@@ -264,10 +264,51 @@ export const processImage = async (
       };
 
       img.src = sourceDataUrl;
-
     } catch (err) {
       if (isRevocable && sourceDataUrl) URL.revokeObjectURL(sourceDataUrl);
       reject(err instanceof Error ? err.message : 'Unknown image load error');
+    }
+  });
+};
+
+export const processCharacterImage = async (source: File | string): Promise<string> => {
+  return new Promise(async (resolve, reject) => {
+    let sourceDataUrl: string | null = null;
+    let isRevocable = false;
+    try {
+      if (source instanceof File) {
+        sourceDataUrl = URL.createObjectURL(source);
+        isRevocable = true;
+      } else if (typeof source === 'string') {
+        sourceDataUrl = source.startsWith('data:') ? source : await fetchAsDataUrl(source);
+      }
+      if (!sourceDataUrl) return reject('Invalid image source');
+
+      const img = new Image();
+      if (!sourceDataUrl.startsWith('data:')) img.crossOrigin = "anonymous";
+      img.onload = () => {
+        const canvas = document.createElement('canvas');
+        canvas.width = 512;
+        canvas.height = 512;
+        const ctx = canvas.getContext('2d');
+        if (!ctx) return reject('No context');
+        
+        ctx.imageSmoothingEnabled = true;
+        ctx.imageSmoothingQuality = 'high';
+        
+        ctx.drawImage(img, 0, 0, 512, 512);
+        
+        if (isRevocable && sourceDataUrl) URL.revokeObjectURL(sourceDataUrl);
+        resolve(canvas.toDataURL('image/png'));
+      };
+      img.onerror = () => {
+        if (isRevocable && sourceDataUrl) URL.revokeObjectURL(sourceDataUrl);
+        reject('Image load failed');
+      };
+      img.src = sourceDataUrl;
+    } catch (e) {
+      if (isRevocable && sourceDataUrl) URL.revokeObjectURL(sourceDataUrl);
+      reject(e);
     }
   });
 };
@@ -368,9 +409,9 @@ export const sliceSpriteSheet = async (url: string, frameCount?: number, apiLeng
       img.onload = () => {
         try {
           const frames: string[] = [];
-          const targetLength = frameCount !== undefined ? frameCount : (apiLength - 1) / 2;
-          const cols = 4;
-          const rows = Math.ceil(targetLength / cols);
+        const targetLength = Math.floor(Math.max(1, frameCount !== undefined ? frameCount : (apiLength - 1) / 2));
+        const cols = targetLength < 4 ? targetLength : 4;
+        const rows = Math.ceil(targetLength / cols);
           
           const frameWidth = Math.floor(img.width / cols);
           const frameHeight = rows > 0 ? Math.floor(img.height / rows) : 0;
@@ -413,6 +454,35 @@ export const sliceSpriteSheet = async (url: string, frameCount?: number, apiLeng
     });
   } catch (err) {
     console.error("Sprite sheet fetch error:", err);
+    throw err;
+  }
+};
+
+export const downsampleTo128 = async (url: string): Promise<string> => {
+  try {
+    const sourceDataUrl = await fetchAsDataUrl(url);
+    const isDataUrl = sourceDataUrl.startsWith('data:');
+
+    return new Promise((resolve, reject) => {
+      const img = new Image();
+      if (!isDataUrl) img.crossOrigin = "anonymous";
+
+      img.onload = () => {
+        const canvas = document.createElement('canvas');
+        canvas.width = 128;
+        canvas.height = 128;
+        const ctx = canvas.getContext('2d');
+        if (!ctx) return reject(new Error("No context"));
+
+        ctx.imageSmoothingEnabled = false;
+        ctx.drawImage(img, 0, 0, 128, 128);
+        resolve(canvas.toDataURL('image/png'));
+      };
+      img.onerror = () => reject(new Error("Image load failed"));
+      img.src = sourceDataUrl;
+    });
+  } catch (err) {
+    console.error("Downsample error:", err);
     throw err;
   }
 };
@@ -485,7 +555,7 @@ export const reconstructSpriteSheet = async (frames: string[]): Promise<string> 
     const frameWidth = imgObjects[0].width;
     const frameHeight = imgObjects[0].height;
 
-    const cols = 4;
+    const cols = imgObjects.length < 4 ? imgObjects.length : 4;
     const rows = Math.ceil(imgObjects.length / cols);
 
     const canvas = document.createElement('canvas');

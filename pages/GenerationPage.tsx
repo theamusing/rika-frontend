@@ -239,6 +239,29 @@ const GenerationPage: React.FC<GenerationPageProps> = ({
   useEffect(() => {
     const loadInitial = async () => {
       if (!initialParams) return;
+      
+      // Handle 'animate' action from character job
+      if (initialParams.action === 'animate' && initialParams.job_type === 'character') {
+        const job = initialParams;
+        const jobParams = job.input_params;
+        const outputImgs = job.output_images || [];
+        
+        const loadedPixelSize = String(parseInt(jobParams.pixel_size || "128")) as PixelSize;
+        setParams({ 
+          ...params, 
+          pixel_size: loadedPixelSize,
+          use_quantization: false,
+          quantization_colors: 32
+        });
+        
+        if (outputImgs.length > 0) {
+          setSourceFiles([outputImgs[0].url, null, null]);
+          setFlipStates([false, false, false]);
+        }
+        onConsumed?.();
+        return;
+      }
+
       const job = initialParams;
       const jobParams = job.input_params;
       const inputImgs = job.input_images || [];
@@ -336,7 +359,7 @@ const GenerationPage: React.FC<GenerationPageProps> = ({
           finalParams.scale_factor = 384 / pixelInt;
         }
       } else {
-        if (pixelInt === 32 || pixelInt === 64 || pixelInt === 128) {
+        if (pixelInt === 32 || pixelInt === 64) {
           finalParams.scale_factor = 512 / pixelInt;
         } else {
           finalParams.scale_factor = 768 / pixelInt;
@@ -534,10 +557,11 @@ const GenerationPage: React.FC<GenerationPageProps> = ({
                   {isZh ? "提示词" : "PROMPT"}
                 </label>
                 <textarea 
-                  className="w-full bg-[#0d0221] pixel-border border-[#5a2d9c] p-2 text-white text-[10px] h-48 outline-none focus:border-[#f7d51d] placeholder:opacity-30"
+                  className="w-full bg-[#0d0221] pixel-border border-[#5a2d9c] p-2 text-white h-48 outline-none focus:border-[#f7d51d] placeholder:opacity-30"
                   placeholder="Enter custom prompt here..."
                   value={params.prompt}
                   onChange={onPromptChange}
+                  style={{ fontSize: zhScale(10) }}
                 />
              </div>
 

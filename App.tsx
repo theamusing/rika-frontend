@@ -5,6 +5,7 @@ import { apiService } from './services/apiService.ts';
 import { AuthUser, Job } from './types.ts';
 import LoginPage from './pages/LoginPage.tsx';
 import GenerationPage from './pages/GenerationPage.tsx';
+import CharacterPage from './pages/CharacterPage.tsx';
 import TaskPlayerPage from './pages/TaskPlayerPage.tsx';
 import HistoryPage from './pages/HistoryPage.tsx';
 import LandingPage from './pages/LandingPage.tsx';
@@ -16,8 +17,8 @@ import { PaymentSuccessModal } from './components/PaymentSuccessModal.tsx';
 const App: React.FC = () => {
   const [user, setUser] = useState<AuthUser | null>(null);
   const [credits, setCredits] = useState<number>(0);
-  const [activeTab, setActiveTab] = useState<'intro' | 'generate' | 'player' | 'history' | 'docs'>('intro');
-  const [pendingTab, setPendingTab] = useState<'generate' | 'player' | 'history' | 'docs' | null>(null);
+  const [activeTab, setActiveTab] = useState<'intro' | 'character' | 'generate' | 'player' | 'history' | 'docs'>('intro');
+  const [pendingTab, setPendingTab] = useState<'character' | 'generate' | 'player' | 'history' | 'docs' | null>(null);
   const [selectedJobId, setSelectedJobId] = useState<string | null>(null);
   const [selectedJob, setSelectedJob] = useState<Job | null>(null);
   const [navigationSource, setNavigationSource] = useState<{ tab: string, page?: number } | null>(null);
@@ -28,10 +29,12 @@ const App: React.FC = () => {
   const [loginMode, setLoginMode] = useState<'login' | 'forgot' | 'update'>('login');
   const [lang, setLang] = useState<'en' | 'zh'>('en');
   const [showUserDropdown, setShowUserDropdown] = useState(false);
+  const [showCreateDropdown, setShowCreateDropdown] = useState(false);
   const [isBackendDown, setIsBackendDown] = useState(false);
   
   const lastFetchTime = useRef<number>(0);
   const dropdownRef = useRef<HTMLDivElement>(null);
+  const createDropdownRef = useRef<HTMLDivElement>(null);
 
   const isZh = lang === 'zh';
   const zhScale = (enSize: number) => isZh ? `${enSize + 3}px` : `${enSize}px`;
@@ -40,6 +43,9 @@ const App: React.FC = () => {
     const handleClickOutside = (event: MouseEvent) => {
       if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
         setShowUserDropdown(false);
+      }
+      if (createDropdownRef.current && !createDropdownRef.current.contains(event.target as Node)) {
+        setShowCreateDropdown(false);
       }
     };
     document.addEventListener('mousedown', handleClickOutside);
@@ -126,7 +132,7 @@ const App: React.FC = () => {
     setLoginMode('login');
   };
 
-  const navigateTo = (tab: 'intro' | 'generate' | 'player' | 'history' | 'docs') => {
+  const navigateTo = (tab: 'intro' | 'character' | 'generate' | 'player' | 'history' | 'docs') => {
     if (tab === 'intro' || tab === 'docs') {
       setActiveTab(tab);
       setPendingTab(null);
@@ -134,7 +140,7 @@ const App: React.FC = () => {
     }
     
     if (!user) {
-      const target = (tab === 'history') ? 'history' : 'generate';
+      const target = (tab === 'history') ? 'history' : (tab === 'character' ? 'character' : 'generate');
       setPendingTab(target);
       setActiveTab(target); 
       return;
@@ -174,7 +180,13 @@ const App: React.FC = () => {
 
   const handleRegenerate = (params: any) => {
     setInitialParams(params);
-    setActiveTab('generate');
+    if (params.action === 'animate') {
+      setActiveTab('generate');
+    } else if (params.job_type === 'character') {
+      setActiveTab('character');
+    } else {
+      setActiveTab('generate');
+    }
   };
 
   if (isAuthChecking) {
@@ -204,12 +216,32 @@ const App: React.FC = () => {
             alt="RIKA AI"
           />
           <nav className="flex gap-2">
-            <button 
-              onClick={() => navigateTo('generate')}
-              className={`px-4 py-2 text-[10px] font-bold uppercase transition-all ${activeTab === 'generate' ? 'text-white border-b-2 border-white' : 'text-white/40 hover:text-white'}`}
-            >
-              CREATE
-            </button>
+            <div className="relative" ref={createDropdownRef}>
+              <button 
+                onClick={() => setShowCreateDropdown(!showCreateDropdown)}
+                className={`px-4 py-2 text-[10px] font-bold uppercase transition-all flex items-center gap-1 ${activeTab === 'character' || activeTab === 'generate' ? 'text-white border-b-2 border-white' : 'text-white/40 hover:text-white'}`}
+              >
+                CREATE
+                <span className={`transition-transform duration-200 ${showCreateDropdown ? 'rotate-180' : ''}`}>▼</span>
+              </button>
+              
+              {showCreateDropdown && (
+                <div className="absolute left-0 mt-2 w-32 bg-[#2d1b4e] pixel-border border-[#5a2d9c] z-[100] shadow-xl">
+                  <button 
+                    onClick={() => { navigateTo('character'); setShowCreateDropdown(false); }}
+                    className={`w-full px-4 py-3 text-[10px] font-bold uppercase text-left transition-all ${activeTab === 'character' ? 'bg-[#f7d51d] text-[#2d1b4e]' : 'text-white/60 hover:bg-white/10 hover:text-white'}`}
+                  >
+                    {isZh ? '角色' : 'CHARACTER'}
+                  </button>
+                  <button 
+                    onClick={() => { navigateTo('generate'); setShowCreateDropdown(false); }}
+                    className={`w-full px-4 py-3 text-[10px] font-bold uppercase text-left transition-all ${activeTab === 'generate' ? 'bg-[#f7d51d] text-[#2d1b4e]' : 'text-white/60 hover:bg-white/10 hover:text-white'}`}
+                  >
+                    {isZh ? '动画' : 'ANIMATION'}
+                  </button>
+                </div>
+              )}
+            </div>
             <button 
               onClick={() => navigateTo('player')}
               className={`px-4 py-2 text-[10px] font-bold uppercase transition-all ${activeTab === 'player' ? 'text-white border-b-2 border-white' : 'text-white/40 hover:text-white'}`}
@@ -251,8 +283,13 @@ const App: React.FC = () => {
             <div className="flex items-center gap-4 relative" ref={dropdownRef}>
               <div 
                 className={`flex flex-col items-end cursor-pointer group ${isBackendDown ? 'opacity-50 cursor-not-allowed' : ''}`}
-                onClick={() => !isBackendDown && setIsPricingOpen(true)}
-                title={isBackendDown ? (isZh ? "服务器维护中" : "Server Maintenance") : "Click to buy more credits"}
+                onClick={() => {
+                  if (!isBackendDown) {
+                    fetchCredits();
+                    setIsPricingOpen(true);
+                  }
+                }}
+                title={isBackendDown ? (isZh ? "服务器维护中" : "Server Maintenance") : (isZh ? "点击刷新积分/购买更多" : "Click to refresh credits / buy more")}
               >
                 <span className="text-[8px] opacity-40 text-white group-hover:text-[#f7d51d]">CREDITS</span>
                 <span className="text-sm font-bold text-[#f7d51d] group-hover:scale-105 transition-transform">
@@ -318,13 +355,29 @@ const App: React.FC = () => {
 
       <main className="flex-1 container mx-auto p-4 max-w-7xl">
         {showIntro ? (
-          <LandingPage lang={lang} onGetStarted={() => navigateTo('generate')} onViewDocs={() => navigateTo('docs')} />
+          <LandingPage 
+            lang={lang} 
+            onGetStarted={() => navigateTo('generate')} 
+            onGenerateCharacter={() => navigateTo('character')}
+            onViewDocs={() => navigateTo('docs')} 
+          />
         ) : activeTab === 'docs' ? (
           <DocumentPage lang={lang} />
         ) : showLogin ? (
           <LoginPage onLogin={handleLoginSuccess} initialMode={loginMode} lang={lang} />
         ) : (
           <>
+            {activeTab === 'character' && (
+              <CharacterPage
+                onJobCreated={(id) => { setSelectedJobId(id); setActiveTab('player'); }}
+                lang={lang}
+                credits={credits}
+                onOpenPricing={() => setIsPricingOpen(true)}
+                isBackendDown={isBackendDown}
+                initialParams={initialParams}
+                onConsumed={() => setInitialParams(null)}
+              />
+            )}
             {activeTab === 'generate' && (
               <GenerationPage 
                 onJobCreated={(id) => { setSelectedJobId(id); setActiveTab('player'); }} 

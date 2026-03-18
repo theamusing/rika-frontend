@@ -133,16 +133,28 @@ class ApiService {
     return this.request('POST', 'generate', { image_base64, params });
   }
 
+  async generateCharacter(image_base64: string[] | null, params: any) {
+    return this.request('POST', 'generate-character', { image_base64, params });
+  }
+
   async getJobInfo(genId: string): Promise<Job> {
     return this.request('GET', `jobs/${genId}`);
   }
 
-  async getHistory(start: number = 0, k: number = 20, get_liked: boolean = false): Promise<{ jobs: Job[] }> {
-    return this.request('GET', `history?start=${start}&k=${k}&get_liked=${get_liked}`);
+  async getHistory(start: number = 0, k: number = 20, get_liked: boolean = false, job_type?: string): Promise<{ jobs: Job[] }> {
+    let url = `history?start=${start}&k=${k}&get_liked=${get_liked}`;
+    if (job_type) url += `&job_type=${job_type}`;
+    return this.request('GET', url);
   }
 
-  async getHistoryNum(get_liked: boolean = false): Promise<{ total: number }> {
-    return this.request('POST', `history_num?get_liked=${get_liked}`);
+  async getHistoryNum(get_liked: boolean = false, job_type?: string): Promise<{ total: number }> {
+    let url = `history_num?get_liked=${get_liked}`;
+    if (job_type) url += `&job_type=${job_type}`;
+    return this.request('POST', url);
+  }
+
+  async deleteHistory(genId: string): Promise<any> {
+    return this.request('DELETE', `history/${genId}`);
   }
 
   async setLiked(generationId: string, liked: boolean, retryCount = 0): Promise<any> {

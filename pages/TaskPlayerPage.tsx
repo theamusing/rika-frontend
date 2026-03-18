@@ -3,7 +3,7 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { apiService } from '../services/apiService.ts';
 import { Job } from '../types.ts';
 import { PixelButton, PixelCard, PixelModal, PixelInput } from '../components/PixelComponents.tsx';
-import { sliceSpriteSheet, reconstructSpriteSheet, processImage, fetchAsDataUrl, sliceCustomSpriteSheet } from '../utils/imageUtils.ts';
+import { sliceSpriteSheet, reconstructSpriteSheet, processImage, fetchAsDataUrl, sliceCustomSpriteSheet, downsampleTo128 } from '../utils/imageUtils.ts';
 import { floodFill, RGB, colorDistance } from '../utils/editorUtils.ts';
 import { saveSpriteToCache, getSpriteFromCache, CachedSprite } from '../utils/dbUtils.ts';
 import { Heart, ArrowLeft } from 'lucide-react';
@@ -203,11 +203,15 @@ const TaskPlayerPage: React.FC<TaskPlayerPageProps> = ({ selectedJobId, initialJ
 
   const updateFramesFromJob = useCallback(async (job: Job) => {
     const apiLength = job.input_params?.length || 33;
+    const isCharacter = job.job_type === 'character';
+
     try {
       const cached = await getSpriteFromCache(job.gen_id);
       if (cached) {
         const frameMetadata = (cached.customData as any)?.frameMetadata;
-        const sliced = await sliceSpriteSheet(cached.spriteSheet, frameMetadata?.length, apiLength);
+        // For character jobs, we expect 1 frame. sliceSpriteSheet handles this if targetLength is 1.
+        const targetLength = isCharacter ? 1 : frameMetadata?.length;
+        const sliced = isCharacter ? [cached.spriteSheet] : await sliceSpriteSheet(cached.spriteSheet, targetLength, apiLength);
         if (isMounted.current) {
           const mappedFrames: FrameData[] = sliced.map((url, i) => ({
             id: frameMetadata?.[i]?.id || `f-${Date.now()}-${i}`,
@@ -222,25 +226,36 @@ const TaskPlayerPage: React.FC<TaskPlayerPageProps> = ({ selectedJobId, initialJ
         }
       }
     } catch (err) {}
+
     const outputUrl = job.output_images?.[0]?.url;
     if (job.status === 'succeeded' && outputUrl) {
       try {
-        const sliced = await sliceSpriteSheet(outputUrl, undefined, apiLength);
-        if (isMounted.current) {
-          const mappedFrames: FrameData[] = sliced.map((url, i) => ({
-            id: `f-${Date.now()}-${i}`,
-            url,
-            isOriginal: true
-          }));
-          setFrames(mappedFrames); setInitialFrames(mappedFrames); setUndoStack([]); setRedoStack([]); setPan({ x: 0, y: 0 }); setSelection(new Set());
+        if (isCharacter) {
+          const downsampled = await downsampleTo128(outputUrl);
+          if (isMounted.current) {
+            const frame: FrameData = { id: `f-${Date.now()}-0`, url: downsampled, isOriginal: true };
+            setFrames([frame]); setInitialFrames([frame]); setUndoStack([]); setRedoStack([]); setPan({ x: 0, y: 0 }); setSelection(new Set());
+          }
+        } else {
+          const sliced = await sliceSpriteSheet(outputUrl, undefined, apiLength);
+          if (isMounted.current) {
+            const mappedFrames: FrameData[] = sliced.map((url, i) => ({
+              id: `f-${Date.now()}-${i}`,
+              url,
+              isOriginal: true
+            }));
+            setFrames(mappedFrames); setInitialFrames(mappedFrames); setUndoStack([]); setRedoStack([]); setPan({ x: 0, y: 0 }); setSelection(new Set());
+          }
         }
       } catch (err) {}
     } else if (job.status === 'running' || job.status === 'queued') {
       if (job.input_images?.[0]?.url) {
         try {
-          const firstFrameUrl = await fetchAsDataUrl(job.input_images[0].url);
+          const rawUrl = job.input_images[0].url;
+          const processedUrl = isCharacter ? await downsampleTo128(rawUrl) : await fetchAsDataUrl(rawUrl);
+          
           if (isMounted.current) { 
-            const firstFrame: FrameData = { id: `f-${Date.now()}-0`, url: firstFrameUrl, isOriginal: true, isExcluded: false };
+            const firstFrame: FrameData = { id: `f-${Date.now()}-0`, url: processedUrl, isOriginal: true, isExcluded: false };
             setFrames([firstFrame]); setInitialFrames([firstFrame]); setCurrentFrameIndex(0); 
           }
         } catch (e) {
@@ -476,15 +491,23 @@ const TaskPlayerPage: React.FC<TaskPlayerPageProps> = ({ selectedJobId, initialJ
     
     setLoading(true);
     try {
-      const apiLength = currentJob.input_params?.length || 33;
-      const sliced = await sliceSpriteSheet(outputUrl, undefined, apiLength);
-      const mappedFrames: FrameData[] = sliced.map((url, i) => ({
-        id: `f-${Date.now()}-${i}`,
-        url,
-        isOriginal: true
-      }));
-      setIsPlaying(false);
-      pushToHistory(mappedFrames);
+      const isCharacter = currentJob.job_type === 'character';
+      if (isCharacter) {
+        const downsampled = await downsampleTo128(outputUrl);
+        const frame: FrameData = { id: `f-${Date.now()}-0`, url: downsampled, isOriginal: true };
+        setIsPlaying(false);
+        pushToHistory([frame]);
+      } else {
+        const apiLength = currentJob.input_params?.length || 33;
+        const sliced = await sliceSpriteSheet(outputUrl, undefined, apiLength);
+        const mappedFrames: FrameData[] = sliced.map((url, i) => ({
+          id: `f-${Date.now()}-${i}`,
+          url,
+          isOriginal: true
+        }));
+        setIsPlaying(false);
+        pushToHistory(mappedFrames);
+      }
     } catch (err) {
       console.error("Failed to restore original", err);
     } finally {
@@ -494,6 +517,7 @@ const TaskPlayerPage: React.FC<TaskPlayerPageProps> = ({ selectedJobId, initialJ
 
   const toggleFrameExclusion = (index: number, e: React.MouseEvent) => {
     e.stopPropagation();
+    setIsPlaying(false);
     const newFrames = [...frames];
     newFrames[index] = { ...newFrames[index], isExcluded: !newFrames[index].isExcluded };
     pushToHistory(newFrames);
@@ -802,7 +826,59 @@ const TaskPlayerPage: React.FC<TaskPlayerPageProps> = ({ selectedJobId, initialJ
               </div>
             )}
             <div ref={editorContainerRef} className="relative origin-center" style={{ width: '512px', height: '512px', transform: `translate(${pan.x}px, ${pan.y}px) scale(${zoom})`, imageRendering: 'pixelated', backgroundImage: isLightBg ? lightChecker : darkChecker, backgroundSize: `16px 16px` }} onMouseDown={handleMouseDown} onMouseMove={handleCanvasInteraction} onMouseUp={handleMouseUp}>
-              {(loading || isJobRunning) && <div className="absolute inset-0 z-50 bg-black/60 flex items-center justify-center text-[10px] uppercase text-white animate-pulse">{isJobRunning ? 'Rendering...' : 'Syncing...'}</div>}
+              {(loading || isJobRunning) && (
+                <div className="absolute inset-0 z-50 flex flex-col items-center justify-center overflow-hidden">
+                  {/* Black semi-transparent mask */}
+                  <div className="absolute inset-0 bg-black/80" />
+                  
+                  {/* Pixel Grid Animation - Displayed in front of the mask */}
+                  <div className="absolute inset-0 grid grid-cols-8 grid-rows-8 opacity-40 pointer-events-none z-10">
+                    {[...Array(64)].map((_, i) => {
+                      const x = i % 8;
+                      const y = Math.floor(i / 8);
+                      const delay = (x + y) * 0.15;
+                      return (
+                        <div 
+                          key={i}
+                          className="w-full h-full border border-white/10"
+                          style={{
+                            animation: `pixelFade 2s ease-in-out infinite`,
+                            animationDelay: `${delay}s`
+                          }}
+                        />
+                      );
+                    })}
+                  </div>
+
+                  <div className="relative z-20 flex flex-col items-center gap-2">
+                    <div className="flex flex-col items-center">
+                      <div className="font-bold tracking-[0.2em] text-white uppercase animate-pulse" style={{ fontSize: zhScale(8) }}>
+                        {isJobRunning ? (isZh ? '正在渲染' : 'RENDERING') : (isZh ? '正在同步' : 'SYNCING')}
+                      </div>
+                      <div className="flex gap-1 mt-1">
+                        <div className="w-1 h-1 bg-white animate-bounce [animation-delay:-0.3s]" />
+                        <div className="w-1 h-1 bg-white animate-bounce [animation-delay:-0.15s]" />
+                        <div className="w-1 h-1 bg-white animate-bounce" />
+                      </div>
+                    </div>
+                    
+                    {isJobRunning && (
+                      <div className="text-center">
+                        <p className="text-white/60 tracking-tight" style={{ fontSize: zhScale(8) }}>
+                          {isZh ? '可以到dashboard中查看已经生成的结果' : 'You can check the Dashboard for generated results'}
+                        </p>
+                      </div>
+                    )}
+                  </div>
+
+                  <style>{`
+                    @keyframes pixelFade {
+                      0%, 100% { background-color: transparent; }
+                      50% { background-color: rgba(168, 85, 247, 0.6); }
+                    }
+                  `}</style>
+                </div>
+              )}
               <canvas ref={canvasRef} className="w-full h-full block" />
               <canvas ref={overlayRef} className="absolute inset-0 w-full h-full pointer-events-none block" />
             </div>

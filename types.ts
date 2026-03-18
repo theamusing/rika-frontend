@@ -24,6 +24,7 @@ export interface GenerationParams {
 export interface Job {
   gen_id: string;
   status: 'queued' | 'running' | 'succeeded' | 'failed';
+  job_type?: 'animation' | 'character';
   input_params: any;
   created_at: string;
   updated_at?: string;

@@ -5,6 +5,7 @@ import { MOTION_TYPES } from '../constants.ts';
 
 interface LandingPageProps {
   onGetStarted: () => void;
+  onGenerateCharacter: () => void;
   onViewDocs: () => void;
   lang?: 'en' | 'zh';
 }
@@ -33,6 +34,9 @@ const TRANSLATIONS = {
     heroFoot: "Imagination is All you need.",
     sec2Title: "Automatic Animation Generator",
     sec2Sub: "End-to-End Motion Synthesis Pipeline",
+    secCharTitle: "Consistent Character Generator",
+    secCharSub: "Style-controlled pixel character generation",
+    genCharBtn: "GENERATE",
     step1: "upload pixel character",
     step2: "choose motion",
     step3: "generate animation",
@@ -80,6 +84,9 @@ const TRANSLATIONS = {
     heroFoot: "Imagination is All you need.",
     sec2Title: "像素动画生成器",
     sec2Sub: "从图像到动画",
+    secCharTitle: "像素角色生成器",
+    secCharSub: "风格可控的像素角色生成",
+    genCharBtn: "生成",
     step1: "上传像素角色",
     step2: "选择动作类型",
     step3: "生成动画序列",
@@ -123,8 +130,42 @@ const TRANSLATIONS = {
   }
 };
 
-const LandingPage: React.FC<LandingPageProps> = ({ onGetStarted, onViewDocs, lang = 'en' }) => {
+const CHARACTER_PRESETS = [
+  {
+    en: "Short-haired band girl with a guitar on her back",
+    zh: "背着吉他的短发乐队少女",
+    image: `${EXAMPLES_BASE}character1.png`
+  },
+  {
+    en: "A giant four-legged red dragon with wings spread",
+    zh: "张开翅膀的巨大四足红龙",
+    image: `${EXAMPLES_BASE}character2.png`
+  },
+  {
+    en: "Artorias walking in the abyss",
+    zh: "漫步深渊的亚尔特留斯",
+    image: `${EXAMPLES_BASE}character3.png`
+  },
+  {
+    en: "A small one-eyed demon with wings, round body, no mouth",
+    zh: "一个长翅膀的独眼小恶魔，圆形的身体，没有嘴巴",
+    image: `${EXAMPLES_BASE}character4.png`
+  },
+  {
+    en: "A gaunt ancient skeleton soldier holding a rusty bronze spear with both hands",
+    zh: "双手拿着生锈铜色长枪、枯瘦的古老骷髅士兵",
+    image: `${EXAMPLES_BASE}character5.png`
+  },
+  {
+    en: "A Mind Flayer lord floating in the air, wearing ornate purple robes with tentacle whiskers",
+    zh: "穿着华丽紫色长袍、长着触手胡须，漂浮空中的灵吸怪领主",
+    image: `${EXAMPLES_BASE}character6.png`
+  }
+];
+
+const LandingPage: React.FC<LandingPageProps> = ({ onGetStarted, onGenerateCharacter, onViewDocs, lang = 'en' }) => {
   const [selectedMotion, setSelectedMotion] = useState<string>('idle');
+  const [charIndex, setCharIndex] = useState(() => Math.floor(Math.random() * CHARACTER_PRESETS.length));
   const [isTermsOpen, setIsTermsOpen] = useState(false);
   const [isPrivacyOpen, setIsPrivacyOpen] = useState(false);
   const t = TRANSLATIONS[lang];
@@ -182,6 +223,66 @@ const LandingPage: React.FC<LandingPageProps> = ({ onGetStarted, onViewDocs, lan
                 e.currentTarget.src = FALLBACK_IMAGE;
               }}
             />
+          </div>
+        </div>
+      </section>
+
+      {/* SECTION 1.5: CHARACTER GENERATOR */}
+      <section className="min-h-[70vh] flex flex-col justify-center py-24 px-6 lg:px-24 bg-black/5 border-t border-[#5a2d9c]/10">
+        <div className="text-center mb-20 space-y-2">
+          <h2 className="text-xl md:text-2xl font-bold uppercase tracking-tight text-[#f7d51d] text-pretty">{t.secCharTitle}</h2>
+          <p className={`uppercase tracking-[0.4em] text-pretty ${isZh ? 'text-[11px] text-white/50' : 'text-[8px] text-white/30'}`}>{t.secCharSub}</p>
+        </div>
+
+        <div className="max-w-4xl mx-auto w-full flex flex-col items-center gap-6">
+          {/* Top: Image Preview */}
+          <div className="w-full flex justify-center">
+            <div className="w-full max-w-[320px] aspect-square bg-[#1e1e1e]/60 pixel-border border-[#f7d51d] p-8 flex items-center justify-center relative overflow-hidden group">
+              <div className="absolute inset-0 bg-gradient-to-br from-[#f7d51d]/5 to-transparent"></div>
+              <PixelImage 
+                src={CHARACTER_PRESETS[charIndex].image} 
+                key={charIndex}
+                className="w-full h-full object-contain animate-fade-in z-10" 
+                style={{ imageRendering: 'pixelated' }}
+                alt="Character Preview"
+                onError={(e) => {
+                  e.currentTarget.src = `${CDN_BASE}origin.png`;
+                }}
+              />
+              <div className="absolute bottom-4 right-4 text-[8px] text-white/20 uppercase tracking-widest">Preview</div>
+            </div>
+          </div>
+
+          {/* Middle: Prompt (Clickable for random) */}
+          <div className="w-full flex items-center justify-center max-w-2xl">
+            <div 
+              className="flex-1 text-center cursor-pointer group"
+              onClick={() => {
+                let nextIndex;
+                do {
+                  nextIndex = Math.floor(Math.random() * CHARACTER_PRESETS.length);
+                } while (nextIndex === charIndex);
+                setCharIndex(nextIndex);
+              }}
+              title={isZh ? "点击切换随机描述" : "Click to shuffle prompt"}
+            >
+              <p className={`font-bold text-white leading-relaxed transition-colors group-hover:text-[#f7d51d] ${isZh ? 'text-[12px]' : 'text-[9px]'}`}>
+                "{isZh ? CHARACTER_PRESETS[charIndex].zh : CHARACTER_PRESETS[charIndex].en}"
+              </p>
+            </div>
+          </div>
+
+          {/* Bottom: Generate Button */}
+          <div className="w-full flex justify-center">
+            <div className="w-full max-w-[200px]">
+              <PixelButton 
+                variant="primary"
+                className="w-full h-11 text-[9px] shadow-[0_0_15px_rgba(247,213,29,0.3)]"
+                onClick={onGenerateCharacter}
+              >
+                GENERATE
+              </PixelButton>
+            </div>
           </div>
         </div>
       </section>
