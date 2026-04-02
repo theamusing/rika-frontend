@@ -381,7 +381,7 @@ const HistoryPage: React.FC<HistoryPageProps> = ({ onJobSelected, onRegenerate, 
                                 {isZh ? '关闭' : 'Close Archive'}
                               </PixelButton>
                               
-                              {selectedJob.status === 'succeeded' && (
+                              {(selectedJob.status === 'succeeded' || selectedJob.status === 'failed') && (
                                 <div className="flex justify-end pt-4">
                                   <button 
                                     onClick={() => setShowDeleteConfirm(true)}
