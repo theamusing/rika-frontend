@@ -1,5 +1,5 @@
 
-import { API_BASE, SUPABASE_FUNCTIONS_URL, SUPABASE_ANON_KEY } from '../constants.ts';
+import { API_BASE, SUPABASE_FUNCTIONS_URL, SUPABASE_PUBLISHABLE_KEY } from '../constants.ts';
 import { Job } from '../types.ts';
 
 class ApiService {
@@ -162,7 +162,7 @@ class ApiService {
     const headers: Record<string, string> = {
       'Content-Type': 'application/json',
       'Authorization': `Bearer ${this.token}`,
-      'apikey': SUPABASE_ANON_KEY,
+      'apikey': SUPABASE_PUBLISHABLE_KEY,
     };
     
     try {

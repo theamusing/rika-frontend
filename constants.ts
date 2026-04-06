@@ -1,7 +1,7 @@
 
 export const API_BASE = "https://api.rika-ai.com/v1/";
 export const SUPABASE_URL = "https://ibpxdahpxghywypexgzw.supabase.co";
-export const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImlicHhkYWhweGdoeXd5cGV4Z3p3Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3Njk2NDc5OTMsImV4cCI6MjA4NTIyMzk5M30.3uKTJegKjumJHuZQ_KqChzkmJcbfvPRVwZcFoBIk4Os";
+export const SUPABASE_PUBLISHABLE_KEY = "sb_publishable_2LXoi7lE_qDoIvLPc91hlg_VzidqoNn";
 export const SUPABASE_FUNCTIONS_URL = `${SUPABASE_URL}/functions/v1/`;
 
 export const COLORS = {

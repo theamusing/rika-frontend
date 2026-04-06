@@ -135,6 +135,12 @@ const GenerationPage: React.FC<GenerationPageProps> = ({
   }, [params.motion_type, params.attack_type, initialParams]);
 
   useEffect(() => {
+    if (loopAnimation || params.use_mid_image || params.use_end_image) {
+      setUiLength(16);
+    }
+  }, [loopAnimation, params.use_mid_image, params.use_end_image]);
+
+  useEffect(() => {
     const reprocessAll = async () => {
       let changed = false;
       let fullChanged = false;
@@ -618,6 +624,14 @@ const GenerationPage: React.FC<GenerationPageProps> = ({
                       />
                     </div>
                 </div>
+                <div className="space-y-2">
+                    <label className="text-[10px] block text-white/60 uppercase" style={{ fontSize: zhScale(10) }}>
+                      {isZh ? "帧数" : "LENGTH"}
+                    </label>
+                    <select className="w-full bg-[#0d0221] p-2 text-[10px] outline-none border-2 border-[#5a2d9c] text-white" value={uiLength} onChange={(e) => setUiLength(parseInt(e.target.value))}>
+                      {[8, 10, 12, 14, 16].map(l => <option key={l} value={l}>{l} FRAMES</option>)}
+                    </select>
+                </div>
              </div>
 
              <div className="space-y-2 border-t border-[#5a2d9c]/30 pt-4">
@@ -690,14 +704,6 @@ const GenerationPage: React.FC<GenerationPageProps> = ({
                           {isZh ? "高噪声强度" : "STRENGTH HIGH"} <span>{params.strength_high}</span>
                         </label>
                         <input type="range" min="0" max="2" step="0.1" className="w-full accent-white" value={params.strength_high} onChange={e => setParams({...params, strength_high: parseFloat(e.target.value)})} />
-                    </div>
-                    <div className="space-y-2">
-                        <label className="text-[10px] block flex justify-between uppercase" style={{ fontSize: zhScale(10) }}>
-                          {isZh ? "帧数" : "LENGTH"} <span>{uiLength}</span>
-                        </label>
-                        <select className="w-full bg-[#0d0221] p-2 text-[10px] outline-none border-2 border-[#5a2d9c] text-white" value={uiLength} onChange={(e) => setUiLength(parseInt(e.target.value))}>
-                          {[8, 10, 12, 14, 16].map(l => <option key={l} value={l}>{l} FRAMES</option>)}
-                        </select>
                     </div>
                     <div className="space-y-2">
                         <div className="flex justify-between">

@@ -6,11 +6,11 @@ import { PixelButton, PixelCard, PixelModal, PixelInput } from '../components/Pi
 import { sliceSpriteSheet, reconstructSpriteSheet, processImage, fetchAsDataUrl, sliceCustomSpriteSheet, downsampleTo128 } from '../utils/imageUtils.ts';
 import { floodFill, RGB, colorDistance } from '../utils/editorUtils.ts';
 import { saveSpriteToCache, getSpriteFromCache, CachedSprite } from '../utils/dbUtils.ts';
-import { Heart, ArrowLeft } from 'lucide-react';
+import { Heart, ArrowLeft, Move } from 'lucide-react';
 // @ts-ignore
 import gifshot from 'gifshot';
 
-type Tool = 'brush' | 'eraser' | 'move' | 'wand';
+type Tool = 'brush' | 'eraser' | 'move' | 'wand' | 'nudge';
 type WandMode = 'select' | 'add' | 'remove';
 
 interface TaskPlayerPageProps {
@@ -107,6 +107,48 @@ const TaskPlayerPage: React.FC<TaskPlayerPageProps> = ({ selectedJobId, initialJ
     setFrames([...newFrames]);
   };
 
+  const nudgeFrame = useCallback((dx: number, dy: number) => {
+    if (isJobRunning) return;
+    setIsPlaying(false);
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const ctx = canvas.getContext('2d')!;
+    
+    // 1. Capture current state
+    const tempCanvas = document.createElement('canvas');
+    tempCanvas.width = canvas.width;
+    tempCanvas.height = canvas.height;
+    const tempCtx = tempCanvas.getContext('2d')!;
+    tempCtx.drawImage(canvas, 0, 0);
+    
+    // 2. Clear canvas
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    
+    // 3. Draw with offset
+    ctx.drawImage(tempCanvas, dx, dy);
+    
+    // 4. Fill the gap with the "previous color" (edge smear)
+    if (dx > 0) {
+      // Moved right, fill column 0 with original column 0
+      ctx.drawImage(tempCanvas, 0, 0, 1, canvas.height, 0, 0, 1, canvas.height);
+    } else if (dx < 0) {
+      // Moved left, fill last column with original last column
+      ctx.drawImage(tempCanvas, canvas.width - 1, 0, 1, canvas.height, canvas.width - 1, 0, 1, canvas.height);
+    }
+    
+    if (dy > 0) {
+      // Moved down, fill row 0 with original row 0
+      ctx.drawImage(tempCanvas, 0, 0, canvas.width, 1, 0, 0, canvas.width, 1);
+    } else if (dy < 0) {
+      // Moved up, fill last row with original last row
+      ctx.drawImage(tempCanvas, 0, canvas.height - 1, canvas.width, 1, 0, canvas.height - 1, canvas.width, 1);
+    }
+    
+    const newFrames = [...frames];
+    newFrames[currentFrameIndex] = { ...newFrames[currentFrameIndex], url: canvas.toDataURL() };
+    pushToHistory(newFrames);
+  }, [frames, currentFrameIndex, isJobRunning]);
+
   const handleUndo = useCallback(() => {
     if (undoStack.length === 0 || isJobRunning) return;
     setIsPlaying(false);
@@ -171,6 +213,12 @@ const TaskPlayerPage: React.FC<TaskPlayerPageProps> = ({ selectedJobId, initialJ
       }
       if (e.key === 'Delete' || e.key === 'Backspace') { e.preventDefault(); deleteSelection(); }
       else if (e.key === 'Escape') { setSelection(new Set()); }
+      else if (activeTool === 'nudge') {
+        if (e.key === 'ArrowUp') { e.preventDefault(); nudgeFrame(0, -1); }
+        else if (e.key === 'ArrowDown') { e.preventDefault(); nudgeFrame(0, 1); }
+        else if (e.key === 'ArrowLeft') { e.preventDefault(); nudgeFrame(-1, 0); }
+        else if (e.key === 'ArrowRight') { e.preventDefault(); nudgeFrame(1, 0); }
+      }
     };
     const handleKeyUp = (e: KeyboardEvent) => {
       if (e.key === 'Control' || e.key === 'Meta') setIsCtrlPressed(false);
@@ -580,6 +628,7 @@ const TaskPlayerPage: React.FC<TaskPlayerPageProps> = ({ selectedJobId, initialJ
         case 'brush': return '笔刷';
         case 'eraser': return '橡皮';
         case 'wand': return '魔棒';
+        case 'nudge': return '微移';
         case 'move': return '移动';
         default: return id;
       }
@@ -595,7 +644,7 @@ const TaskPlayerPage: React.FC<TaskPlayerPageProps> = ({ selectedJobId, initialJ
           {typeof content === 'string' ? (
              <span className="text-lg leading-none">{content}</span>
           ) : (
-            <div className={`w-6 h-6 flex items-center justify-center shrink-0 ${!isActive ? 'invert' : ''}`}>
+            <div className={`w-6 h-6 flex items-center justify-center shrink-0 ${(!isActive && id !== 'nudge') ? 'invert' : ''}`}>
               {content}
             </div>
           )}
@@ -788,6 +837,7 @@ const TaskPlayerPage: React.FC<TaskPlayerPageProps> = ({ selectedJobId, initialJ
            {renderToolButton("brush", <img src={`${ICON_BASE}brush.png`} style={{ imageRendering: 'auto' }} className="w-full h-full object-contain" alt="Brush" />, true)}
            {renderToolButton("eraser", <img src={`${ICON_BASE}eraser.png`} style={{ imageRendering: 'auto' }} className="w-full h-full object-contain" alt="Eraser" />, true)}
            {renderToolButton("wand", <img src={`${ICON_BASE}wand.png`} style={{ imageRendering: 'auto' }} className="w-full h-full object-contain" alt="Wand" />, true)}
+           {renderToolButton("nudge", <Move size={20} />)}
            {renderToolButton("move", <img src={`${ICON_BASE}drag.png`} style={{ imageRendering: 'auto' }} className="w-full h-full object-contain" alt="Drag" />)}
            <div className="mt-4 border-t-2 border-[#5a2d9c] pt-4 flex flex-col items-center gap-4 w-full">
               <div 
@@ -881,6 +931,31 @@ const TaskPlayerPage: React.FC<TaskPlayerPageProps> = ({ selectedJobId, initialJ
               )}
               <canvas ref={canvasRef} className="w-full h-full block" />
               <canvas ref={overlayRef} className="absolute inset-0 w-full h-full pointer-events-none block" />
+              
+              {activeTool === 'nudge' && !isJobRunning && (
+                <div className="absolute inset-0 pointer-events-none">
+                  {/* Top Arrow */}
+                  <button 
+                    onClick={(e) => { e.stopPropagation(); nudgeFrame(0, -1); }}
+                    className="absolute top-2 left-1/2 -translate-x-1/2 pointer-events-auto w-0 h-0 border-l-[10px] border-l-transparent border-r-[10px] border-r-transparent border-b-[15px] border-b-[#f7d51d] hover:border-b-white transition-colors drop-shadow-[0_0_2px_rgba(0,0,0,0.8)]"
+                  />
+                  {/* Bottom Arrow */}
+                  <button 
+                    onClick={(e) => { e.stopPropagation(); nudgeFrame(0, 1); }}
+                    className="absolute bottom-2 left-1/2 -translate-x-1/2 pointer-events-auto w-0 h-0 border-l-[10px] border-l-transparent border-r-[10px] border-r-transparent border-t-[15px] border-t-[#f7d51d] hover:border-t-white transition-colors drop-shadow-[0_0_2px_rgba(0,0,0,0.8)]"
+                  />
+                  {/* Left Arrow */}
+                  <button 
+                    onClick={(e) => { e.stopPropagation(); nudgeFrame(-1, 0); }}
+                    className="absolute left-2 top-1/2 -translate-y-1/2 pointer-events-auto w-0 h-0 border-t-[10px] border-t-transparent border-b-[10px] border-b-transparent border-r-[15px] border-r-[#f7d51d] hover:border-r-white transition-colors drop-shadow-[0_0_2px_rgba(0,0,0,0.8)]"
+                  />
+                  {/* Right Arrow */}
+                  <button 
+                    onClick={(e) => { e.stopPropagation(); nudgeFrame(1, 0); }}
+                    className="absolute right-2 top-1/2 -translate-y-1/2 pointer-events-auto w-0 h-0 border-t-[10px] border-t-transparent border-b-[10px] border-b-transparent border-l-[15px] border-l-[#f7d51d] hover:border-l-white transition-colors drop-shadow-[0_0_2px_rgba(0,0,0,0.8)]"
+                  />
+                </div>
+              )}
             </div>
             <div className="absolute bottom-4 right-4 bg-black/80 px-2 py-1 border border-[#5a2d9c] text-[8px] text-white/40 uppercase">
               FRAME {currentFrameIndex + 1}/{frames.length} | ZOOM {Math.round(zoom*100)}%
