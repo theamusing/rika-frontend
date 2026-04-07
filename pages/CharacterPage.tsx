@@ -47,7 +47,7 @@ const CharacterPage: React.FC<CharacterPageProps> = ({ onJobCreated, lang = 'en'
   const [refImage, setRefImage] = useState<File | string | null>(null);
   const [refPreview, setRefPreview] = useState<string | null>(null);
   const [domainColors, setDomainColors] = useState<string[]>(['#FFD700', '#F7D51D', '#B8860B', '#453200']);
-  const [pixelSize, setPixelSize] = useState('128');
+  const [pixelSize, setPixelSize] = useState('64');
   const [artStyle, setArtStyle] = useState('None');
   const [useDomainColor, setUseDomainColor] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -218,19 +218,19 @@ const CharacterPage: React.FC<CharacterPageProps> = ({ onJobCreated, lang = 'en'
             <div className="space-y-6 pt-2">
               {/* Pixel Size */}
               <div className="space-y-2">
-                <div className="flex items-center gap-1">
-                  <label className="font-bold text-white/60 uppercase" style={{ fontSize: zhScale(10) }}>
-                    {isZh ? '像素尺寸' : 'PIXEL SIZE'}
-                  </label>
-                  <div className="group relative inline-block">
-                    <HelpCircle size={12} className="text-white/40 cursor-help" />
-                    <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 hidden group-hover:block w-48 p-2 bg-black/90 text-white text-[10px] pixel-border border-[#5a2d9c] font-sans z-50">
-                      {isZh ? "目前只支持128x128像素尺寸" : "Currently only supports 128x128 pixel size"}
-                    </div>
-                  </div>
-                </div>
-                <div className="bg-black/40 pixel-border border-[#5a2d9c] p-2 text-white/60" style={{ fontSize: '10px' }}>
-                  128x128
+                <label className="font-bold text-white/60 uppercase" style={{ fontSize: zhScale(10) }}>
+                  {isZh ? '像素尺寸' : 'PIXEL SIZE'}
+                </label>
+                <div className="relative">
+                  <select 
+                    value={pixelSize}
+                    onChange={(e) => setPixelSize(e.target.value)}
+                    className="w-full bg-black/40 pixel-border border-[#5a2d9c] p-2 text-white outline-none appearance-none cursor-pointer"
+                    style={{ fontSize: zhScale(10) }}
+                  >
+                    <option value="64">64x64</option>
+                    <option value="128">128x128</option>
+                  </select>
                 </div>
               </div>
 

@@ -6,6 +6,7 @@ import { apiService } from '../services/apiService.ts';
 import { MOTION_TYPES, PIXEL_SIZES } from '../constants.ts';
 import { GenerationParams, MotionType, PixelSize } from '../types.ts';
 import { extractCentroids, RGB } from '../utils/editorUtils.ts';
+import { HelpCircle } from 'lucide-react';
 
 interface GenerationPageProps {
   onJobCreated: (id: string) => void;
@@ -526,6 +527,12 @@ const GenerationPage: React.FC<GenerationPageProps> = ({
                      }} 
                    />
                    PADDING
+                   <div className="group relative inline-block">
+                     <HelpCircle size={12} className="text-white/40 cursor-help" />
+                     <div className="absolute bottom-full right-0 mb-2 hidden group-hover:block w-48 p-2 bg-black/90 text-white text-[10px] pixel-border border-[#5a2d9c] font-sans z-50 normal-case">
+                       {isZh ? "在角色周围填充像素，防止角色和边缘太近" : "Fill pixels around the character to prevent it from being too close to the edges."}
+                     </div>
+                   </div>
                  </label>
                  <label className="flex items-center gap-2 text-[10px] cursor-pointer">
                    <input type="checkbox" checked={loopAnimation} onChange={(e) => {
@@ -539,6 +546,12 @@ const GenerationPage: React.FC<GenerationPageProps> = ({
                        }
                      }} />
                    LOOP
+                   <div className="group relative inline-block">
+                     <HelpCircle size={12} className="text-white/40 cursor-help" />
+                     <div className="absolute bottom-full right-0 mb-2 hidden group-hover:block w-48 p-2 bg-black/90 text-white text-[10px] pixel-border border-[#5a2d9c] font-sans z-50 normal-case">
+                       {isZh ? "创建循环动画，建议使用16帧动画" : "Create a looping animation. 16 frames are recommended."}
+                     </div>
+                   </div>
                  </label>
                </div>
             </div>
