@@ -273,9 +273,10 @@ const App: React.FC = () => {
             </button>
             <button 
               onClick={() => setLang('zh')}
-              className={`px-2 h-full text-[8px] font-bold transition-all ${lang === 'zh' ? 'bg-[#f7d51d] text-[#2d1b4e]' : 'text-white/40 hover:text-white'}`}
+              className={`px-2 h-full font-bold transition-all ${lang === 'zh' ? 'bg-[#f7d51d] text-[#2d1b4e]' : 'text-white/40 hover:text-white'}`}
+              style={{ fontSize: '10px' }}
             >
-              ZH
+              中文
             </button>
           </div>
 

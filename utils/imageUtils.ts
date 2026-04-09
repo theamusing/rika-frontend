@@ -458,7 +458,7 @@ export const sliceSpriteSheet = async (url: string, frameCount?: number, apiLeng
   }
 };
 
-export const downsampleTo128 = async (url: string): Promise<string> => {
+export const scaleToSize = async (url: string, size: number): Promise<string> => {
   try {
     const sourceDataUrl = await fetchAsDataUrl(url);
     const isDataUrl = sourceDataUrl.startsWith('data:');
@@ -469,22 +469,26 @@ export const downsampleTo128 = async (url: string): Promise<string> => {
 
       img.onload = () => {
         const canvas = document.createElement('canvas');
-        canvas.width = 128;
-        canvas.height = 128;
+        canvas.width = size;
+        canvas.height = size;
         const ctx = canvas.getContext('2d');
         if (!ctx) return reject(new Error("No context"));
 
         ctx.imageSmoothingEnabled = false;
-        ctx.drawImage(img, 0, 0, 128, 128);
+        ctx.drawImage(img, 0, 0, size, size);
         resolve(canvas.toDataURL('image/png'));
       };
       img.onerror = () => reject(new Error("Image load failed"));
       img.src = sourceDataUrl;
     });
   } catch (err) {
-    console.error("Downsample error:", err);
+    console.error("Scale error:", err);
     throw err;
   }
+};
+
+export const downsampleTo128 = async (url: string): Promise<string> => {
+  return scaleToSize(url, 128);
 };
 
 export const sliceCustomSpriteSheet = async (url: string, rows: number, cols: number): Promise<string[]> => {

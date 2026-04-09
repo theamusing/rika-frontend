@@ -79,6 +79,7 @@ const HistoryPage: React.FC<HistoryPageProps> = ({ onJobSelected, onRegenerate, 
       if (isMounted.current) {
         setJobs(res.jobs || []);
         setError(null);
+        lastRefreshTime.current = Date.now();
       }
     } catch (err: any) {
       if (isMounted.current && isInitial) setError(err.message || "Failed to load history");
@@ -93,8 +94,18 @@ const HistoryPage: React.FC<HistoryPageProps> = ({ onJobSelected, onRegenerate, 
   useEffect(() => {
     isMounted.current = true;
     fetchHistory(true, currentPage, showLikedOnly, jobType);
+    
+    // Auto-refresh logic: every 10s check if 30s passed since last fetch
+    const autoRefreshInterval = setInterval(() => {
+      const now = Date.now();
+      if (now - lastRefreshTime.current >= 30000 && !isFetching.current) {
+        fetchHistory(false, currentPage, showLikedOnly, jobType);
+      }
+    }, 10000);
+
     return () => {
       isMounted.current = false;
+      clearInterval(autoRefreshInterval);
     };
   }, [fetchHistory, currentPage, showLikedOnly, jobType]);
 
@@ -118,6 +129,19 @@ const HistoryPage: React.FC<HistoryPageProps> = ({ onJobSelected, onRegenerate, 
       alert(isZh ? `删除失败: ${err.message}` : `Delete failed: ${err.message}`);
     } finally {
       setIsDeleting(false);
+    }
+  };
+
+  const handleQuickDelete = async (e: React.MouseEvent, genId: string) => {
+    e.stopPropagation();
+    if (!window.confirm(isZh ? '确定要删除这个失败的任务吗？' : 'Are you sure you want to delete this failed job?')) return;
+    
+    try {
+      await apiService.deleteHistory(genId);
+      setJobs(prev => prev.filter(j => j.gen_id !== genId));
+      setTotalJobs(prev => prev - 1);
+    } catch (err: any) {
+      alert(isZh ? `删除失败: ${err.message}` : `Delete failed: ${err.message}`);
     }
   };
 
@@ -230,10 +254,19 @@ const HistoryPage: React.FC<HistoryPageProps> = ({ onJobSelected, onRegenerate, 
                               ? (job.output_images?.[0]?.url || job.input_images?.[0]?.url)
                               : (job.input_images?.[0]?.url || job.output_images?.[0]?.url)
                             } 
-                            className="w-full h-full object-contain" 
+                            className="w-full h-full object-cover" 
                             style={{ imageRendering: 'pixelated' }} 
                             alt="Job preview" 
                           />
+                      )}
+                      {job.status === 'failed' && (
+                        <button 
+                          onClick={(e) => handleQuickDelete(e, job.gen_id)}
+                          className="absolute bottom-2 right-2 z-30 p-1.5 bg-red-600/80 hover:bg-red-600 text-white pixel-border border-red-400 transition-colors"
+                          title={isZh ? '删除' : 'DELETE'}
+                        >
+                          <Trash2 size={14} />
+                        </button>
                       )}
                   </div>
                   <div className="space-y-2">
@@ -334,7 +367,7 @@ const HistoryPage: React.FC<HistoryPageProps> = ({ onJobSelected, onRegenerate, 
                                       </div>
                                       <PixelImage 
                                         src={selectedJob.output_images[0].url} 
-                                        className="w-full h-full object-contain" 
+                                        className="w-full h-full object-cover" 
                                         style={{ imageRendering: 'pixelated' }} 
                                         alt="Output" 
                                       />

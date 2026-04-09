@@ -3,7 +3,7 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { apiService } from '../services/apiService.ts';
 import { Job } from '../types.ts';
 import { PixelButton, PixelCard, PixelModal, PixelInput } from '../components/PixelComponents.tsx';
-import { sliceSpriteSheet, reconstructSpriteSheet, processImage, fetchAsDataUrl, sliceCustomSpriteSheet, downsampleTo128 } from '../utils/imageUtils.ts';
+import { sliceSpriteSheet, reconstructSpriteSheet, processImage, fetchAsDataUrl, sliceCustomSpriteSheet, scaleToSize } from '../utils/imageUtils.ts';
 import { floodFill, RGB, colorDistance } from '../utils/editorUtils.ts';
 import { saveSpriteToCache, getSpriteFromCache, CachedSprite } from '../utils/dbUtils.ts';
 import { Heart, ArrowLeft, Move } from 'lucide-react';
@@ -279,9 +279,11 @@ const TaskPlayerPage: React.FC<TaskPlayerPageProps> = ({ selectedJobId, initialJ
     if (job.status === 'succeeded' && outputUrl) {
       try {
         if (isCharacter) {
-          const downsampled = await downsampleTo128(outputUrl);
+          const pixelSize = parseInt(job.input_params?.pixel_size || '128');
+          const targetSize = pixelSize === 32 ? 64 : 128;
+          const processed = await scaleToSize(outputUrl, targetSize);
           if (isMounted.current) {
-            const frame: FrameData = { id: `f-${Date.now()}-0`, url: downsampled, isOriginal: true };
+            const frame: FrameData = { id: `f-${Date.now()}-0`, url: processed, isOriginal: true };
             setFrames([frame]); setInitialFrames([frame]); setUndoStack([]); setRedoStack([]); setPan({ x: 0, y: 0 }); setSelection(new Set());
           }
         } else {
@@ -300,7 +302,14 @@ const TaskPlayerPage: React.FC<TaskPlayerPageProps> = ({ selectedJobId, initialJ
       if (job.input_images?.[0]?.url) {
         try {
           const rawUrl = job.input_images[0].url;
-          const processedUrl = isCharacter ? await downsampleTo128(rawUrl) : await fetchAsDataUrl(rawUrl);
+          let processedUrl: string;
+          if (isCharacter) {
+            const pixelSize = parseInt(job.input_params?.pixel_size || '128');
+            const targetSize = pixelSize === 32 ? 64 : 128;
+            processedUrl = await scaleToSize(rawUrl, targetSize);
+          } else {
+            processedUrl = await fetchAsDataUrl(rawUrl);
+          }
           
           if (isMounted.current) { 
             const firstFrame: FrameData = { id: `f-${Date.now()}-0`, url: processedUrl, isOriginal: true, isExcluded: false };
@@ -408,8 +417,12 @@ const TaskPlayerPage: React.FC<TaskPlayerPageProps> = ({ selectedJobId, initialJ
   };
 
   const handleCanvasInteraction = (e: React.MouseEvent) => {
-    if (isJobRunning) return; const canvas = canvasRef.current; if (!canvas || isPlaying) return;
-    const { x, y } = getEventCoords(e); setHoverPixel({ x, y });
+    const { x, y } = getEventCoords(e); 
+    setHoverPixel({ x, y });
+    if (isJobRunning) return; 
+    const canvas = canvasRef.current; 
+    if (!canvas || isPlaying) return;
+    
     if (effectiveTool === 'move') {
       if (isPanning) {
         const dx = e.clientX - lastMousePos.current.x; const dy = e.clientY - lastMousePos.current.y;
@@ -541,8 +554,10 @@ const TaskPlayerPage: React.FC<TaskPlayerPageProps> = ({ selectedJobId, initialJ
     try {
       const isCharacter = currentJob.job_type === 'character';
       if (isCharacter) {
-        const downsampled = await downsampleTo128(outputUrl);
-        const frame: FrameData = { id: `f-${Date.now()}-0`, url: downsampled, isOriginal: true };
+        const pixelSize = parseInt(currentJob.input_params?.pixel_size || '128');
+        const targetSize = pixelSize === 32 ? 64 : 128;
+        const processed = await scaleToSize(outputUrl, targetSize);
+        const frame: FrameData = { id: `f-${Date.now()}-0`, url: processed, isOriginal: true };
         setIsPlaying(false);
         pushToHistory([frame]);
       } else {

@@ -253,10 +253,17 @@ const GenerationPage: React.FC<GenerationPageProps> = ({
         const jobParams = job.input_params;
         const outputImgs = job.output_images || [];
         
-        const loadedPixelSize = String(parseInt(jobParams.pixel_size || "128")) as PixelSize;
+        const sourcePixelSize = parseInt(jobParams.pixel_size || "128");
+        let targetPixelSize: PixelSize = "128";
+        if (sourcePixelSize === 32) {
+          targetPixelSize = "64";
+        } else {
+          targetPixelSize = "128";
+        }
+
         setParams({ 
           ...params, 
-          pixel_size: loadedPixelSize,
+          pixel_size: targetPixelSize,
           use_quantization: false,
           quantization_colors: 32
         });
@@ -434,7 +441,7 @@ const GenerationPage: React.FC<GenerationPageProps> = ({
       </PixelModal>
 
       <div className="lg:col-span-2 space-y-6">
-        <PixelCard title={isZh ? "参考图" : "REFERENCE IMAGES"}>
+        <PixelCard title={isZh ? "参考图" : "REFERENCE IMAGES"} titleStyle={{ fontSize: zhScale(10) }}>
           <div className="flex flex-col gap-4">
             <div className={`grid gap-4 ${expandImages ? 'grid-cols-3' : 'grid-cols-1'}`}>
               {[0, 1, 2].map((idx) => {
@@ -558,7 +565,7 @@ const GenerationPage: React.FC<GenerationPageProps> = ({
           </div>
         </PixelCard>
 
-        <PixelCard title={isZh ? "生成日志" : "GENERATION LOG"}>
+        <PixelCard title={isZh ? "生成日志" : "GENERATION LOG"} titleStyle={{ fontSize: zhScale(10) }}>
             <div className="h-24 overflow-y-auto text-[8px] font-mono leading-relaxed opacity-60 text-white/50">
                 [SYSTEM] Status: Ready<br/>
                 {images[0] && <>[ASSET] Reference image active<br/></>}
@@ -569,7 +576,7 @@ const GenerationPage: React.FC<GenerationPageProps> = ({
       </div>
 
       <div className="space-y-6">
-        <PixelCard title={isZh ? "参数设置" : "CORE PARAMETERS"}>
+        <PixelCard title={isZh ? "参数设置" : "CORE PARAMETERS"} titleStyle={{ fontSize: zhScale(10) }}>
           <div className="space-y-4">
              <div className="space-y-2">
                 <label className="text-[10px] block text-white/60 uppercase" style={{ fontSize: zhScale(10) }}>
@@ -739,11 +746,11 @@ const GenerationPage: React.FC<GenerationPageProps> = ({
           className="w-full h-16 text-lg" 
           disabled={loading || !images[0]} 
           onClick={handleGenerate} 
-          style={{ fontSize: zhScale(18) }}
+          style={{ fontSize: zhScale(14) }}
         >
           {loading 
-            ? (isZh ? '处理中...' : 'PROCESSING...') 
-            : (isZh ? '生成' : 'GENERATE')}
+            ? (isZh ? 'PROCESSING...' : 'PROCESSING...') 
+            : 'GENERATE (5 CREDITS)'}
         </PixelButton>
       </div>
     </div>

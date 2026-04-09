@@ -160,6 +160,46 @@ const CHARACTER_PRESETS = [
     en: "A Mind Flayer lord floating in the air, wearing ornate purple robes with tentacle whiskers",
     zh: "穿着华丽紫色长袍、长着触手胡须，漂浮空中的灵吸怪领主",
     image: `${EXAMPLES_BASE}character6.png`
+  },
+  {
+    en: "A knight in golden armor holding a long spear, riding a white horse",
+    zh: "身披黄金盔甲，手持长枪的骑士，骑着白马",
+    image: `${EXAMPLES_BASE}character7.png`
+  },
+  {
+    en: "An ornate dark purple mimic chest, slightly opening its mouth to reveal sharp teeth and a long tongue",
+    zh: "一个暗紫色精致宝箱怪，微微张开嘴露出尖牙和长长的舌头",
+    image: `${EXAMPLES_BASE}character8.png`
+  },
+  {
+    en: "A silver-white knight riding a white horse",
+    zh: "骑着白马的银白骑士",
+    image: `${EXAMPLES_BASE}character9.png`
+  },
+  {
+    en: "A steam robot with a giant gear on its back",
+    zh: "背着巨大齿轮的蒸汽机器人",
+    image: `${EXAMPLES_BASE}character10.png`
+  },
+  {
+    en: "Ronin samurai wearing a bamboo hat and a cloak, with a katana hanging at his waist",
+    zh: "戴着斗笠，穿着披风的浪人武士，腰间挂着太刀",
+    image: `${EXAMPLES_BASE}character11.png`
+  },
+  {
+    en: "Noble lady wearing an elegant red and gold long dress, blonde curly hair, wearing a small top hat and leather shoes",
+    zh: "穿着优雅红金相间长裙的贵族千金，金色卷发，头戴小礼帽，脚上穿小皮鞋",
+    image: `${EXAMPLES_BASE}character12.png`
+  },
+  {
+    en: "Cute little orange cat, tail held very high",
+    zh: "可爱小橘猫，尾巴翘的很高",
+    image: `${EXAMPLES_BASE}character13.png`
+  },
+  {
+    en: "A dark purple mimic chest, slightly opening its mouth to reveal sharp teeth and a long tongue",
+    zh: "一个暗紫色宝箱怪，微微张开嘴露出尖牙和长长的舌头",
+    image: `${EXAMPLES_BASE}character14.png`
   }
 ];
 
