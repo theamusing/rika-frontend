@@ -113,9 +113,9 @@ const ApiPage: React.FC<ApiPageProps> = ({ lang = 'en' }) => {
               >
                 <div className="space-y-1">
                   <div className="flex items-center gap-3">
-                    <span className="font-bold text-white/90" style={{ fontSize: zhScale(12) }}>{key.name || 'Unnamed Key'}</span>
+                    <span className="font-bold text-white/90" style={{ fontSize: 14 }}>{key.name || 'Unnamed Key'}</span>
                     <span className={`text-[8px] px-1 border ${key.is_active ? 'border-green-500 text-green-500' : 'border-red-500 text-red-500'}`}>
-                      {key.is_active ? (isZh ? '有效' : 'ACTIVE') : (isZh ? '已禁用' : 'INACTIVE')}
+                      {key.is_active ? 'ACTIVE' : 'INACTIVE'}
                     </span>
                   </div>
                   <div className="flex items-center gap-2 font-mono text-white/40 text-[10px]">
