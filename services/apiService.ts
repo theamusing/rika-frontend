@@ -156,6 +156,18 @@ class ApiService {
   async deleteHistory(genId: string): Promise<any> {
     return this.request('DELETE', `history/${genId}`);
   }
+  
+  async listApiKeys(): Promise<{ api_keys: any[] }> {
+    return this.request('GET', 'api-keys');
+  }
+
+  async createApiKey(name: string): Promise<any> {
+    return this.request('POST', 'api-keys', { name });
+  }
+
+  async deleteApiKey(apiKeyId: string): Promise<any> {
+    return this.request('DELETE', `api-keys/${apiKeyId}`);
+  }
 
   async setLiked(generationId: string, liked: boolean, retryCount = 0): Promise<any> {
     const url = `${SUPABASE_FUNCTIONS_URL}set-liked`;

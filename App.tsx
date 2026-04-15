@@ -10,6 +10,7 @@ import TaskPlayerPage from './pages/TaskPlayerPage.tsx';
 import HistoryPage from './pages/HistoryPage.tsx';
 import LandingPage from './pages/LandingPage.tsx';
 import DocumentPage from './pages/DocumentPage.tsx';
+import ApiPage from './pages/ApiPage.tsx';
 import { PixelButton } from './components/PixelComponents.tsx';
 import { PricingModal } from './components/PricingModal.tsx';
 import { PaymentSuccessModal } from './components/PaymentSuccessModal.tsx';
@@ -17,8 +18,8 @@ import { PaymentSuccessModal } from './components/PaymentSuccessModal.tsx';
 const App: React.FC = () => {
   const [user, setUser] = useState<AuthUser | null>(null);
   const [credits, setCredits] = useState<number>(0);
-  const [activeTab, setActiveTab] = useState<'intro' | 'character' | 'generate' | 'player' | 'history' | 'docs'>('intro');
-  const [pendingTab, setPendingTab] = useState<'character' | 'generate' | 'player' | 'history' | 'docs' | null>(null);
+  const [activeTab, setActiveTab] = useState<'intro' | 'character' | 'generate' | 'player' | 'history' | 'api' | 'docs'>('intro');
+  const [pendingTab, setPendingTab] = useState<'character' | 'generate' | 'player' | 'history' | 'api' | 'docs' | null>(null);
   const [selectedJobId, setSelectedJobId] = useState<string | null>(null);
   const [selectedJob, setSelectedJob] = useState<Job | null>(null);
   const [navigationSource, setNavigationSource] = useState<{ tab: string, page?: number } | null>(null);
@@ -132,7 +133,7 @@ const App: React.FC = () => {
     setLoginMode('login');
   };
 
-  const navigateTo = (tab: 'intro' | 'character' | 'generate' | 'player' | 'history' | 'docs') => {
+  const navigateTo = (tab: 'intro' | 'character' | 'generate' | 'player' | 'history' | 'api' | 'docs') => {
     if (tab === 'intro' || tab === 'docs') {
       setActiveTab(tab);
       setPendingTab(null);
@@ -140,7 +141,7 @@ const App: React.FC = () => {
     }
     
     if (!user) {
-      const target = (tab === 'history') ? 'history' : (tab === 'character' ? 'character' : 'generate');
+      const target = (tab === 'history') ? 'history' : (tab === 'api' ? 'api' : (tab === 'character' ? 'character' : 'generate'));
       setPendingTab(target);
       setActiveTab(target); 
       return;
@@ -253,6 +254,12 @@ const App: React.FC = () => {
               className={`px-4 py-2 text-[10px] font-bold uppercase transition-all ${activeTab === 'history' ? 'text-white border-b-2 border-white' : 'text-white/40 hover:text-white'}`}
             >
               DASHBOARD
+            </button>
+            <button 
+              onClick={() => navigateTo('api')}
+              className={`px-4 py-2 text-[10px] font-bold uppercase transition-all ${activeTab === 'api' ? 'text-white border-b-2 border-white' : 'text-white/40 hover:text-white'}`}
+            >
+              API
             </button>
             <button 
               onClick={() => navigateTo('docs')}
@@ -408,6 +415,9 @@ const App: React.FC = () => {
                 initialPage={navigationSource?.tab === 'history' ? navigationSource.page : undefined}
                 lang={lang}
               />
+            )}
+            {activeTab === 'api' && (
+              <ApiPage lang={lang} />
             )}
           </>
         )}

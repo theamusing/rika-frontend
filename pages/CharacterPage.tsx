@@ -412,7 +412,7 @@ const CharacterPage: React.FC<CharacterPageProps> = ({ onJobCreated, lang = 'en'
               className="w-full h-14"
               onClick={handleGenerate}
               disabled={loading || isBackendDown}
-              style={{ fontSize: zhScale(10) }}
+              style={{ fontSize: 14 }}
             >
               {loading ? (
                 <div className="flex items-center gap-2">

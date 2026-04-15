@@ -446,7 +446,7 @@ const GenerationPage: React.FC<GenerationPageProps> = ({
             <div className={`grid gap-4 ${expandImages ? 'grid-cols-3' : 'grid-cols-1'}`}>
               {[0, 1, 2].map((idx) => {
                 if (!expandImages && idx > 0) return null;
-                const label = idx === 0 ? "START" : idx === 1 ? "MID" : "END";
+                const label = idx === 0 ? (isZh ? "起始图" : "START") : idx === 1 ? (isZh ? "中间图" : "MID") : (isZh ? "结尾图" : "END");
                 return (
                   <div key={idx} className="space-y-2">
                     <p className="text-[10px] text-center text-white/60 uppercase">{label}</p>
@@ -513,11 +513,11 @@ const GenerationPage: React.FC<GenerationPageProps> = ({
                     <div className="flex items-center gap-2 px-3 bg-black/20 border-2 border-[#5a2d9c] text-[8px] text-white/60">
                       <label className="flex items-center gap-1 cursor-pointer">
                         <input type="checkbox" checked={params.use_mid_image} onChange={e => setParams({...params, use_mid_image: e.target.checked})} />
-                        MID
+                        {isZh ? '中间图' : 'MID'}
                       </label>
                       <label className="flex items-center gap-1 cursor-pointer">
                         <input type="checkbox" checked={params.use_end_image} onChange={e => setParams({...params, use_end_image: e.target.checked})} />
-                        END
+                        {isZh ? '结尾图' : 'END'}
                       </label>
                     </div>
                  )}
@@ -746,7 +746,7 @@ const GenerationPage: React.FC<GenerationPageProps> = ({
           className="w-full h-16 text-lg" 
           disabled={loading || !images[0]} 
           onClick={handleGenerate} 
-          style={{ fontSize: zhScale(14) }}
+          style={{ fontSize: 14 }}
         >
           {loading 
             ? (isZh ? 'PROCESSING...' : 'PROCESSING...') 

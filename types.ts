@@ -39,6 +39,25 @@ export interface AuthUser {
   email: string;
 }
 
+export interface ApiKeyInfo {
+  id: string;
+  name?: string;
+  key_prefix?: string;
+  created_at?: string;
+  last_used_at?: string;
+  revoked_at?: string;
+  is_active: boolean;
+}
+
+export interface ApiKeyCreateResp extends ApiKeyInfo {
+  api_key: string;
+  key_hash: string;
+}
+
+export interface ApiKeyListResp {
+  api_keys: ApiKeyInfo[];
+}
+
 export interface ApiResponse<T> {
   data?: T;
   error?: string;
