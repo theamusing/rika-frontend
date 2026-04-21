@@ -332,6 +332,18 @@ const ApiPage: React.FC<ApiPageProps> = ({ lang = 'en', isLoggedIn = false, onLo
 X-API-Key: <YOUR_API_KEY>`}
               </pre>
             </div>
+
+            <div className="p-4 bg-red-900/10 border-l-4 border-red-500">
+              <p className="font-bold uppercase mb-1 text-red-500 flex items-center gap-2" style={{ fontSize: zhScale(10) }}>
+                <AlertTriangle size={14} />
+                {isZh ? '存储说明' : 'STORAGE POLICY'}
+              </p>
+              <p className="text-white/70 leading-relaxed" style={{ fontSize: zhScale(10) }}>
+                {isZh 
+                  ? '使用 API 方式调用得到的结果不会长期存储，请在轮询得到结果后及时下载保存。' 
+                  : 'Results generated via API are not stored permanently. Please download your results immediately after polling.'}
+              </p>
+            </div>
           </div>
 
           <div className="space-y-2">
@@ -485,6 +497,7 @@ with urllib.request.urlopen(req) as res:
     print(f"Job created! gen_id: {gen_id}")
 
 # 2. Polling for results every 20s
+# Note: API results are not stored permanently. Download them immediately.
 print("Polling for results...")
 while True:
     job_req = urllib.request.Request(
@@ -548,6 +561,7 @@ with urllib.request.urlopen(req) as res:
     print(f"Job created! gen_id: {gen_id}")
 
 # 2. Polling for results...
+# API results are transient. Download them promptly.
 while True:
     job_req = urllib.request.Request(f"{BASE_URL}/jobs/{gen_id}",
                                    headers={"X-API-Key": API_KEY})
