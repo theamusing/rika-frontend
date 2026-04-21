@@ -9,6 +9,7 @@ interface PricingModalProps {
   onSimulatedSuccess?: () => void;
   lang?: 'en' | 'zh';
   isBackendDown?: boolean;
+  onLoginRequest?: () => void;
 }
 
 type Currency = 'USD' | 'CNY';
@@ -33,7 +34,14 @@ const postToGateway = (gateway: string, form: Record<string, string>) => {
   f.submit();
 };
 
-export const PricingModal: React.FC<PricingModalProps> = ({ isOpen, onClose, onSimulatedSuccess, lang = 'en', isBackendDown = false }) => {
+export const PricingModal: React.FC<PricingModalProps> = ({ 
+  isOpen, 
+  onClose, 
+  onSimulatedSuccess, 
+  lang = 'en', 
+  isBackendDown = false,
+  onLoginRequest
+}) => {
   const [currency, setCurrency] = useState<Currency>('USD');
   const [loading, setLoading] = useState(false);
 
@@ -62,7 +70,11 @@ export const PricingModal: React.FC<PricingModalProps> = ({ isOpen, onClose, onS
       const token = session?.access_token;
       
       if (!token) {
-        alert(t.errorLogin);
+        if (onLoginRequest) {
+          onLoginRequest();
+        } else {
+          alert(t.errorLogin);
+        }
         return;
       }
 

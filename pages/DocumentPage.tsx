@@ -1,12 +1,13 @@
 
 import React from 'react';
-import { PixelCard } from '../components/PixelComponents.tsx';
+import { PixelCard, PixelButton } from '../components/PixelComponents.tsx';
 
 interface DocumentPageProps {
   lang?: 'en' | 'zh';
+  onOpenPricing?: () => void;
 }
 
-const DocumentPage: React.FC<DocumentPageProps> = ({ lang = 'en' }) => {
+const DocumentPage: React.FC<DocumentPageProps> = ({ lang = 'en', onOpenPricing }) => {
   const isZh = lang === 'zh';
   
   // Chinese text gets +3px as requested for better readability of the bitmap font
@@ -254,6 +255,45 @@ const DocumentPage: React.FC<DocumentPageProps> = ({ lang = 'en' }) => {
           </div>
 
           <hr className="border-[#5a2d9c]/20" />
+
+          {/* COMMERCIAL USE */}
+          <div id="licensing" className="space-y-6 scroll-mt-32 text-left">
+            <div className="space-y-6">
+              <h2 className="font-bold uppercase tracking-tight flex items-center gap-3 text-white" style={{ fontSize: zhScale(16) }}>
+                <span className="w-2 h-6 bg-[#f7d51d]"></span>
+                {isZh ? '商用许可' : 'Commercial Use'}
+              </h2>
+              <div className="leading-relaxed text-white/80 space-y-4 ml-8 border-l border-[#f7d51d]/40 pl-6" style={{ fontSize: zhScale(10) }}>
+                <p>
+                  {isZh ? (
+                    <>
+                      生成的像素动画结果 <span className="text-white font-bold">可以商用</span>，并作为游戏素材或数字资产使用。
+                    </>
+                  ) : (
+                    <>
+                      Generated pixel animation results <span className="text-white font-bold">can be used for commercial purposes</span> and as game assets or digital resources.
+                    </>
+                  )}
+                </p>
+                <div className="p-4 bg-black/20 border border-[#f7d51d]/30">
+                  <p className="text-[#f7d51d] font-bold uppercase mb-2" style={{ fontSize: zhScale(9) }}>
+                    {isZh ? '注意事项：' : 'REQUIREMENT:'}
+                  </p>
+                  <p className="text-white/70 italic">
+                    {isZh ? (
+                      <>
+                        如果您直接将生成结果进行<span className="text-white">二次售卖</span>（例如作为独立的素材包出售），您必须在显著位置标明出处（例如：使用 <span className="font-bold">Rika AI</span> 生成）。
+                      </>
+                    ) : (
+                      <>
+                        If you directly <span className="text-white">resell</span> the generated results as standalone assets, you must clearly credit the source (e.g., <span className="font-bold">"Generated using Rika AI"</span>).
+                      </>
+                    )}
+                  </p>
+                </div>
+              </div>
+            </div>
+          </div>
 
           {/* ADVANCED CONTROL */}
           <div id="advanced" className="space-y-12 scroll-mt-32 text-left">

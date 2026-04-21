@@ -267,6 +267,12 @@ const App: React.FC = () => {
             >
               DOCS
             </button>
+            <button 
+              onClick={() => setIsPricingOpen(true)}
+              className="px-4 py-2 text-[10px] font-bold uppercase transition-all text-white/40 hover:text-[#f7d51d]"
+            >
+              PRICING
+            </button>
           </nav>
         </div>
 
@@ -370,7 +376,7 @@ const App: React.FC = () => {
             onViewDocs={() => navigateTo('docs')} 
           />
         ) : activeTab === 'docs' ? (
-          <DocumentPage lang={lang} />
+          <DocumentPage lang={lang} onOpenPricing={() => setIsPricingOpen(true)} />
         ) : showLogin ? (
           <LoginPage onLogin={handleLoginSuccess} initialMode={loginMode} lang={lang} />
         ) : (
@@ -429,6 +435,10 @@ const App: React.FC = () => {
         onSimulatedSuccess={() => setIsPaymentSuccessOpen(true)}
         lang={lang}
         isBackendDown={isBackendDown}
+        onLoginRequest={() => {
+          setIsPricingOpen(false);
+          navigateTo('generate');
+        }}
       />
       <PaymentSuccessModal 
         isOpen={isPaymentSuccessOpen} 
