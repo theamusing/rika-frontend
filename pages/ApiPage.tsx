@@ -7,6 +7,8 @@ import { Trash2, Plus, AlertTriangle, Copy, Check, ChevronDown, ChevronUp } from
 
 interface ApiPageProps {
   lang?: 'en' | 'zh';
+  isLoggedIn?: boolean;
+  onLoginRequest?: () => void;
 }
 
 interface ApiParam {
@@ -144,9 +146,9 @@ const apiDocs: ApiDocEntry[] = [
   }
 ];
 
-const ApiPage: React.FC<ApiPageProps> = ({ lang = 'en' }) => {
+const ApiPage: React.FC<ApiPageProps> = ({ lang = 'en', isLoggedIn = false, onLoginRequest }) => {
   const [apiKeys, setApiKeys] = useState<ApiKeyInfo[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [newKeyName, setNewKeyName] = useState('');
@@ -161,6 +163,7 @@ const ApiPage: React.FC<ApiPageProps> = ({ lang = 'en' }) => {
   const zhScale = (enSize: number) => isZh ? `${enSize + 3}px` : `${enSize}px`;
 
   const fetchApiKeys = useCallback(async () => {
+    if (!isLoggedIn) return;
     try {
       setLoading(true);
       const res = await apiService.listApiKeys();
@@ -171,14 +174,16 @@ const ApiPage: React.FC<ApiPageProps> = ({ lang = 'en' }) => {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [isLoggedIn]);
 
   useEffect(() => {
-    fetchApiKeys();
-  }, [fetchApiKeys]);
+    if (isLoggedIn) {
+      fetchApiKeys();
+    }
+  }, [fetchApiKeys, isLoggedIn]);
 
   const handleCreateKey = async () => {
-    if (!newKeyName.trim()) return;
+    if (!newKeyName.trim() || !isLoggedIn) return;
     setIsCreating(true);
     try {
       const res = await apiService.createApiKey(newKeyName);
@@ -194,6 +199,7 @@ const ApiPage: React.FC<ApiPageProps> = ({ lang = 'en' }) => {
   };
 
   const handleDeleteKey = async (id: string) => {
+    if (!isLoggedIn) return;
     setIsDeleting(true);
     try {
       await apiService.deleteApiKey(id);
@@ -218,14 +224,25 @@ const ApiPage: React.FC<ApiPageProps> = ({ lang = 'en' }) => {
         <h2 className={`font-bold uppercase text-white/80 ${isZh ? 'text-[24px]' : 'text-xl'}`}>
           {isZh ? 'API 密钥' : 'API KEYS'}
         </h2>
-        <PixelButton variant="secondary" onClick={fetchApiKeys} style={{ fontSize: zhScale(10) }}>
-          {isZh ? '刷新' : 'Refresh'}
-        </PixelButton>
+        {isLoggedIn && (
+          <PixelButton variant="secondary" onClick={fetchApiKeys} style={{ fontSize: zhScale(10) }}>
+            {isZh ? '刷新' : 'Refresh'}
+          </PixelButton>
+        )}
       </div>
 
       <PixelCard className="relative">
         <div className="max-h-[500px] overflow-y-auto pr-2 space-y-4 custom-scrollbar">
-          {loading ? (
+          {!isLoggedIn ? (
+            <div className="text-center py-16 space-y-6 flex flex-col items-center">
+              <p className="text-white/60 uppercase" style={{ fontSize: zhScale(12) }}>
+                {isZh ? '请登录以查看您的 API 密钥' : 'Please login to view your API keys'}
+              </p>
+              <PixelButton variant="primary" onClick={onLoginRequest} style={{ fontSize: zhScale(10) }}>
+                {isZh ? '登录' : 'LOGIN'}
+              </PixelButton>
+            </div>
+          ) : loading ? (
             <div className="text-center py-10 animate-pulse uppercase text-white/50" style={{ fontSize: zhScale(10) }}>
               {isZh ? '正在获取密钥...' : 'Fetching keys...'}
             </div>
@@ -276,17 +293,19 @@ const ApiPage: React.FC<ApiPageProps> = ({ lang = 'en' }) => {
           )}
         </div>
 
-        <div className="mt-6 flex justify-center">
-          <PixelButton 
-            variant="primary" 
-            className="flex items-center gap-2" 
-            onClick={() => setShowCreateModal(true)}
-            style={{ fontSize: zhScale(10) }}
-          >
-            <Plus size={16} />
-            {isZh ? '创建新密钥' : 'CREATE NEW KEY'}
-          </PixelButton>
-        </div>
+        {isLoggedIn && (
+          <div className="mt-6 flex justify-center">
+            <PixelButton 
+              variant="primary" 
+              className="flex items-center gap-2" 
+              onClick={() => setShowCreateModal(true)}
+              style={{ fontSize: zhScale(10) }}
+            >
+              <Plus size={16} />
+              {isZh ? '创建新密钥' : 'CREATE NEW KEY'}
+            </PixelButton>
+          </div>
+        )}
       </PixelCard>
 
       <div className="pt-8 space-y-4">

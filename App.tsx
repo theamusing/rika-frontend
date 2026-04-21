@@ -196,7 +196,7 @@ const App: React.FC = () => {
 
   const isRecovering = loginMode === 'update';
   const showIntro = activeTab === 'intro' && !isRecovering;
-  const showLogin = (isRecovering || !user) && !showIntro && activeTab !== 'docs';
+  const showLogin = (isRecovering || !user) && !showIntro && activeTab !== 'docs' && activeTab !== 'api';
 
   return (
     <div className="min-h-screen flex flex-col bg-[#0d0221]">
@@ -417,7 +417,7 @@ const App: React.FC = () => {
               />
             )}
             {activeTab === 'api' && (
-              <ApiPage lang={lang} />
+              <ApiPage lang={lang} isLoggedIn={!!user} onLoginRequest={() => navigateTo('generate')} />
             )}
           </>
         )}
