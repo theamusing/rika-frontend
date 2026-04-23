@@ -20,6 +20,8 @@ interface TaskPlayerPageProps {
   onRegenerate: (job: Job) => void;
   onBack?: () => void;
   lang?: 'en' | 'zh';
+  isLoggedIn?: boolean;
+  onLoginRequest?: () => void;
 }
 
 const CDN_BASE = "https://cdn.rika-ai.com/assets/frontpage/";
@@ -31,7 +33,16 @@ interface FrameData {
   isExcluded?: boolean;
 }
 
-const TaskPlayerPage: React.FC<TaskPlayerPageProps> = ({ selectedJobId, initialJob, onJobSelected, onRegenerate, onBack, lang = 'en' }) => {
+const TaskPlayerPage: React.FC<TaskPlayerPageProps> = ({ 
+  selectedJobId, 
+  initialJob, 
+  onJobSelected, 
+  onRegenerate, 
+  onBack, 
+  lang = 'en',
+  isLoggedIn = false,
+  onLoginRequest
+}) => {
   const [currentJob, setCurrentJob] = useState<Job | null>(null);
   const [frames, setFrames] = useState<FrameData[]>([]);
   const [undoStack, setUndoStack] = useState<FrameData[][]>([]);
@@ -87,6 +98,10 @@ const TaskPlayerPage: React.FC<TaskPlayerPageProps> = ({ selectedJobId, initialJ
 
   const toggleLike = async (e: React.MouseEvent, job: Job) => {
     e.stopPropagation();
+    if (!isLoggedIn) {
+      onLoginRequest?.();
+      return;
+    }
     const newLiked = !job.liked;
     
     // Optimistic update

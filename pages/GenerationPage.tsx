@@ -17,12 +17,14 @@ interface GenerationPageProps {
   onOpenPricing?: () => void;
   lang?: 'en' | 'zh';
   isBackendDown?: boolean;
+  isLoggedIn?: boolean;
+  onLoginRequest?: () => void;
 }
 
 const CDN_BASE = "https://cdn.rika-ai.com/assets/frontpage/";
 
 const DEFAULT_PROMPTS: Record<MotionType, string> = {
-  idle: 'side-view, 2D game character standing in place, breathing motion,body sways up-and-down slightly, chest and shoulders rising and falling, head bob synchronized with breathing.',
+  idle: 'side-view, 2D game character idle animation, body slightly sways.',
   walk: 'side-view, 2D game character walks forward.',
   run: 'side-view, 2D game character runs forward.',
   jump: 'side-view, 2D game character jumps in place,takeoff then fall',
@@ -39,7 +41,9 @@ const GenerationPage: React.FC<GenerationPageProps> = ({
   credits, 
   onOpenPricing,
   lang = 'en',
-  isBackendDown = false
+  isBackendDown = false,
+  isLoggedIn = false,
+  onLoginRequest
 }) => {
   const [images, setImages] = useState<(string | null)[]>([null, null, null]);
   const [sourceFiles, setSourceFiles] = useState<(File | string | null)[]>([null, null, null]);
@@ -351,6 +355,10 @@ const GenerationPage: React.FC<GenerationPageProps> = ({
   };
 
   const handleGenerate = async () => {
+    if (!isLoggedIn) {
+      onLoginRequest?.();
+      return;
+    }
     if (!fullProcessedImages[0]) { setError("Start Image is required!"); return; }
     if (credits < 5) { setShowCreditModal(true); setError("INSUFFICIENT CREDITS: 5 credits required."); return; }
     setError('');

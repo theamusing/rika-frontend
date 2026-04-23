@@ -28,6 +28,7 @@ const App: React.FC = () => {
   const [isPricingOpen, setIsPricingOpen] = useState(false);
   const [isPaymentSuccessOpen, setIsPaymentSuccessOpen] = useState(false);
   const [loginMode, setLoginMode] = useState<'login' | 'forgot' | 'update'>('login');
+  const [forceLogin, setForceLogin] = useState(false);
   const [lang, setLang] = useState<'en' | 'zh'>('en');
   const [showUserDropdown, setShowUserDropdown] = useState(false);
   const [showCreateDropdown, setShowCreateDropdown] = useState(false);
@@ -134,19 +135,14 @@ const App: React.FC = () => {
   };
 
   const navigateTo = (tab: 'intro' | 'character' | 'generate' | 'player' | 'history' | 'api' | 'docs') => {
+    setIsPricingOpen(false);
+    
     if (tab === 'intro' || tab === 'docs') {
       setActiveTab(tab);
       setPendingTab(null);
       return;
     }
     
-    if (!user) {
-      const target = (tab === 'history') ? 'history' : (tab === 'api' ? 'api' : (tab === 'character' ? 'character' : 'generate'));
-      setPendingTab(target);
-      setActiveTab(target); 
-      return;
-    }
-
     if (tab === 'player' && activeTab !== 'player') {
       setNavigationSource({ tab: activeTab });
     }
@@ -156,9 +152,10 @@ const App: React.FC = () => {
   };
 
   const handleLoginSuccess = () => {
-    const target = pendingTab || 'generate';
-    setActiveTab(target);
+    const target = pendingTab || activeTab || 'generate';
+    setActiveTab(target as any);
     setPendingTab(null);
+    setForceLogin(false);
     setLoginMode('login');
   };
 
@@ -196,7 +193,7 @@ const App: React.FC = () => {
 
   const isRecovering = loginMode === 'update';
   const showIntro = activeTab === 'intro' && !isRecovering;
-  const showLogin = (isRecovering || !user) && !showIntro && activeTab !== 'docs' && activeTab !== 'api';
+  const showLogin = (isRecovering || (!user && forceLogin)) && !showIntro && activeTab !== 'docs' && activeTab !== 'api';
 
   return (
     <div className="min-h-screen flex flex-col bg-[#0d0221]">
@@ -358,10 +355,14 @@ const App: React.FC = () => {
           ) : (
             <PixelButton 
               variant="primary" 
-              onClick={() => navigateTo('generate')} 
+              onClick={() => {
+                const target = (activeTab === 'intro' || activeTab === 'docs') ? 'generate' : activeTab;
+                setPendingTab(target as any);
+                setForceLogin(true);
+              }} 
               className="text-[10px] h-8"
             >
-              LOGIN
+              {isZh ? '登录' : 'LOGIN'}
             </PixelButton>
           )}
         </div>
@@ -378,7 +379,12 @@ const App: React.FC = () => {
         ) : activeTab === 'docs' ? (
           <DocumentPage lang={lang} onOpenPricing={() => setIsPricingOpen(true)} />
         ) : showLogin ? (
-          <LoginPage onLogin={handleLoginSuccess} initialMode={loginMode} lang={lang} />
+          <LoginPage 
+            onLogin={handleLoginSuccess} 
+            onCancel={() => setForceLogin(false)}
+            initialMode={loginMode} 
+            lang={lang} 
+          />
         ) : (
           <>
             {activeTab === 'character' && (
@@ -390,6 +396,12 @@ const App: React.FC = () => {
                 isBackendDown={isBackendDown}
                 initialParams={initialParams}
                 onConsumed={() => setInitialParams(null)}
+                isLoggedIn={!!user}
+                onLoginRequest={() => {
+                  setPendingTab('character');
+                  setForceLogin(true);
+                  setIsPricingOpen(false);
+                }}
               />
             )}
             {activeTab === 'generate' && (
@@ -402,6 +414,11 @@ const App: React.FC = () => {
                 onOpenPricing={() => setIsPricingOpen(true)}
                 lang={lang}
                 isBackendDown={isBackendDown}
+                isLoggedIn={!!user}
+                onLoginRequest={() => {
+                   setPendingTab('generate');
+                   setForceLogin(true);
+                }}
               />
             )}
             {activeTab === 'player' && (
@@ -412,6 +429,11 @@ const App: React.FC = () => {
                 onRegenerate={handleRegenerate}
                 onBack={handleBack}
                 lang={lang}
+                isLoggedIn={!!user}
+                onLoginRequest={() => {
+                  setPendingTab('player');
+                  setForceLogin(true);
+                }}
               />
             )}
             {activeTab === 'history' && (
@@ -420,6 +442,11 @@ const App: React.FC = () => {
                 onRegenerate={handleRegenerate}
                 initialPage={navigationSource?.tab === 'history' ? navigationSource.page : undefined}
                 lang={lang}
+                isLoggedIn={!!user}
+                onLoginRequest={() => {
+                  setPendingTab('history');
+                  setForceLogin(true);
+                }}
               />
             )}
             {activeTab === 'api' && (

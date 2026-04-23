@@ -13,6 +13,8 @@ interface CharacterPageProps {
   isBackendDown?: boolean;
   initialParams?: any;
   onConsumed?: () => void;
+  isLoggedIn?: boolean;
+  onLoginRequest?: () => void;
 }
 
 const PRESET_PALETTES = [
@@ -29,6 +31,12 @@ const ART_STYLES = [
   { id: 'None', en: 'None', zh: '无' },
   { id: 'Anime', en: 'Anime/Cartoon Pixel', zh: '动画卡通像素' },
   { id: 'Retro', en: 'Retro Game Pixel', zh: '复古游戏像素' },
+];
+
+const BODY_TYPES = [
+  { id: 'None', en: 'None', zh: '无' },
+  { id: 'Humanoid', en: 'Humanoid', zh: '人形' },
+  { id: 'Non-humanoid', en: 'Non-humanoid', zh: '非人形' },
 ];
 
 const RANDOM_PROMPTS = [
@@ -88,13 +96,24 @@ const TEMPLATE_VALUES = {
   }
 };
 
-const CharacterPage: React.FC<CharacterPageProps> = ({ onJobCreated, lang = 'en', credits, onOpenPricing, isBackendDown, initialParams, onConsumed }) => {
+const CharacterPage: React.FC<CharacterPageProps> = ({ 
+  onJobCreated, 
+  lang = 'en', 
+  credits, 
+  onOpenPricing, 
+  isBackendDown, 
+  initialParams, 
+  onConsumed,
+  isLoggedIn = false,
+  onLoginRequest
+}) => {
   const [prompt, setPrompt] = useState('');
   const [refImage, setRefImage] = useState<File | string | null>(null);
   const [refPreview, setRefPreview] = useState<string | null>(null);
   const [domainColors, setDomainColors] = useState<string[]>(['#FFD700', '#F7D51D', '#B8860B', '#453200']);
   const [pixelSize, setPixelSize] = useState('64');
   const [artStyle, setArtStyle] = useState('None');
+  const [bodyType, setBodyType] = useState('None');
   const [useDomainColor, setUseDomainColor] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -181,6 +200,10 @@ const CharacterPage: React.FC<CharacterPageProps> = ({ onJobCreated, lang = 'en'
   };
 
   const handleGenerate = async () => {
+    if (!isLoggedIn) {
+      onLoginRequest?.();
+      return;
+    }
     if (!prompt.trim() && !refImage) {
       setError(isZh ? '请输入角色描述或上传参考图' : 'Please enter character description or upload a reference image');
       return;
@@ -205,6 +228,12 @@ const CharacterPage: React.FC<CharacterPageProps> = ({ onJobCreated, lang = 'en'
         pixel_size: pixelSize,
         style: artStyle
       };
+
+      if (bodyType !== 'None') {
+        params.body_type = bodyType;
+        const bodyText = bodyType === 'Humanoid' ? "The character is humanoid" : "The character is non-humanoid";
+        params.prompt = params.prompt ? `${params.prompt}. ${bodyText}` : bodyText;
+      }
       
       if (useDomainColor) {
         params.domain_color = `[${domainColors.join(',')}]`;
@@ -345,6 +374,25 @@ const CharacterPage: React.FC<CharacterPageProps> = ({ onJobCreated, lang = 'en'
                   >
                     {ART_STYLES.map(style => (
                       <option key={style.id} value={style.id}>{isZh ? style.zh : style.en}</option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+
+              {/* Body Type */}
+              <div className="space-y-2">
+                <label className="font-bold text-white/60 uppercase" style={{ fontSize: zhScale(10) }}>
+                  {isZh ? '体型' : 'BODY TYPE'}
+                </label>
+                <div className="relative">
+                  <select 
+                    value={bodyType}
+                    onChange={(e) => setBodyType(e.target.value)}
+                    className="w-full bg-black/40 pixel-border border-[#5a2d9c] p-2 text-white outline-none appearance-none cursor-pointer"
+                    style={{ fontSize: zhScale(10) }}
+                  >
+                    {BODY_TYPES.map(type => (
+                      <option key={type.id} value={type.id}>{isZh ? type.zh : type.en}</option>
                     ))}
                   </select>
                 </div>

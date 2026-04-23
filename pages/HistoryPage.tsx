@@ -10,13 +10,22 @@ interface HistoryPageProps {
   onRegenerate: (params: any) => void;
   initialPage?: number;
   lang?: 'en' | 'zh';
+  isLoggedIn?: boolean;
+  onLoginRequest?: () => void;
 }
 
 const PAGE_SIZE = 20;
 const SHOW_LIKED_ONLY_KEY = 'rika_show_liked_only';
 const JOB_TYPE_KEY = 'rika_history_job_type';
 
-const HistoryPage: React.FC<HistoryPageProps> = ({ onJobSelected, onRegenerate, initialPage, lang = 'en' }) => {
+const HistoryPage: React.FC<HistoryPageProps> = ({ 
+  onJobSelected, 
+  onRegenerate, 
+  initialPage, 
+  lang = 'en',
+  isLoggedIn = false,
+  onLoginRequest
+}) => {
   const [jobs, setJobs] = useState<Job[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedJob, setSelectedJob] = useState<Job | null>(null);
@@ -147,6 +156,29 @@ const HistoryPage: React.FC<HistoryPageProps> = ({ onJobSelected, onRegenerate, 
   
   // Helper to apply larger font only if text is Chinese
   const zhScale = (enSize: number) => isZh ? `${enSize + 3}px` : `${enSize}px`;
+
+  if (!isLoggedIn) {
+    return (
+      <div className="space-y-8 text-white">
+        <div className="flex justify-between items-center">
+            <h2 className={`font-bold uppercase text-white/80 ${isZh ? 'text-[24px]' : 'text-xl'}`}>
+              {isZh ? '历史记录' : 'GENERATION ARCHIVE'}
+            </h2>
+        </div>
+        
+        <PixelCard className="relative">
+          <div className="text-center py-16 space-y-6 flex flex-col items-center">
+            <p className="text-white/60 uppercase" style={{ fontSize: zhScale(12) }}>
+              {isZh ? '请登录以查看您的生成记录' : 'Please login to view your generations'}
+            </p>
+            <PixelButton variant="primary" onClick={onLoginRequest} style={{ fontSize: zhScale(10) }}>
+              {isZh ? '登录' : 'LOGIN'}
+            </PixelButton>
+          </div>
+        </PixelCard>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-8 text-white">

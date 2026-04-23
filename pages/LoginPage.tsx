@@ -5,7 +5,12 @@ import { PixelButton, PixelCard, PixelInput } from '../components/PixelComponent
 
 type AuthMode = 'login' | 'forgot' | 'update';
 
-const LoginPage: React.FC<{ onLogin: () => void, initialMode?: AuthMode, lang?: 'en' | 'zh' }> = ({ onLogin, initialMode = 'login', lang = 'en' }) => {
+const LoginPage: React.FC<{ 
+  onLogin: () => void, 
+  onCancel?: () => void,
+  initialMode?: AuthMode, 
+  lang?: 'en' | 'zh' 
+}> = ({ onLogin, onCancel, initialMode = 'login', lang = 'en' }) => {
   const [mode, setMode] = useState<AuthMode>(initialMode);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -321,7 +326,18 @@ const LoginPage: React.FC<{ onLogin: () => void, initialMode?: AuthMode, lang?: 
 
   return (
     <div className="min-h-[70vh] flex items-center justify-center p-4 bg-[#0d0221]">
-      <PixelCard className="max-w-md w-full" title="RIKA AI ACCESS">
+      <PixelCard className="max-w-md w-full relative" title="RIKA AI ACCESS">
+        {onCancel && (
+          <button 
+            onClick={onCancel}
+            className="absolute top-4 left-4 text-white p-1 hover:text-[#f7d51d] transition-colors z-20"
+            title={isZh ? '返回' : 'Back'}
+          >
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M19 12H5M12 19l-7-7 7-7"/>
+            </svg>
+          </button>
+        )}
         <div className="text-center mb-6">
             <h2 className="text-xl font-bold mb-2 uppercase tracking-tighter whitespace-nowrap">
               {mode === 'login' ? 'Welcome to Rika AI' : mode === 'forgot' ? (isZh ? '找回密码' : 'Recovery') : (isZh ? '重置密码' : 'Reset Keys')}
