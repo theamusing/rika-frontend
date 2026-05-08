@@ -68,6 +68,23 @@ export const floodFill = (
 };
 
 /**
+ * 全局颜色匹配 背景去除
+ */
+export const colorMatchRemoval = (
+  imageData: ImageData,
+  bgColor: RGB,
+  tolerance: number
+) => {
+  const { data } = imageData;
+  for (let i = 0; i < data.length; i += 4) {
+    const currentPixel = { r: data[i], g: data[i+1], b: data[i+2], a: data[i+3] };
+    if (colorDistance(currentPixel, bgColor) <= tolerance) {
+      data[i+3] = 0; // 透明
+    }
+  }
+};
+
+/**
  * RGB to HSV conversion
  */
 export const rgbToHsv = (r: number, g: number, b: number) => {

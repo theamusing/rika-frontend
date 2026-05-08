@@ -4,7 +4,7 @@ import { apiService } from '../services/apiService.ts';
 import { Job } from '../types.ts';
 import { PixelButton, PixelCard, PixelModal, PixelInput } from '../components/PixelComponents.tsx';
 import { sliceSpriteSheet, reconstructSpriteSheet, processImage, fetchAsDataUrl, sliceCustomSpriteSheet, scaleToSize } from '../utils/imageUtils.ts';
-import { floodFill, RGB, colorDistance } from '../utils/editorUtils.ts';
+import { floodFill, RGB, colorDistance, colorMatchRemoval } from '../utils/editorUtils.ts';
 import { saveSpriteToCache, getSpriteFromCache, CachedSprite } from '../utils/dbUtils.ts';
 import { Heart, ArrowLeft, Move } from 'lucide-react';
 // @ts-ignore
@@ -80,6 +80,8 @@ const TaskPlayerPage: React.FC<TaskPlayerPageProps> = ({
   const [eraserSize, setEraserSize] = useState(1);
   const [wandTolerance, setWandTolerance] = useState(30);
   const [bgRemovalTolerance, setBgRemovalTolerance] = useState(30);
+  const [useGlobalColorMatch, setUseGlobalColorMatch] = useState(false);
+  const [removalBgColor, setRemovalBgColor] = useState('#000000');
   const [wandMode, setWandMode] = useState<WandMode>('select');
   const [menuOpenFor, setMenuOpenFor] = useState<Tool | null>(null);
 
@@ -95,6 +97,50 @@ const TaskPlayerPage: React.FC<TaskPlayerPageProps> = ({
 
   const isZh = lang === 'zh';
   const zhScale = (enSize: number) => isZh ? `${enSize + 3}px` : `${enSize}px`;
+
+  const hexToRgb = (hex: string): RGB => {
+    const r = parseInt(hex.slice(1, 3), 16) || 0;
+    const g = parseInt(hex.slice(3, 5), 16) || 0;
+    const b = parseInt(hex.slice(5, 7), 16) || 0;
+    return { r, g, b, a: 255 };
+  };
+
+  const rgbToHex = (r: number, g: number, b: number) => {
+    return "#" + ((1 << 24) + (r << 16) + (g << 8) + b).toString(16).slice(1);
+  };
+
+  const getAverageCornerColor = useCallback(async (frameUrl: string): Promise<string> => {
+    return new Promise((resolve) => {
+      const img = new Image();
+      img.crossOrigin = "anonymous";
+      img.onload = () => {
+        const canvas = document.createElement('canvas');
+        canvas.width = img.width;
+        canvas.height = img.height;
+        const ctx = canvas.getContext('2d')!;
+        ctx.drawImage(img, 0, 0);
+        try {
+          const data = ctx.getImageData(0, 0, canvas.width, canvas.height).data;
+          const corners = [
+            { x: 0, y: 0 },
+            { x: img.width - 1, y: 0 },
+            { x: 0, y: img.height - 1 },
+            { x: img.width - 1, y: img.height - 1 }
+          ];
+          let r = 0, g = 0, b = 0;
+          corners.forEach(c => {
+            const i = (c.y * img.width + c.x) * 4;
+            r += data[i]; g += data[i+1]; b += data[i+2];
+          });
+          resolve(rgbToHex(Math.round(r/4), Math.round(g/4), Math.round(b/4)));
+        } catch (e) {
+          resolve('#000000');
+        }
+      };
+      img.onerror = () => resolve('#000000');
+      img.src = frameUrl;
+    });
+  }, []);
 
   const toggleLike = async (e: React.MouseEvent, job: Job) => {
     e.stopPropagation();
@@ -251,6 +297,12 @@ const TaskPlayerPage: React.FC<TaskPlayerPageProps> = ({
     const interval = setInterval(() => { if (!isJobRunning && frames.length > 0) handleSaveToCache(); }, 10000);
     return () => clearInterval(interval);
   }, [handleSaveToCache, isJobRunning, frames.length]);
+
+  useEffect(() => {
+    if (frames.length > 0 && removalBgColor === '#000000') {
+      getAverageCornerColor(frames[0].url).then(setRemovalBgColor);
+    }
+  }, [frames.length, getAverageCornerColor, removalBgColor]);
 
   useEffect(() => {
     const container = editorContainerRef.current;
@@ -548,13 +600,27 @@ const TaskPlayerPage: React.FC<TaskPlayerPageProps> = ({
     if (isJobRunning) return;
     setIsPlaying(false);
     setLoading(true);
+    const bgRGB = hexToRgb(removalBgColor);
     const newFrames = await Promise.all(frames.map(async (f) => {
       const canvas = document.createElement('canvas');
-      const img = await new Promise<HTMLImageElement>(res => { const i = new Image(); i.onload = () => res(i); i.src = f.url; });
+      const img = await new Promise<HTMLImageElement>(res => { 
+        const i = new Image(); 
+        i.crossOrigin = "anonymous";
+        i.onload = () => res(i); 
+        i.src = f.url; 
+      });
       canvas.width = img.width; canvas.height = img.height; const ctx = canvas.getContext('2d')!; ctx.drawImage(img, 0, 0);
       const data = ctx.getImageData(0, 0, canvas.width, canvas.height);
-      floodFill(data, 0, 0, {r:0,g:0,b:0,a:0}, bgRemovalTolerance, null); floodFill(data, canvas.width-1, 0, {r:0,g:0,b:0,a:0}, bgRemovalTolerance, null);
-      floodFill(data, 0, canvas.height-1, {r:0,g:0,b:0,a:0}, bgRemovalTolerance, null); floodFill(data, canvas.width-1, canvas.height-1, {r:0,g:0,b:0,a:0}, bgRemovalTolerance, null);
+      
+      if (useGlobalColorMatch) {
+        colorMatchRemoval(data, bgRGB, bgRemovalTolerance);
+      } else {
+        floodFill(data, 0, 0, {r:0,g:0,b:0,a:0}, bgRemovalTolerance, null); 
+        floodFill(data, canvas.width-1, 0, {r:0,g:0,b:0,a:0}, bgRemovalTolerance, null);
+        floodFill(data, 0, canvas.height-1, {r:0,g:0,b:0,a:0}, bgRemovalTolerance, null); 
+        floodFill(data, canvas.width-1, canvas.height-1, {r:0,g:0,b:0,a:0}, bgRemovalTolerance, null);
+      }
+      
       ctx.putImageData(data, 0, 0); return { ...f, url: canvas.toDataURL() };
     }));
     pushToHistory(newFrames); setLoading(false);
@@ -1049,9 +1115,39 @@ const TaskPlayerPage: React.FC<TaskPlayerPageProps> = ({
         <div className="flex flex-col gap-6 w-64 shrink-0">
            <PixelCard title={isZh ? '智能工具' : 'SMART ACTIONS'}>
               <div className={`space-y-4 pt-2 ${isJobRunning ? 'opacity-30 pointer-events-none' : ''}`}>
-                 <PixelButton variant="secondary" className="w-full" onClick={removeBackground} style={{ fontSize: zhScale(9) }}>
-                    {isZh ? '背景去除' : 'BG REMOVE'}
-                 </PixelButton>
+                 <div className="space-y-3">
+                   <PixelButton variant="secondary" className="w-full" onClick={removeBackground} style={{ fontSize: zhScale(9) }}>
+                      {isZh ? '背景去除' : 'BG REMOVE'}
+                   </PixelButton>
+                   <div className="flex items-center gap-2">
+                       <input 
+                         type="checkbox" 
+                         id="useGlobalColorMatch"
+                         checked={useGlobalColorMatch}
+                         onChange={e => setUseGlobalColorMatch(e.target.checked)}
+                         className="accent-white"
+                       />
+                       <label htmlFor="useGlobalColorMatch" className="text-[9px] text-white/60 uppercase cursor-pointer">
+                         {isZh ? '全局匹配' : 'Global match'}
+                       </label>
+                   </div>
+                   
+                   {useGlobalColorMatch && (
+                     <div className="flex items-center gap-2 p-1 bg-black/40 border border-white/10">
+                       <span className="text-[9px] text-white/40 uppercase">BG:</span>
+                       <div className="flex-1 h-5 relative pixel-border border border-white/20" style={{ backgroundColor: removalBgColor }}>
+                          <input 
+                            type="color" 
+                            value={removalBgColor} 
+                            onChange={e => setRemovalBgColor(e.target.value)}
+                            className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+                          />
+                       </div>
+                       <span className="text-[8px] font-mono text-white/60 uppercase">{removalBgColor}</span>
+                     </div>
+                   )}
+                 </div>
+
                  <div className="space-y-1">
                     <div className="flex justify-between text-white/60">
                       <span style={{ fontSize: zhScale(8) }}>{isZh ? '容差' : 'TOLERANCE'}:</span>
