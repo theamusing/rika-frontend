@@ -4,7 +4,7 @@ import { apiService } from '../services/apiService.ts';
 import { Job } from '../types.ts';
 import { PixelButton, PixelCard, PixelModal, PixelInput } from '../components/PixelComponents.tsx';
 import { sliceSpriteSheet, reconstructSpriteSheet, processImage, fetchAsDataUrl, sliceCustomSpriteSheet, scaleToSize } from '../utils/imageUtils.ts';
-import { floodFill, RGB, colorDistance, colorMatchRemoval } from '../utils/editorUtils.ts';
+import { floodFill, RGB, colorDistance, colorMatchRemoval, simplifyColors } from '../utils/editorUtils.ts';
 import { saveSpriteToCache, getSpriteFromCache, CachedSprite } from '../utils/dbUtils.ts';
 import { Heart, ArrowLeft, Move } from 'lucide-react';
 // @ts-ignore
@@ -80,6 +80,7 @@ const TaskPlayerPage: React.FC<TaskPlayerPageProps> = ({
   const [eraserSize, setEraserSize] = useState(1);
   const [wandTolerance, setWandTolerance] = useState(30);
   const [bgRemovalTolerance, setBgRemovalTolerance] = useState(30);
+  const [deNoiseThreshold, setDeNoiseThreshold] = useState(10);
   const [useGlobalColorMatch, setUseGlobalColorMatch] = useState(false);
   const [removalBgColor, setRemovalBgColor] = useState('#000000');
   const [wandMode, setWandMode] = useState<WandMode>('select');
@@ -626,6 +627,43 @@ const TaskPlayerPage: React.FC<TaskPlayerPageProps> = ({
     pushToHistory(newFrames); setLoading(false);
   };
 
+  const handleDeNoise = async () => {
+    if (isJobRunning || frames.length === 0) return;
+    setIsPlaying(false);
+    setLoading(true);
+    
+    try {
+      const colorCounts: number[] = [];
+      const newFrames = await Promise.all(frames.map(async (f) => {
+        const canvas = document.createElement('canvas');
+        const img = await new Promise<HTMLImageElement>(res => { 
+          const i = new Image(); 
+          i.crossOrigin = "anonymous";
+          i.onload = () => res(i); 
+          i.src = f.url; 
+        });
+        canvas.width = img.width; 
+        canvas.height = img.height; 
+        const ctx = canvas.getContext('2d')!; 
+        ctx.drawImage(img, 0, 0);
+        const data = ctx.getImageData(0, 0, canvas.width, canvas.height);
+        
+        const count = simplifyColors(data, deNoiseThreshold);
+        colorCounts.push(count);
+        
+        ctx.putImageData(data, 0, 0); 
+        return { ...f, url: canvas.toDataURL() };
+      }));
+      
+      console.log('De-noise result (colors per frame):', colorCounts);
+      pushToHistory(newFrames);
+    } catch (err) {
+      console.error('De-noise failed:', err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const restoreFrames = async () => {
     if (isJobRunning || !currentJob) return;
     const outputUrl = currentJob.output_images?.[0]?.url;
@@ -1153,8 +1191,22 @@ const TaskPlayerPage: React.FC<TaskPlayerPageProps> = ({
                       <span style={{ fontSize: zhScale(8) }}>{isZh ? '容差' : 'TOLERANCE'}:</span>
                       <span style={{ fontSize: '8px' }}>{bgRemovalTolerance}</span>
                     </div>
-                    <input type="range" min="1" max="100" value={bgRemovalTolerance} onChange={e => setBgRemovalTolerance(parseInt(e.target.value))} className="w-full accent-white" />
+                    <input type="range" min="1" max="50" value={bgRemovalTolerance} onChange={e => setBgRemovalTolerance(parseInt(e.target.value))} className="w-full accent-white" />
                  </div>
+
+                 <div className="border-t border-white/5 pt-3 space-y-3">
+                   <PixelButton variant="secondary" className="w-full" onClick={handleDeNoise} style={{ fontSize: zhScale(9) }}>
+                     {isZh ? '去杂色' : 'DE-NOISE'}
+                   </PixelButton>
+                   <div className="space-y-1">
+                     <div className="flex justify-between text-white/60">
+                       <span style={{ fontSize: zhScale(8) }}>{isZh ? '去噪阈值' : 'NOISE THRESH'}:</span>
+                       <span style={{ fontSize: '8px' }}>{deNoiseThreshold}</span>
+                     </div>
+                     <input type="range" min="1" max="50" value={deNoiseThreshold} onChange={e => setDeNoiseThreshold(parseInt(e.target.value))} className="w-full accent-white" />
+                   </div>
+                 </div>
+
                  <PixelButton variant="secondary" className="w-full" onClick={restoreFrames} style={{ fontSize: zhScale(9) }}>
                     {isZh ? '还原初始' : 'RESTORE ORIGINAL'}
                  </PixelButton>

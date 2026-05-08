@@ -85,6 +85,153 @@ export const colorMatchRemoval = (
 };
 
 /**
+ * Simplify colors by clustering connected regions of similar pixels
+ * This is a "De-noise" tool that groups pixels into regions and averages their colors
+ */
+export const simplifyColors = (
+  imageData: ImageData,
+  threshold: number
+): number => {
+  const { width, height, data } = imageData;
+  const visited = new Uint8Array(width * height);
+  const regions: { pixels: number[], avgColor: RGB }[] = [];
+
+  const getPixel = (idx: number): RGB => {
+    const i = idx * 4;
+    return { r: data[i], g: data[i+1], b: data[i+2], a: data[i+3] };
+  };
+
+  // Step 1: Find connected regions and average their colors
+  for (let y = 0; y < height; y++) {
+    for (let x = 0; x < width; x++) {
+      const idx = y * width + x;
+      if (visited[idx] || data[idx * 4 + 3] === 0) continue;
+
+      const regionPixels: number[] = [];
+      const stack: number[] = [idx];
+      visited[idx] = 1;
+
+      let sumR = 0, sumG = 0, sumB = 0;
+
+      while (stack.length > 0) {
+        const currentIdx = stack.pop()!;
+        regionPixels.push(currentIdx);
+        
+        const p = getPixel(currentIdx);
+        sumR += p.r; sumG += p.g; sumB += p.b;
+
+        const cx = currentIdx % width;
+        const cy = Math.floor(currentIdx / width);
+
+        // 4-connected neighbors
+        const neighbors = [
+          { nx: cx + 1, ny: cy },
+          { nx: cx - 1, ny: cy },
+          { nx: cx, ny: cy + 1 },
+          { nx: cx, ny: cy - 1 }
+        ];
+
+        for (const { nx, ny } of neighbors) {
+          if (nx >= 0 && nx < width && ny >= 0 && ny < height) {
+            const nIdx = ny * width + nx;
+            if (!visited[nIdx] && data[nIdx * 4 + 3] !== 0) {
+              const np = getPixel(nIdx);
+              if (colorDistance(p, np) <= threshold) {
+                visited[nIdx] = 1;
+                stack.push(nIdx);
+              }
+            }
+          }
+        }
+      }
+
+      const count = regionPixels.length;
+      const avgColor: RGB = {
+        r: Math.round(sumR / count),
+        g: Math.round(sumG / count),
+        b: Math.round(sumB / count),
+        a: 255
+      };
+
+      regions.push({ pixels: regionPixels, avgColor });
+      
+      // Update pixels in place for this region
+      for (const pIdx of regionPixels) {
+        data[pIdx * 4] = avgColor.r;
+        data[pIdx * 4 + 1] = avgColor.g;
+        data[pIdx * 4 + 2] = avgColor.b;
+      }
+    }
+  }
+
+  // Step 2: Merge similar regions
+  // Group regions whose average colors are close
+  const regionGroups: number[][] = [];
+  const processedRegions = new Uint8Array(regions.length);
+
+  for (let i = 0; i < regions.length; i++) {
+    if (processedRegions[i]) continue;
+    
+    const group = [i];
+    const queue = [i];
+    processedRegions[i] = 1;
+
+    let qIdx = 0;
+    while (qIdx < queue.length) {
+      const currentId = queue[qIdx++];
+      for (let j = 0; j < regions.length; j++) {
+        if (!processedRegions[j]) {
+          if (colorDistance(regions[currentId].avgColor, regions[j].avgColor) <= threshold) {
+            processedRegions[j] = 1;
+            group.push(j);
+            queue.push(j);
+          }
+        }
+      }
+    }
+    regionGroups.push(group);
+  }
+
+  // Step 3: Apply group average colors
+  for (const group of regionGroups) {
+    let totalR = 0, totalG = 0, totalB = 0, totalPixels = 0;
+    for (const rIdx of group) {
+      const r = regions[rIdx];
+      const count = r.pixels.length;
+      totalR += r.avgColor.r * count;
+      totalG += r.avgColor.g * count;
+      totalB += r.avgColor.b * count;
+      totalPixels += count;
+    }
+
+    const finalAvg: RGB = {
+      r: Math.round(totalR / totalPixels),
+      g: Math.round(totalG / totalPixels),
+      b: Math.round(totalB / totalPixels),
+      a: 255
+    };
+
+    for (const rIdx of group) {
+      for (const pIdx of regions[rIdx].pixels) {
+        data[pIdx * 4] = finalAvg.r;
+        data[pIdx * 4 + 1] = finalAvg.g;
+        data[pIdx * 4 + 2] = finalAvg.b;
+      }
+    }
+  }
+
+  // Count unique colors
+  const finalColors = new Set<string>();
+  for (let i = 0; i < data.length; i += 4) {
+    if (data[i+3] !== 0) {
+      finalColors.add(`${data[i]},${data[i+1]},${data[i+2]}`);
+    }
+  }
+
+  return finalColors.size;
+};
+
+/**
  * RGB to HSV conversion
  */
 export const rgbToHsv = (r: number, g: number, b: number) => {
