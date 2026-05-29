@@ -54,6 +54,8 @@ const GenerationPage: React.FC<GenerationPageProps> = ({
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [usePadding, setUsePadding] = useState(false);
+  const [paddingPosition, setPaddingPosition] = useState<'tl' | 'tc' | 'tr' | 'ml' | 'mc' | 'mr' | 'bl' | 'bc' | 'br'>('mc');
+  const [showPaddingGrid, setShowPaddingGrid] = useState(false);
   const [showCreditModal, setShowCreditModal] = useState(false);
   const [forcedScaleFactor, setForcedScaleFactor] = useState<number | null>(null);
 
@@ -168,7 +170,8 @@ const GenerationPage: React.FC<GenerationPageProps> = ({
               params.quantization_colors,
               centroids,
               true,
-              forcedScaleFactor || undefined
+              forcedScaleFactor || undefined,
+              paddingPosition
             );
             
             // Process for backend (full size)
@@ -182,7 +185,8 @@ const GenerationPage: React.FC<GenerationPageProps> = ({
               params.quantization_colors,
               centroids,
               false,
-              forcedScaleFactor || undefined
+              forcedScaleFactor || undefined,
+              paddingPosition
             );
 
             if (newImages[i] !== displayB64) {
@@ -218,7 +222,7 @@ const GenerationPage: React.FC<GenerationPageProps> = ({
       }
     };
     reprocessAll();
-  }, [usePadding, sourceFiles, flipStates, params.pixel_size, params.bg_color, params.use_quantization, params.quantization_colors, centroids, forcedScaleFactor]);
+  }, [usePadding, paddingPosition, sourceFiles, flipStates, params.pixel_size, params.bg_color, params.use_quantization, params.quantization_colors, centroids, forcedScaleFactor]);
 
   // Update palette source when start image changes
   useEffect(() => {
@@ -288,6 +292,8 @@ const GenerationPage: React.FC<GenerationPageProps> = ({
       setUiLength(calculatedUiLength);
       const wasPadded = jobParams.use_padding === true;
       setUsePadding(wasPadded);
+      const loadedPaddingPos = jobParams.padding_position || 'mc';
+      setPaddingPosition(loadedPaddingPos);
       const loadedPixelSize = String(parseInt(jobParams.pixel_size || "128")) as PixelSize;
       const loadedScaleFactor = jobParams.scale_factor;
       
@@ -307,7 +313,7 @@ const GenerationPage: React.FC<GenerationPageProps> = ({
       userHasEditedPrompt.current = true;
       const newFiles: (File | string | null)[] = [null, null, null];
       if (inputImgs.length > 0) {
-        const processUrl = async (url: string) => wasPadded ? await unprocessImage(url, loadedPixelSize, loadedScaleFactor) : url;
+        const processUrl = async (url: string) => wasPadded ? await unprocessImage(url, loadedPixelSize, loadedScaleFactor, jobParams.padding_position || 'mc') : url;
         try {
           newFiles[0] = await processUrl(inputImgs[0].url);
           let nextIdx = 1;
@@ -369,6 +375,7 @@ const GenerationPage: React.FC<GenerationPageProps> = ({
       if (!finalParams.prompt.trim()) finalParams.prompt = DEFAULT_PROMPTS[params.motion_type];
       finalParams.length = 2 * uiLength + 1;
       finalParams.use_padding = usePadding;
+      finalParams.padding_position = paddingPosition;
       const pixelInt = parseInt(params.pixel_size);
       if (usePadding) {
         if (forcedScaleFactor) {
@@ -532,24 +539,105 @@ const GenerationPage: React.FC<GenerationPageProps> = ({
                </div>
                
                <div className="flex flex-col items-end gap-2 text-white/60">
-                 <label className="flex items-center gap-2 text-[10px] cursor-pointer">
-                   <input 
-                     type="checkbox" 
-                     checked={usePadding} 
-                     onChange={(e) => {
-                       setUsePadding(e.target.checked);
-                       setForcedScaleFactor(null); // Reset forced scale factor on manual change
-                     }} 
-                   />
-                   PADDING
-                   <div className="group relative inline-block">
-                     <HelpCircle size={12} className="text-white/40 cursor-help" />
-                     <div className="absolute bottom-full right-0 mb-2 hidden group-hover:block w-48 p-2 bg-black/90 text-white text-[10px] pixel-border border-[#5a2d9c] font-sans z-50 normal-case">
-                       {isZh ? "在角色周围填充像素，防止角色和边缘太近" : "Fill pixels around the character to prevent it from being too close to the edges."}
-                     </div>
-                   </div>
-                 </label>
-                 <label className="flex items-center gap-2 text-[10px] cursor-pointer">
+                 <div className="flex items-center gap-2 select-none">
+                    <label className="flex items-center gap-2 text-[10px] cursor-pointer">
+                      <input 
+                        type="checkbox" 
+                        checked={usePadding} 
+                        onChange={(e) => {
+                          setUsePadding(e.target.checked);
+                          setForcedScaleFactor(null); // Reset forced scale factor on manual change
+                        }} 
+                      />
+                      PADDING
+                    </label>
+
+                    {/* 3x3 Grid indicator button */}
+                    <div className="relative flex items-center">
+                      <button
+                        type="button"
+                        onClick={() => usePadding && setShowPaddingGrid(!showPaddingGrid)}
+                        disabled={!usePadding}
+                        className={`p-[3px] border-2 transition-all ${
+                          usePadding 
+                            ? 'border-white bg-[#512391] hover:bg-[#6c3fb8] cursor-pointer' 
+                            : 'border-white/20 bg-black/40 opacity-40 cursor-not-allowed'
+                        }`}
+                        style={{ width: '22px', height: '22px' }}
+                        title={isZh ? '选择 Padding 初始图对齐方向' : 'Choose Padding Alignment'}
+                      >
+                        <div className="grid grid-cols-3 gap-[1px] w-full h-full">
+                          {(['tl', 'tc', 'tr', 'ml', 'mc', 'mr', 'bl', 'bc', 'br'] as const).map((pos) => (
+                            <div 
+                              key={pos} 
+                              className={`w-full h-full transition-colors ${
+                                paddingPosition === pos 
+                                  ? 'bg-[#f7d51d]' 
+                                  : 'bg-white/20'
+                              }`} 
+                            />
+                          ))}
+                        </div>
+                      </button>
+
+                      {/* 3x3 Grid popup overlay */}
+                      {showPaddingGrid && usePadding && (
+                        <>
+                          <div 
+                            className="fixed inset-0 z-40" 
+                            onClick={() => setShowPaddingGrid(false)} 
+                          />
+                          <div className="absolute right-0 bottom-full mb-2 p-2 bg-black/95 pixel-border border-[#f7d51d] text-[10px] z-50 w-[110px]">
+                            <div className="text-[8px] text-[#f7d51d] mb-1.5 uppercase text-center font-bold tracking-tight">
+                              {isZh ? '对齐方向' : 'ALIGNMENT'}
+                            </div>
+                            <div className="grid grid-cols-3 gap-1.5">
+                              {(['tl', 'tc', 'tr', 'ml', 'mc', 'mr', 'bl', 'bc', 'br'] as const).map((pos) => {
+                                const labels = {
+                                  tl: isZh ? '左上' : 'TL',
+                                  tc: isZh ? '中上' : 'TC',
+                                  tr: isZh ? '右上' : 'TR',
+                                  ml: isZh ? '左中' : 'ML',
+                                  mc: isZh ? '居中' : 'MC',
+                                  mr: isZh ? '右中' : 'MR',
+                                  bl: isZh ? '左下' : 'BL',
+                                  bc: isZh ? '中下' : 'BC',
+                                  br: isZh ? '右下' : 'BR',
+                                };
+                                return (
+                                  <button
+                                    key={pos}
+                                    type="button"
+                                    onClick={() => {
+                                      setPaddingPosition(pos);
+                                      setShowPaddingGrid(false);
+                                    }}
+                                    className={`w-7 h-7 border transition-colors ${
+                                      paddingPosition === pos
+                                        ? 'border-[#f7d51d] bg-[#f7d51d]'
+                                        : 'border-white/30 bg-black/50 hover:border-white hover:bg-white/10'
+                                    }`}
+                                    title={labels[pos]}
+                                  />
+                                );
+                              })}
+                            </div>
+                          </div>
+                        </>
+                      )}
+                    </div>
+
+                    {/* Question mark placed to the right of the grid indicator button */}
+                    <div className="group relative inline-block flex items-center">
+                      <HelpCircle size={12} className="text-white/40 cursor-help" />
+                      <div className="absolute bottom-full right-0 mb-2 hidden group-hover:block w-48 p-2 bg-black/90 text-white text-[10px] pixel-border border-[#5a2d9c] font-sans z-50 normal-case">
+                        {isZh ? "在角色周围填充像素，防止角色和边缘太近" : "Fill pixels around the character to prevent it from being too close to the edges."}
+                      </div>
+                    </div>
+                  </div>
+                  
+                  
+                  <label className="flex items-center gap-2 text-[10px] cursor-pointer">
                    <input type="checkbox" checked={loopAnimation} onChange={(e) => {
                        setLoopAnimation(e.target.checked);
                        if (e.target.checked && sourceFiles[0]) {

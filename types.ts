@@ -15,6 +15,7 @@ export interface GenerationParams {
   fix_seed: boolean;
   length: number;
   use_padding: boolean;
+  padding_position?: 'tl' | 'tc' | 'tr' | 'ml' | 'mc' | 'mr' | 'bl' | 'bc' | 'br';
   use_quantization?: boolean;
   quantization_colors?: number;
   bg_color?: string;

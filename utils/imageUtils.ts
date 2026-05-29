@@ -92,7 +92,8 @@ export const processImage = async (
   quantizationColors: number = 32,
   externalCentroids?: RGB[],
   downscale: boolean = false,
-  forcedScaleFactor?: number
+  forcedScaleFactor?: number,
+  paddingPosition: string = 'mc'
 ): Promise<string> => {
   return new Promise(async (resolve, reject) => {
     let sourceDataUrl: string | null = null;
@@ -199,8 +200,68 @@ export const processImage = async (
         ctx.fillRect(0, 0, canvas.width, canvas.height);
 
         const scale = Math.min(contentDim / img.width, contentDim / img.height);
-        const x = (canvas.width - img.width * scale) / 2;
-        const y = (canvas.height - img.height * scale) / 2;
+        let x = (canvas.width - img.width * scale) / 2;
+        let y = (canvas.height - img.height * scale) / 2;
+
+        if (padding) {
+          const w = img.width * scale;
+          const h = img.height * scale;
+          const remainX = canvas.width - w;
+          const remainY = canvas.height - h;
+
+          switch (paddingPosition) {
+            case 'tl':
+            case 'top-left':
+              x = 0;
+              y = 0;
+              break;
+            case 'tc':
+            case 'top-center':
+            case 'top':
+              x = remainX / 2;
+              y = 0;
+              break;
+            case 'tr':
+            case 'top-right':
+              x = remainX;
+              y = 0;
+              break;
+            case 'ml':
+            case 'middle-left':
+            case 'left':
+              x = 0;
+              y = remainY / 2;
+              break;
+            case 'mr':
+            case 'middle-right':
+              case 'right':
+              x = remainX;
+              y = remainY / 2;
+              break;
+            case 'bl':
+            case 'bottom-left':
+              x = 0;
+              y = remainY;
+              break;
+            case 'bc':
+            case 'bottom-center':
+            case 'bottom':
+              x = remainX / 2;
+              y = remainY;
+              break;
+            case 'br':
+            case 'bottom-right':
+              x = remainX;
+              y = remainY;
+              break;
+            case 'mc':
+            case 'center':
+            default:
+              x = remainX / 2;
+              y = remainY / 2;
+              break;
+          }
+        }
 
         ctx.imageSmoothingEnabled = false;
 
@@ -346,7 +407,7 @@ export const getPaletteSourceImageData = async (source: File | string): Promise<
   });
 };
 
-export const unprocessImage = async (url: string, pixelSize: string = '128', forcedScaleFactor?: number): Promise<string> => {
+export const unprocessImage = async (url: string, pixelSize: string = '128', forcedScaleFactor?: number, paddingPosition: string = 'mc'): Promise<string> => {
   try {
     const sourceDataUrl = await fetchAsDataUrl(url);
     const isDataUrl = sourceDataUrl.startsWith('data:');
@@ -377,8 +438,63 @@ export const unprocessImage = async (url: string, pixelSize: string = '128', for
                 contentDim = 384;
             }
             
-            const offset = (768 - contentDim) / 2;
-            ctx.drawImage(img, offset, offset, contentDim, contentDim, 0, 0, 512, 512);
+            let ox = (768 - contentDim) / 2;
+            let oy = (768 - contentDim) / 2;
+            const remain = 768 - contentDim;
+
+            switch (paddingPosition) {
+              case 'tl':
+              case 'top-left':
+                ox = 0;
+                oy = 0;
+                break;
+              case 'tc':
+              case 'top-center':
+              case 'top':
+                ox = remain / 2;
+                oy = 0;
+                break;
+              case 'tr':
+              case 'top-right':
+                ox = remain;
+                oy = 0;
+                break;
+              case 'ml':
+              case 'middle-left':
+              case 'left':
+                ox = 0;
+                oy = remain / 2;
+                break;
+              case 'mr':
+              case 'middle-right':
+              case 'right':
+                ox = remain;
+                oy = remain / 2;
+                break;
+              case 'bl':
+              case 'bottom-left':
+                ox = 0;
+                oy = remain;
+                break;
+              case 'bc':
+              case 'bottom-center':
+              case 'bottom':
+                ox = remain / 2;
+                oy = remain;
+                break;
+              case 'br':
+              case 'bottom-right':
+                ox = remain;
+                oy = remain;
+                break;
+              case 'mc':
+              case 'center':
+              default:
+                ox = remain / 2;
+                oy = remain / 2;
+                break;
+            }
+            ctx.drawImage(img, ox, oy, contentDim, contentDim, 0, 0, 512, 512);
         } else {
             ctx.drawImage(img, 0, 0, img.width, img.height, 0, 0, 512, 512);
         }

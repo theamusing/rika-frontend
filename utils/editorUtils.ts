@@ -181,7 +181,7 @@ export const simplifyColors = (
       const currentId = queue[qIdx++];
       for (let j = 0; j < regions.length; j++) {
         if (!processedRegions[j]) {
-          if (colorDistance(regions[currentId].avgColor, regions[j].avgColor) <= threshold) {
+          if (colorDistance(regions[currentId].avgColor, regions[j].avgColor) <= Math.min(threshold, 10)) {
             processedRegions[j] = 1;
             group.push(j);
             queue.push(j);
