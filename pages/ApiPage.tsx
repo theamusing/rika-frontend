@@ -89,14 +89,14 @@ const apiDocs: ApiDocEntry[] = [
   "params": {
     "prompt": "a cyberpunk hero with a neon sword",
     "pixel_size": "128",
-    "style": "anime",
+    "style": "Anime",
     "domain_color": ["#ff0000", "#00ff00"]
   }
 }`,
     requestParams: [
       { name: 'image_base64', optional: true, type: 'string[]', description: { en: 'Character reference images', zh: '角色参考图列表' } },
       { name: 'prompt', optional: false, type: 'string', description: { en: 'Character description', zh: '角色描述' } },
-      { name: 'pixel_size', optional: true, type: 'string', values: '32 | 64 | 128 | 256', description: { en: 'Pixel size (Default: 128)', zh: '像素尺寸 (默认: 128)' } },
+      { name: 'pixel_size', optional: true, type: 'string', values: '64 | 128 | 256', description: { en: 'Pixel size (Default: 128)', zh: '像素尺寸 (默认: 128)' } },
       { name: 'style', optional: true, type: 'string', values: 'Retro | Anime', description: { en: 'Character style', zh: '角色风格' } },
       { name: 'domain_color', optional: true, type: 'string[]', values: 'List of Hex codes', description: { en: 'Main color themes', zh: '主色调列表' } }
     ],

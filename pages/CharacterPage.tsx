@@ -111,7 +111,7 @@ const CharacterPage: React.FC<CharacterPageProps> = ({
   const [refImage, setRefImage] = useState<File | string | null>(null);
   const [refPreview, setRefPreview] = useState<string | null>(null);
   const [domainColors, setDomainColors] = useState<string[]>(['#FFD700', '#F7D51D', '#B8860B', '#453200']);
-  const [pixelSize, setPixelSize] = useState('64');
+  const [pixelSize, setPixelSize] = useState('128');
   const [artStyle, setArtStyle] = useState('None');
   const [bodyType, setBodyType] = useState('None');
   const [useDomainColor, setUseDomainColor] = useState(false);
@@ -131,13 +131,15 @@ const CharacterPage: React.FC<CharacterPageProps> = ({
   const zhScale = (enSize: number) => isZh ? `${enSize + 3}px` : `${enSize}px`;
 
   const currentExample = React.useMemo(() => {
-    const examples = CHARACTER_EXAMPLES[pixelSize] || CHARACTER_EXAMPLES['64'];
+    const lookupKey = pixelSize === '256' ? '128' : (pixelSize === '128' ? '64' : '32');
+    const examples = CHARACTER_EXAMPLES[lookupKey] || CHARACTER_EXAMPLES['64'];
     const idx = exampleIndex >= examples.length ? 0 : exampleIndex;
     return examples[idx];
   }, [pixelSize, exampleIndex]);
 
   React.useEffect(() => {
-    const examples = CHARACTER_EXAMPLES[pixelSize] || CHARACTER_EXAMPLES['64'];
+    const lookupKey = pixelSize === '256' ? '128' : (pixelSize === '128' ? '64' : '32');
+    const examples = CHARACTER_EXAMPLES[lookupKey] || CHARACTER_EXAMPLES['64'];
     setExampleIndex(Math.floor(Math.random() * examples.length));
   }, [pixelSize]);
 
@@ -226,7 +228,8 @@ const CharacterPage: React.FC<CharacterPageProps> = ({
       const params: any = {
         prompt: prompt.trim(),
         pixel_size: pixelSize,
-        style: artStyle
+        style: artStyle,
+        version: '2'
       };
 
       if (bodyType !== 'None') {
@@ -353,9 +356,9 @@ const CharacterPage: React.FC<CharacterPageProps> = ({
                     className="w-full bg-black/40 pixel-border border-[#5a2d9c] p-2 text-white outline-none appearance-none cursor-pointer"
                     style={{ fontSize: zhScale(10) }}
                   >
-                    <option value="32">32x32</option>
-                    <option value="64">64x64</option>
-                    <option value="128">128x128</option>
+                    <option value="64">64</option>
+                    <option value="128">128</option>
+                    <option value="256">256</option>
                   </select>
                 </div>
               </div>

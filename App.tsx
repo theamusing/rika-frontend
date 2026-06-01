@@ -6,6 +6,7 @@ import { AuthUser, Job } from './types.ts';
 import LoginPage from './pages/LoginPage.tsx';
 import GenerationPage from './pages/GenerationPage.tsx';
 import CharacterPage from './pages/CharacterPage.tsx';
+import MapPage from './pages/MapPage.tsx';
 import TaskPlayerPage from './pages/TaskPlayerPage.tsx';
 import HistoryPage from './pages/HistoryPage.tsx';
 import LandingPage from './pages/LandingPage.tsx';
@@ -18,8 +19,8 @@ import { PaymentSuccessModal } from './components/PaymentSuccessModal.tsx';
 const App: React.FC = () => {
   const [user, setUser] = useState<AuthUser | null>(null);
   const [credits, setCredits] = useState<number>(0);
-  const [activeTab, setActiveTab] = useState<'intro' | 'character' | 'generate' | 'player' | 'history' | 'api' | 'docs'>('intro');
-  const [pendingTab, setPendingTab] = useState<'character' | 'generate' | 'player' | 'history' | 'api' | 'docs' | null>(null);
+  const [activeTab, setActiveTab] = useState<'intro' | 'character' | 'generate' | 'map' | 'player' | 'history' | 'api' | 'docs'>('intro');
+  const [pendingTab, setPendingTab] = useState<'character' | 'generate' | 'map' | 'player' | 'history' | 'api' | 'docs' | null>(null);
   const [selectedJobId, setSelectedJobId] = useState<string | null>(null);
   const [selectedJob, setSelectedJob] = useState<Job | null>(null);
   const [navigationSource, setNavigationSource] = useState<{ tab: string, page?: number } | null>(null);
@@ -134,7 +135,7 @@ const App: React.FC = () => {
     setLoginMode('login');
   };
 
-  const navigateTo = (tab: 'intro' | 'character' | 'generate' | 'player' | 'history' | 'api' | 'docs') => {
+  const navigateTo = (tab: 'intro' | 'character' | 'generate' | 'map' | 'player' | 'history' | 'api' | 'docs') => {
     setIsPricingOpen(false);
     
     if (tab === 'intro' || tab === 'docs') {
@@ -217,7 +218,7 @@ const App: React.FC = () => {
             <div className="relative" ref={createDropdownRef}>
               <button 
                 onClick={() => setShowCreateDropdown(!showCreateDropdown)}
-                className={`px-4 py-2 text-[10px] font-bold uppercase transition-all flex items-center gap-1 ${activeTab === 'character' || activeTab === 'generate' ? 'text-white border-b-2 border-white' : 'text-white/40 hover:text-white'}`}
+                className={`px-4 py-2 text-[10px] font-bold uppercase transition-all flex items-center gap-1 ${activeTab === 'character' || activeTab === 'generate' || activeTab === 'map' ? 'text-white border-b-2 border-white' : 'text-white/40 hover:text-white'}`}
               >
                 CREATE
                 <span className={`transition-transform duration-200 ${showCreateDropdown ? 'rotate-180' : ''}`}>▼</span>
@@ -236,6 +237,12 @@ const App: React.FC = () => {
                     className={`w-full px-4 py-3 text-[10px] font-bold uppercase text-left transition-all ${activeTab === 'generate' ? 'bg-[#f7d51d] text-[#2d1b4e]' : 'text-white/60 hover:bg-white/10 hover:text-white'}`}
                   >
                     {isZh ? '动画' : 'ANIMATION'}
+                  </button>
+                  <button 
+                    onClick={() => { navigateTo('map'); setShowCreateDropdown(false); }}
+                    className={`w-full px-4 py-3 text-[10px] font-bold uppercase text-left transition-all ${activeTab === 'map' ? 'bg-[#f7d51d] text-[#2d1b4e]' : 'text-white/60 hover:bg-white/10 hover:text-white'}`}
+                  >
+                    {isZh ? '地图' : 'MAP'}
                   </button>
                 </div>
               )}
@@ -399,6 +406,20 @@ const App: React.FC = () => {
                 isLoggedIn={!!user}
                 onLoginRequest={() => {
                   setPendingTab('character');
+                  setForceLogin(true);
+                  setIsPricingOpen(false);
+                }}
+              />
+            )}
+            {activeTab === 'map' && (
+              <MapPage
+                lang={lang}
+                credits={credits}
+                onOpenPricing={() => setIsPricingOpen(true)}
+                isBackendDown={isBackendDown}
+                isLoggedIn={!!user}
+                onLoginRequest={() => {
+                  setPendingTab('map');
                   setForceLogin(true);
                   setIsPricingOpen(false);
                 }}

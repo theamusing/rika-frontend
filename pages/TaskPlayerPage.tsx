@@ -348,7 +348,8 @@ const TaskPlayerPage: React.FC<TaskPlayerPageProps> = ({
       try {
         if (isCharacter) {
           const pixelSize = parseInt(job.input_params?.pixel_size || '128');
-          const targetSize = pixelSize === 32 ? 64 : 128;
+          const version = parseInt(job.input_params?.version || '1');
+          const targetSize = version === 2 ? pixelSize : (pixelSize === 32 ? 64 : 128);
           const processed = await scaleToSize(outputUrl, targetSize);
           if (isMounted.current) {
             const frame: FrameData = { id: `f-${Date.now()}-0`, url: processed, isOriginal: true };
@@ -373,7 +374,8 @@ const TaskPlayerPage: React.FC<TaskPlayerPageProps> = ({
           let processedUrl: string;
           if (isCharacter) {
             const pixelSize = parseInt(job.input_params?.pixel_size || '128');
-            const targetSize = pixelSize === 32 ? 64 : 128;
+            const version = parseInt(job.input_params?.version || '1');
+            const targetSize = version === 2 ? pixelSize : (pixelSize === 32 ? 64 : 128);
             processedUrl = await scaleToSize(rawUrl, targetSize);
           } else {
             processedUrl = await fetchAsDataUrl(rawUrl);
@@ -674,7 +676,8 @@ const TaskPlayerPage: React.FC<TaskPlayerPageProps> = ({
       const isCharacter = currentJob.job_type === 'character';
       if (isCharacter) {
         const pixelSize = parseInt(currentJob.input_params?.pixel_size || '128');
-        const targetSize = pixelSize === 32 ? 64 : 128;
+        const version = parseInt(currentJob.input_params?.version || '1');
+        const targetSize = version === 2 ? pixelSize : (pixelSize === 32 ? 64 : 128);
         const processed = await scaleToSize(outputUrl, targetSize);
         const frame: FrameData = { id: `f-${Date.now()}-0`, url: processed, isOriginal: true };
         setIsPlaying(false);

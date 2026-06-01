@@ -262,11 +262,16 @@ const GenerationPage: React.FC<GenerationPageProps> = ({
         const outputImgs = job.output_images || [];
         
         const sourcePixelSize = parseInt(jobParams.pixel_size || "128");
+        const version = parseInt(jobParams.version || "1");
         let targetPixelSize: PixelSize = "128";
-        if (sourcePixelSize === 32) {
-          targetPixelSize = "64";
+        if (version === 2) {
+          targetPixelSize = String(sourcePixelSize) as PixelSize;
         } else {
-          targetPixelSize = "128";
+          if (sourcePixelSize === 32) {
+            targetPixelSize = "64";
+          } else {
+            targetPixelSize = "128";
+          }
         }
 
         setParams({ 
