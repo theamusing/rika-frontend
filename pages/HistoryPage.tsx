@@ -32,6 +32,7 @@ const HistoryPage: React.FC<HistoryPageProps> = ({
   const [error, setError] = useState<string | null>(null);
   const [currentPage, setCurrentPage] = useState(initialPage || 0);
   const [totalJobs, setTotalJobs] = useState(0);
+  const [gotoPageVal, setGotoPageVal] = useState('');
   const [showLikedOnly, setShowLikedOnly] = useState(() => {
     return localStorage.getItem(SHOW_LIKED_ONLY_KEY) === 'true';
   });
@@ -151,6 +152,21 @@ const HistoryPage: React.FC<HistoryPageProps> = ({
 
   const handleNextPage = () => setCurrentPage(prev => prev + 1);
   const handlePrevPage = () => setCurrentPage(prev => Math.max(0, prev - 1));
+
+  const handleGoToPage = () => {
+    const pageNum = parseInt(gotoPageVal, 10);
+    if (!isNaN(pageNum)) {
+      const targetPage = Math.max(1, Math.min(totalPages, pageNum)) - 1;
+      setCurrentPage(targetPage);
+      setGotoPageVal('');
+    }
+  };
+
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'Enter') {
+      handleGoToPage();
+    }
+  };
 
   const isZh = lang === 'zh';
   
@@ -338,6 +354,25 @@ const HistoryPage: React.FC<HistoryPageProps> = ({
                 >
                   {isZh ? '下一页' : 'NEXT >'}
                 </PixelButton>
+
+                <div className="flex items-center gap-1.5 ml-2 border-l border-white/20 pl-4">
+                  <input
+                    type="text"
+                    value={gotoPageVal}
+                    onChange={(e) => setGotoPageVal(e.target.value.replace(/\D/g, ''))}
+                    onKeyDown={handleKeyDown}
+                    placeholder={isZh ? "页码" : ""}
+                    className="w-12 h-8 bg-black/40 text-white font-bold text-center text-xs pixel-border border-[#5a2d9c]/60 outline-none focus:border-[#f7d51d] py-1 px-1"
+                  />
+                  <PixelButton
+                    variant="secondary"
+                    onClick={handleGoToPage}
+                    className="h-8 min-w-0 px-2"
+                    style={{ fontSize: '10px' }}
+                  >
+                    Go
+                  </PixelButton>
+                </div>
               </div>
 
               <div className="flex items-center gap-2 text-white/40 text-[10px] uppercase">
