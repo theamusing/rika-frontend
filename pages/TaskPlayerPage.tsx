@@ -319,7 +319,7 @@ const TaskPlayerPage: React.FC<TaskPlayerPageProps> = ({
 
   const updateFramesFromJob = useCallback(async (job: Job) => {
     const apiLength = job.input_params?.length || 33;
-    const isCharacter = job.job_type === 'character';
+    const isCharacter = job.job_type === 'character' || job.job_type === 'item';
 
     try {
       const cached = await getSpriteFromCache(job.gen_id);
@@ -673,7 +673,7 @@ const TaskPlayerPage: React.FC<TaskPlayerPageProps> = ({
     
     setLoading(true);
     try {
-      const isCharacter = currentJob.job_type === 'character';
+      const isCharacter = currentJob.job_type === 'character' || currentJob.job_type === 'item';
       if (isCharacter) {
         const pixelSize = parseInt(currentJob.input_params?.pixel_size || '128');
         const version = parseInt(currentJob.input_params?.version || '1');

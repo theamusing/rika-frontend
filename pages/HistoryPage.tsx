@@ -224,6 +224,7 @@ const HistoryPage: React.FC<HistoryPageProps> = ({
               >
                 <option value="">{isZh ? '全部' : 'ALL'}</option>
                 <option value="character">{isZh ? '角色' : 'CHARACTER'}</option>
+                <option value="item">{isZh ? '道具' : 'ITEM'}</option>
                 <option value="animation">{isZh ? '动画' : 'ANIMATION'}</option>
               </select>
             </div>
@@ -284,14 +285,14 @@ const HistoryPage: React.FC<HistoryPageProps> = ({
                           strokeWidth={job.liked ? 0 : 2}
                         />
                       </div>
-                      {(job.job_type === 'character' || job.input_params?.motion_type) && (
+                      {(job.job_type === 'character' || job.job_type === 'item' || job.input_params?.motion_type) && (
                           <div className="absolute top-1 right-1 z-20 px-1.5 py-0.5 bg-[#f7d51d] text-[#2d1b4e] text-[8px] font-bold uppercase">
-                              {job.job_type === 'character' ? 'CHARACTER' : job.input_params.motion_type}
+                              {job.job_type === 'character' ? 'CHARACTER' : (job.job_type === 'item' ? 'ITEM' : job.input_params.motion_type)}
                           </div>
                       )}
                       {(job.input_images?.[0] || job.output_images?.[0]) && (
                           <PixelImage 
-                            src={job.job_type === 'character' 
+                            src={(job.job_type === 'character' || job.job_type === 'item') 
                               ? (job.output_images?.[0]?.url || job.input_images?.[0]?.url)
                               : (job.input_images?.[0]?.url || job.output_images?.[0]?.url)
                             } 

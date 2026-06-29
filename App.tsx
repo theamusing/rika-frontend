@@ -6,6 +6,7 @@ import { AuthUser, Job } from './types.ts';
 import LoginPage from './pages/LoginPage.tsx';
 import GenerationPage from './pages/GenerationPage.tsx';
 import CharacterPage from './pages/CharacterPage.tsx';
+import ItemPage from './pages/ItemPage.tsx';
 import MapPage from './pages/MapPage.tsx';
 import TaskPlayerPage from './pages/TaskPlayerPage.tsx';
 import HistoryPage from './pages/HistoryPage.tsx';
@@ -19,8 +20,8 @@ import { PaymentSuccessModal } from './components/PaymentSuccessModal.tsx';
 const App: React.FC = () => {
   const [user, setUser] = useState<AuthUser | null>(null);
   const [credits, setCredits] = useState<number>(0);
-  const [activeTab, setActiveTab] = useState<'intro' | 'character' | 'generate' | 'map' | 'player' | 'history' | 'api' | 'docs'>('intro');
-  const [pendingTab, setPendingTab] = useState<'character' | 'generate' | 'map' | 'player' | 'history' | 'api' | 'docs' | null>(null);
+  const [activeTab, setActiveTab] = useState<'intro' | 'character' | 'item' | 'generate' | 'map' | 'player' | 'history' | 'api' | 'docs'>('intro');
+  const [pendingTab, setPendingTab] = useState<'character' | 'item' | 'generate' | 'map' | 'player' | 'history' | 'api' | 'docs' | null>(null);
   const [selectedJobId, setSelectedJobId] = useState<string | null>(null);
   const [selectedJob, setSelectedJob] = useState<Job | null>(null);
   const [navigationSource, setNavigationSource] = useState<{ tab: string, page?: number } | null>(null);
@@ -135,7 +136,7 @@ const App: React.FC = () => {
     setLoginMode('login');
   };
 
-  const navigateTo = (tab: 'intro' | 'character' | 'generate' | 'map' | 'player' | 'history' | 'api' | 'docs') => {
+  const navigateTo = (tab: 'intro' | 'character' | 'item' | 'generate' | 'map' | 'player' | 'history' | 'api' | 'docs') => {
     setIsPricingOpen(false);
     
     if (tab === 'intro' || tab === 'docs') {
@@ -183,6 +184,8 @@ const App: React.FC = () => {
       setActiveTab('generate');
     } else if (params.job_type === 'character') {
       setActiveTab('character');
+    } else if (params.job_type === 'item') {
+      setActiveTab('item');
     } else {
       setActiveTab('generate');
     }
@@ -218,7 +221,7 @@ const App: React.FC = () => {
             <div className="relative" ref={createDropdownRef}>
               <button 
                 onClick={() => setShowCreateDropdown(!showCreateDropdown)}
-                className={`px-4 py-2 text-[10px] font-bold uppercase transition-all flex items-center gap-1 ${activeTab === 'character' || activeTab === 'generate' || activeTab === 'map' ? 'text-white border-b-2 border-white' : 'text-white/40 hover:text-white'}`}
+                className={`px-4 py-2 text-[10px] font-bold uppercase transition-all flex items-center gap-1 ${activeTab === 'character' || activeTab === 'item' || activeTab === 'generate' || activeTab === 'map' ? 'text-white border-b-2 border-white' : 'text-white/40 hover:text-white'}`}
               >
                 CREATE
                 <span className={`transition-transform duration-200 ${showCreateDropdown ? 'rotate-180' : ''}`}>▼</span>
@@ -231,6 +234,12 @@ const App: React.FC = () => {
                     className={`w-full px-4 py-3 text-[10px] font-bold uppercase text-left transition-all ${activeTab === 'character' ? 'bg-[#f7d51d] text-[#2d1b4e]' : 'text-white/60 hover:bg-white/10 hover:text-white'}`}
                   >
                     {isZh ? '角色' : 'CHARACTER'}
+                  </button>
+                  <button 
+                    onClick={() => { navigateTo('item'); setShowCreateDropdown(false); }}
+                    className={`w-full px-4 py-3 text-[10px] font-bold uppercase text-left transition-all ${activeTab === 'item' ? 'bg-[#f7d51d] text-[#2d1b4e]' : 'text-white/60 hover:bg-white/10 hover:text-white'}`}
+                  >
+                    {isZh ? '道具' : 'ITEM'}
                   </button>
                   <button 
                     onClick={() => { navigateTo('generate'); setShowCreateDropdown(false); }}
@@ -406,6 +415,23 @@ const App: React.FC = () => {
                 isLoggedIn={!!user}
                 onLoginRequest={() => {
                   setPendingTab('character');
+                  setForceLogin(true);
+                  setIsPricingOpen(false);
+                }}
+              />
+            )}
+            {activeTab === 'item' && (
+              <ItemPage
+                onJobCreated={(id) => { setSelectedJobId(id); setActiveTab('player'); }}
+                lang={lang}
+                credits={credits}
+                onOpenPricing={() => setIsPricingOpen(true)}
+                isBackendDown={isBackendDown}
+                initialParams={initialParams}
+                onConsumed={() => setInitialParams(null)}
+                isLoggedIn={!!user}
+                onLoginRequest={() => {
+                  setPendingTab('item');
                   setForceLogin(true);
                   setIsPricingOpen(false);
                 }}

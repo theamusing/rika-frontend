@@ -1,11 +1,10 @@
-
 import React, { useState, useRef } from 'react';
 import { PixelButton, PixelCard, PixelInput, PixelImage } from '../components/PixelComponents.tsx';
 import { apiService } from '../services/apiService.ts';
 import { processCharacterImage } from '../utils/imageUtils.ts';
 import { Plus, Shuffle, Loader2, X, HelpCircle } from 'lucide-react';
 
-interface CharacterPageProps {
+interface ItemPageProps {
   onJobCreated: (id: string) => void;
   lang?: 'en' | 'zh';
   credits: number;
@@ -33,70 +32,32 @@ const ART_STYLES = [
   { id: 'Retro', en: 'Retro Game Pixel', zh: '复古游戏像素' },
 ];
 
-const BODY_TYPES = [
-  { id: 'None', en: 'None', zh: '无' },
-  { id: 'Humanoid', en: 'Humanoid', zh: '人形' },
-  { id: 'Non-humanoid', en: 'Non-humanoid', zh: '非人形' },
-];
-
 const RANDOM_PROMPTS = [
-  { en: "A giant battle robot covered in scrap steel plates with a single glowing red eye", zh: "身披废弃钢板、独眼闪烁红光的巨型战斗机器人" },
-  { en: "An Mind Flayer lord floating in the air, wearing ornate purple robes with tentacle whiskers", zh: "穿着华丽紫色长袍、长着触手胡须，漂浮空中的灵吸怪领主" },
-  { en: "A dragon covered in frost crystals", zh: "浑身覆盖冰霜晶体的龙" },
-  { en: "A slow-moving ancient rock treant with bioluminescent mushrooms growing on its back", zh: "背部长满荧光蘑菇、行动迟缓的古老岩石树精" },
-  { en: "An ordinary office worker wearing a suit, tie, and glasses", zh: "穿西装打领带戴眼镜的普通上班族" },
-  { en: "A gaunt ancient skeleton soldier holding a rusty bronze spear with both hands", zh: "双手拿着生锈铜色长枪、枯瘦的古老骷髅士兵" },
-  { en: "A brave knight in silver armor with a blue cape", zh: "身披银甲、披着蓝色斗篷的勇敢骑士" },
-  { en: "A mysterious forest elf with green robes and a wooden staff", zh: "穿着绿色长袍、手持木杖的神秘森林精灵" },
-  { en: "A knight in golden armor holding a long spear, riding a white horse", zh: "身披黄金盔甲，手持长枪的骑士，骑着白马" },
-  { en: "An ornate dark purple mimic chest, slightly opening its mouth to reveal sharp teeth and a long tongue", zh: "一个暗紫色精致宝箱怪，微微张开嘴露出尖牙和长长的舌头" },
-  { en: "A silver-white knight riding a white horse", zh: "骑着白马的银白骑士" },
-  { en: "A steam robot with a giant gear on its back", zh: "背着巨大齿轮的蒸汽机器人" },
-  { en: "Ronin samurai wearing a bamboo hat and a cloak, with a katana hanging at his waist", zh: "戴着斗笠，穿着披风的浪人武士，腰间挂着太刀" },
-  { en: "Noble lady wearing an elegant red and gold long dress, blonde curly hair, wearing a small top hat and leather shoes", zh: "穿着优雅红金相间长裙的贵族千金，金色卷发，头戴小礼帽，脚上穿小皮鞋" },
-  { en: "Cute little orange cat, tail held very high", zh: "可爱小橘猫，尾巴翘的很高" },
-  { en: "A dark purple mimic chest, slightly opening its mouth to reveal sharp teeth and a long tongue", zh: "一个暗紫色宝箱怪，微微张开嘴露出尖牙和长长的舌头" }
+  { en: "An ornate crimson spellbook with a glowing golden rune on its cover", zh: "一本封面上刻有金色闪光符文的华丽深红法术书" },
+  { en: "A futuristic sci-fi laser pistol with cyan plasma chambers", zh: "一个带有青色等离子腔室的未来科幻激光手枪" },
+  { en: "A glowing blue crystal key floating in the air", zh: "一把悬浮在空中、闪烁蓝光的晶体钥匙" },
+  { en: "A legendary broadsword embedded with a radiant ruby at the hilt", zh: "一把剑柄上镶嵌着闪耀红宝石的传奇宽刃大剑" },
+  { en: "A retro health potion bottle filled with bubbling red liquid", zh: "一个装满起泡红色药液的复古生命药水瓶" },
+  { en: "A golden skull ornament with glowing emerald eyes", zh: "一个长着发光祖母绿眼睛的黄金骷髅摆件" },
+  { en: "A medieval bronze shield reinforced with steel rivets", zh: "一个用钢铆钉加固的中世纪青铜盾牌" },
+  { en: "A mysterious black key card with a glowing white circuit pattern", zh: "一张带有发光白色电路图案的神秘黑色钥匙卡" }
 ];
 
 const EXAMPLES_BASE = "https://cdn.rika-ai.com/assets/frontpage/examples/";
 
-const CHARACTER_EXAMPLES: Record<string, any[]> = {
-  '32': [
-    { id: 11, en: "Ronin samurai wearing a bamboo hat and a cloak, with a katana hanging at his waist", zh: "戴着斗笠，穿着披风的浪人武士，腰间挂着太刀", image: `${EXAMPLES_BASE}character11.png` },
-    { id: 12, en: "Noble lady wearing an elegant red and gold long dress, blonde curly hair, wearing a small top hat and leather shoes", zh: "穿着优雅红金相间长裙的贵族千金，金色卷发，头戴小礼帽，脚上穿小皮鞋", image: `${EXAMPLES_BASE}character12.png` },
-    { id: 13, en: "Cute little orange cat, tail held very high", zh: "可爱小橘猫，尾巴翘的很高", image: `${EXAMPLES_BASE}character13.png` },
-    { id: 14, en: "A dark purple mimic chest, slightly opening its mouth to reveal sharp teeth and a long tongue", zh: "一个暗紫色宝箱怪，微微张开嘴露出尖牙和长长的舌头", image: `${EXAMPLES_BASE}character14.png` }
-  ],
+const ITEM_EXAMPLES: Record<string, any[]> = {
   '64': [
-    { id: 5, en: "A gaunt ancient skeleton soldier holding a rusty bronze spear with both hands", zh: "双手拿着生锈铜色长枪、枯瘦的古老骷髅士兵", image: `${EXAMPLES_BASE}character5.png` },
-    { id: 6, en: "A Mind Flayer lord floating in the air, wearing ornate purple robes with tentacle whiskers", zh: "穿着华丽紫色长袍、长着触手胡须，漂浮空中的灵吸怪领主", image: `${EXAMPLES_BASE}character6.png` },
-    { id: 8, en: "An ornate dark purple mimic chest, slightly opening its mouth to reveal sharp teeth and a long tongue", zh: "一个暗紫色精致宝箱怪，微微张开嘴露出尖牙和长长的舌头", image: `${EXAMPLES_BASE}character8.png` }
+    { id: 1, en: "A square metal safe with a circular handle", zh: "圆形把手方形金属保险柜", image: "https://cdn.rika-ai.com/assets/references/item_ref_64_2.png" }
   ],
   '128': [
-    { id: 7, en: "A knight in golden armor holding a long spear, riding a white horse", zh: "身披黄金盔甲，手持长枪的骑士，骑着白马", image: `${EXAMPLES_BASE}character7.png` }
+    { id: 2, en: "An exquisite patterned metal safe", zh: "精致的带花纹的金属保险箱", image: "https://cdn.rika-ai.com/assets/references/item_ref_128_2.png" }
+  ],
+  '256': [
+    { id: 3, en: "Simple upright wooden bookshelf with wood texture", zh: "木头质感，朴素的直立书架", image: "https://cdn.rika-ai.com/assets/references/item_ref_256_2.png" }
   ]
 };
 
-const TEMPLATE_VALUES = {
-  race: {
-    en: ["Human", "Elf", "Orc", "Dragon", "Ghost", "Future Soldier", "Robot", "Monster"],
-    zh: ["人类", "精灵", "兽人", "龙", "幽灵", "未来战士", "机器人", "怪兽"]
-  },
-  body: {
-    en: ["Normal", "Giant", "Fat", "Thin", "Tall and thin"],
-    zh: ["普通", "庞大", "肥硕", "瘦弱", "高瘦"]
-  },
-  clothing: {
-    en: ["Cloak", "Metal Armor", "Mechanical Armor", "Robe", "Scrap Steel Plates", "Chest", "Bioluminescent Mushrooms", "Frost Crystals", "Fire", "Hell Lava"],
-    zh: ["斗篷", "金属盔甲", "机械铠甲", "长袍", "废弃钢板", "宝箱", "荧光蘑菇", "冰霜结晶", "火焰", "地狱岩浆"]
-  },
-  weapon: {
-    en: ["Unarmed", "Trap", "Wooden Staff", "Spear", "Giant Axe", "Bone Club", "Silver Sword", "Dragon Cannon", "Giant Shield", "Laser Gun", "Chainsaw", "Briefcase"],
-    zh: ["空手", "圈套", "木制法杖", "长枪", "巨斧", "骨头大棒", "银色长剑", "龙头大炮", "巨大盾牌", "激光枪", "机械电锯", "公文包"]
-  }
-};
-
-const CharacterPage: React.FC<CharacterPageProps> = ({ 
+const ItemPage: React.FC<ItemPageProps> = ({ 
   onJobCreated, 
   lang = 'en', 
   credits, 
@@ -113,38 +74,28 @@ const CharacterPage: React.FC<CharacterPageProps> = ({
   const [domainColors, setDomainColors] = useState<string[]>(['#FFD700', '#F7D51D', '#B8860B', '#453200']);
   const [pixelSize, setPixelSize] = useState('128');
   const [artStyle, setArtStyle] = useState('None');
-  const [bodyType, setBodyType] = useState('None');
   const [useDomainColor, setUseDomainColor] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [exampleIndex, setExampleIndex] = useState(0);
-
-  const [template, setTemplate] = useState({
-    race: '',
-    body: '',
-    clothing: '',
-    weapon: ''
-  });
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const isZh = lang === 'zh';
   const zhScale = (enSize: number) => isZh ? `${enSize + 3}px` : `${enSize}px`;
 
   const currentExample = React.useMemo(() => {
-    const lookupKey = pixelSize === '256' ? '128' : (pixelSize === '128' ? '64' : '32');
-    const examples = CHARACTER_EXAMPLES[lookupKey] || CHARACTER_EXAMPLES['64'];
+    const examples = ITEM_EXAMPLES[pixelSize] || ITEM_EXAMPLES['128'];
     const idx = exampleIndex >= examples.length ? 0 : exampleIndex;
     return examples[idx];
   }, [pixelSize, exampleIndex]);
 
   React.useEffect(() => {
-    const lookupKey = pixelSize === '256' ? '128' : (pixelSize === '128' ? '64' : '32');
-    const examples = CHARACTER_EXAMPLES[lookupKey] || CHARACTER_EXAMPLES['64'];
+    const examples = ITEM_EXAMPLES[pixelSize] || ITEM_EXAMPLES['128'];
     setExampleIndex(Math.floor(Math.random() * examples.length));
   }, [pixelSize]);
 
   React.useEffect(() => {
-    if (initialParams && initialParams.job_type === 'character' && !initialParams.action) {
+    if (initialParams && initialParams.job_type === 'item' && !initialParams.action) {
       const { input_params, input_images } = initialParams;
       if (input_params) {
         setPrompt(input_params.prompt || '');
@@ -207,7 +158,7 @@ const CharacterPage: React.FC<CharacterPageProps> = ({
       return;
     }
     if (!prompt.trim() && !refImage) {
-      setError(isZh ? '请输入角色描述或上传参考图' : 'Please enter character description or upload a reference image');
+      setError(isZh ? '请输入道具描述或上传参考图' : 'Please enter item description or upload a reference image');
       return;
     }
     if (credits <= 0) {
@@ -231,18 +182,12 @@ const CharacterPage: React.FC<CharacterPageProps> = ({
         style: artStyle,
         version: '2'
       };
-
-      if (bodyType !== 'None') {
-        params.body_type = bodyType;
-        const bodyText = bodyType === 'Humanoid' ? "The character is humanoid" : "The character is non-humanoid";
-        params.prompt = params.prompt ? `${params.prompt}. ${bodyText}` : bodyText;
-      }
       
       if (useDomainColor) {
         params.domain_color = `[${domainColors.join(',')}]`;
       }
 
-      const res = await apiService.generateCharacter(imageBase64, params);
+      const res = await apiService.generateItem(imageBase64, params);
       onJobCreated(res.gen_id);
     } catch (err: any) {
       setError(err.message || 'Generation failed');
@@ -258,12 +203,12 @@ const CharacterPage: React.FC<CharacterPageProps> = ({
         <div className="flex-1 space-y-6">
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-stretch">
             <div className="lg:col-span-2 flex">
-              <PixelCard title={isZh ? '角色描述' : 'CHARACTER DESCRIPTION'} titleStyle={{ fontSize: zhScale(10) }} className="w-full flex flex-col">
+              <PixelCard title={isZh ? '道具描述' : 'ITEM DESCRIPTION'} titleStyle={{ fontSize: zhScale(10) }} className="w-full flex flex-col">
                 <div className="relative pt-2 flex-1 flex flex-col">
                   <textarea
                     value={prompt}
                     onChange={(e) => setPrompt(e.target.value)}
-                    placeholder={isZh ? "描述你的角色，比如衣着，身材，武器等" : "Describe your character, such as clothing, body type, weapons, etc."}
+                    placeholder={isZh ? "描述你的道具，比如外观，材质，发光特效等" : "Describe your item, such as appearance, material, glowing effects, etc."}
                     className="w-full h-64 bg-black/40 pixel-border border-[#5a2d9c] p-4 text-white outline-none focus:border-[#f7d51d] resize-none"
                     style={{ fontSize: zhScale(10) }}
                   />
@@ -382,25 +327,6 @@ const CharacterPage: React.FC<CharacterPageProps> = ({
                 </div>
               </div>
 
-              {/* Body Type */}
-              <div className="space-y-2">
-                <label className="font-bold text-white/60 uppercase" style={{ fontSize: zhScale(10) }}>
-                  {isZh ? '体型' : 'BODY TYPE'}
-                </label>
-                <div className="relative">
-                  <select 
-                    value={bodyType}
-                    onChange={(e) => setBodyType(e.target.value)}
-                    className="w-full bg-black/40 pixel-border border-[#5a2d9c] p-2 text-white outline-none appearance-none cursor-pointer"
-                    style={{ fontSize: zhScale(10) }}
-                  >
-                    {BODY_TYPES.map(type => (
-                      <option key={type.id} value={type.id}>{isZh ? type.zh : type.en}</option>
-                    ))}
-                  </select>
-                </div>
-              </div>
-
               {/* Dominant Colors */}
               <div className="space-y-3">
                 <div className="flex items-center gap-2">
@@ -428,10 +354,10 @@ const CharacterPage: React.FC<CharacterPageProps> = ({
                       <div key={i} className="relative w-10 h-10 pixel-border border-2 border-[#5a2d9c] bg-black/40 overflow-hidden">
                         <div className="absolute inset-0" style={{ backgroundColor: color }}></div>
                         <input
-                          type="color"
-                          value={color}
-                          onChange={(e) => handleColorChange(i, e.target.value)}
-                          className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+                           type="color"
+                           value={color}
+                           onChange={(e) => handleColorChange(i, e.target.value)}
+                           className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
                         />
                       </div>
                     ))}
@@ -487,4 +413,4 @@ const CharacterPage: React.FC<CharacterPageProps> = ({
   );
 };
 
-export default CharacterPage;
+export default ItemPage;
