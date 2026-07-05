@@ -459,7 +459,7 @@ const HistoryPage: React.FC<HistoryPageProps> = ({
                               <PixelButton variant="primary" onClick={() => onJobSelected(selectedJob, currentPage)} disabled={selectedJob.status === 'failed'} style={{ fontSize: zhScale(10) }}>
                                 {isZh ? '预览' : 'View In Player'}
                               </PixelButton>
-                              {selectedJob.job_type === 'character' && selectedJob.status === 'succeeded' && (
+                              {(selectedJob.job_type === 'character' || selectedJob.job_type === 'item') && selectedJob.status === 'succeeded' && (
                                 <PixelButton 
                                   variant="primary" 
                                   onClick={() => onRegenerate({ ...selectedJob, action: 'animate' })} 

@@ -255,8 +255,8 @@ const GenerationPage: React.FC<GenerationPageProps> = ({
     const loadInitial = async () => {
       if (!initialParams) return;
       
-      // Handle 'animate' action from character job
-      if (initialParams.action === 'animate' && initialParams.job_type === 'character') {
+      // Handle 'animate' action from character/item job
+      if (initialParams.action === 'animate' && (initialParams.job_type === 'character' || initialParams.job_type === 'item')) {
         const job = initialParams;
         const jobParams = job.input_params;
         const outputImgs = job.output_images || [];
