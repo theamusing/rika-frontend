@@ -8,6 +8,7 @@ import { GenerationParams, MotionType, PixelSize } from '../types.ts';
 import { extractCentroids, RGB } from '../utils/editorUtils.ts';
 import { HelpCircle } from 'lucide-react';
 import { HexColorPicker } from 'react-colorful';
+import { getSpriteFromCache } from '../utils/dbUtils.ts';
 
 interface GenerationPageProps {
   onJobCreated: (id: string) => void;
@@ -284,8 +285,18 @@ const GenerationPage: React.FC<GenerationPageProps> = ({
           quantization_colors: 32
         });
         
-        if (outputImgs.length > 0) {
-          setSourceFiles([outputImgs[0].url, null, null]);
+        let initialImageUrl = outputImgs.length > 0 ? outputImgs[0].url : null;
+        try {
+          const cached = await getSpriteFromCache(job.gen_id);
+          if (cached && cached.spriteSheet) {
+            initialImageUrl = cached.spriteSheet;
+          }
+        } catch (err) {
+          console.error("Failed to fetch cached sprite for animation", err);
+        }
+
+        if (initialImageUrl) {
+          setSourceFiles([initialImageUrl, null, null]);
           setFlipStates([false, false, false]);
         }
         onConsumed?.();

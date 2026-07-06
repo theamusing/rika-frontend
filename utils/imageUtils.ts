@@ -164,6 +164,15 @@ export const processImage = async (
         }
         tempCtx.drawImage(img, 0, 0);
 
+        const imgData = tempCtx.getImageData(0, 0, img.width, img.height);
+        let hasTransparency = false;
+        for (let i = 3; i < imgData.data.length; i += 4) {
+          if (imgData.data[i] < 255) {
+            hasTransparency = true;
+            break;
+          }
+        }
+
         const cornerData = [
           tempCtx.getImageData(0, 0, 1, 1).data,
           tempCtx.getImageData(img.width - 1, 0, 1, 1).data,
@@ -171,7 +180,6 @@ export const processImage = async (
           tempCtx.getImageData(img.width - 1, img.height - 1, 1, 1).data
         ];
 
-        const hasTransparency = cornerData.some(pixel => pixel[3] < 255);
         let bgColor: string;
         let bgRGB: RGB;
 
