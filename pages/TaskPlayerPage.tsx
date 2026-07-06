@@ -89,6 +89,7 @@ const TaskPlayerPage: React.FC<TaskPlayerPageProps> = ({
   const [showRemovalPicker, setShowRemovalPicker] = useState(false);
   const [wandMode, setWandMode] = useState<WandMode>('select');
   const [menuOpenFor, setMenuOpenFor] = useState<Tool | null>(null);
+  const [hasUnsavedEdits, setHasUnsavedEdits] = useState(false);
 
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const overlayRef = useRef<HTMLCanvasElement>(null);
@@ -171,6 +172,7 @@ const TaskPlayerPage: React.FC<TaskPlayerPageProps> = ({
     setUndoStack(prev => [...prev.slice(-31), frames]);
     setRedoStack([]);
     setFrames([...newFrames]);
+    setHasUnsavedEdits(true);
   };
 
   const nudgeFrame = useCallback((dx: number, dy: number) => {
@@ -222,6 +224,7 @@ const TaskPlayerPage: React.FC<TaskPlayerPageProps> = ({
     setRedoStack(prevRedo => [...prevRedo, frames]);
     setUndoStack(prevUndo => prevUndo.slice(0, -1));
     setFrames([...prev]);
+    setHasUnsavedEdits(true);
   }, [undoStack, frames, isJobRunning]);
 
   const handleRedo = useCallback(() => {
@@ -231,6 +234,7 @@ const TaskPlayerPage: React.FC<TaskPlayerPageProps> = ({
     setUndoStack(prevUndo => [...prevUndo, frames]);
     setRedoStack(prevRedo => prevRedo.slice(0, -1));
     setFrames([...next]);
+    setHasUnsavedEdits(true);
   }, [redoStack, frames, isJobRunning]);
 
   const handleSaveToCache = useCallback(async () => {
@@ -247,6 +251,7 @@ const TaskPlayerPage: React.FC<TaskPlayerPageProps> = ({
         }
       };
       await saveSpriteToCache(cacheData);
+      setHasUnsavedEdits(false);
     } catch (err) { console.error("Cache fail", err); }
   }, [selectedJobId, frames, isJobRunning]);
 
@@ -342,6 +347,7 @@ const TaskPlayerPage: React.FC<TaskPlayerPageProps> = ({
           setFrames(mappedFrames);
           setInitialFrames(mappedFrames);
           setUndoStack([]); setRedoStack([]); setPan({ x: 0, y: 0 }); setSelection(new Set());
+          setHasUnsavedEdits(false);
           return;
         }
       }
@@ -358,6 +364,7 @@ const TaskPlayerPage: React.FC<TaskPlayerPageProps> = ({
           if (isMounted.current) {
             const frame: FrameData = { id: `f-${Date.now()}-0`, url: processed, isOriginal: true };
             setFrames([frame]); setInitialFrames([frame]); setUndoStack([]); setRedoStack([]); setPan({ x: 0, y: 0 }); setSelection(new Set());
+            setHasUnsavedEdits(false);
           }
         } else {
           const sliced = await sliceSpriteSheet(outputUrl, undefined, apiLength);
@@ -368,6 +375,7 @@ const TaskPlayerPage: React.FC<TaskPlayerPageProps> = ({
               isOriginal: true
             }));
             setFrames(mappedFrames); setInitialFrames(mappedFrames); setUndoStack([]); setRedoStack([]); setPan({ x: 0, y: 0 }); setSelection(new Set());
+            setHasUnsavedEdits(false);
           }
         }
       } catch (err) {}
@@ -388,11 +396,13 @@ const TaskPlayerPage: React.FC<TaskPlayerPageProps> = ({
           if (isMounted.current) { 
             const firstFrame: FrameData = { id: `f-${Date.now()}-0`, url: processedUrl, isOriginal: true, isExcluded: false };
             setFrames([firstFrame]); setInitialFrames([firstFrame]); setCurrentFrameIndex(0); 
+            setHasUnsavedEdits(false);
           }
         } catch (e) {
           if (isMounted.current) {
             const firstFrame: FrameData = { id: `f-${Date.now()}-0`, url: job.input_images[0].url, isOriginal: true, isExcluded: false };
             setFrames([firstFrame]); setInitialFrames([firstFrame]); setCurrentFrameIndex(0);
+            setHasUnsavedEdits(false);
           }
         }
       }
@@ -434,6 +444,7 @@ const TaskPlayerPage: React.FC<TaskPlayerPageProps> = ({
       setIsCustomMode(false);
       setUndoStack([]);
       setRedoStack([]);
+      setHasUnsavedEdits(false);
     }
     return () => { isMounted.current = false; };
   }, [selectedJobId, updateFramesFromJob]);
@@ -886,6 +897,7 @@ const TaskPlayerPage: React.FC<TaskPlayerPageProps> = ({
         setRedoStack([]);
         setPan({ x: 0, y: 0 });
         setSelection(new Set());
+        setHasUnsavedEdits(false);
         // If there was a selected job, clear it in parent
         if (selectedJobId) {
           onJobSelected(""); // Passing empty string to indicate clearing
@@ -977,9 +989,23 @@ const TaskPlayerPage: React.FC<TaskPlayerPageProps> = ({
           >
             {isZh ? "上传" : "UPLOAD"}
           </PixelButton>
-          <div className="flex items-center gap-2">
-            <div className={`w-3 h-3 rounded-full ${isJobRunning ? 'bg-yellow-500' : 'bg-green-500'} animate-pulse`} />
-            <span>{isJobRunning ? 'RENDERING' : 'ACTIVE'}</span>
+          <div 
+            className={`flex items-center gap-2 select-none ${hasUnsavedEdits && !isJobRunning ? 'cursor-pointer hover:opacity-80' : ''}`}
+            onClick={() => { if (hasUnsavedEdits && !isJobRunning) handleSaveToCache(); }}
+            title={hasUnsavedEdits && !isJobRunning ? (isZh ? "点击保存当前编辑" : "Click to save edits") : ""}
+          >
+            <div className={`w-3 h-3 rounded-full ${
+              isJobRunning ? 'bg-yellow-500 animate-pulse' : 
+              hasUnsavedEdits ? 'bg-red-500 animate-pulse' : 'bg-green-500'
+            }`} />
+            <span className={
+              isJobRunning ? 'text-yellow-500' : 
+              hasUnsavedEdits ? 'text-red-500' : 'text-green-500'
+            }>
+              {isJobRunning ? (isZh ? '正在渲染' : 'RENDERING') : 
+               hasUnsavedEdits ? (isZh ? '未保存的编辑' : 'UNSAVED EDITS') : 
+               (isZh ? '已保存' : 'SAVED')}
+            </span>
           </div>
         </div>
       </div>
