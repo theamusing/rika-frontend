@@ -4,6 +4,7 @@ import { apiService } from '../services/apiService.ts';
 import { Job } from '../types.ts';
 import { PixelButton, PixelCard, PixelImage } from '../components/PixelComponents.tsx';
 import { Heart, Trash2, AlertTriangle } from 'lucide-react';
+import { getSpriteFromCache } from '../utils/dbUtils.ts';
 
 interface HistoryPageProps {
   onJobSelected: (job: Job, page?: number) => void;
@@ -41,6 +42,7 @@ const HistoryPage: React.FC<HistoryPageProps> = ({
   });
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
+  const [cachedSprites, setCachedSprites] = useState<Record<string, string>>({});
   
   const lastRefreshTime = useRef<number>(0);
   const isMounted = useRef(true);
@@ -118,6 +120,30 @@ const HistoryPage: React.FC<HistoryPageProps> = ({
       clearInterval(autoRefreshInterval);
     };
   }, [fetchHistory, currentPage, showLikedOnly, jobType]);
+
+  useEffect(() => {
+    const loadCachedSprites = async () => {
+      const cacheMap: Record<string, string> = {};
+      for (const job of jobs) {
+        try {
+          const cached = await getSpriteFromCache(job.gen_id);
+          if (cached && cached.spriteSheet) {
+            cacheMap[job.gen_id] = cached.spriteSheet;
+          }
+        } catch (err) {
+          console.error("Failed to check cache for job", job.gen_id, err);
+        }
+      }
+      if (isMounted.current) {
+        setCachedSprites(cacheMap);
+      }
+    };
+    if (jobs.length > 0) {
+      loadCachedSprites();
+    } else {
+      setCachedSprites({});
+    }
+  }, [jobs]);
 
   const handleManualRefresh = () => {
     const now = Date.now();
@@ -274,7 +300,9 @@ const HistoryPage: React.FC<HistoryPageProps> = ({
 
             return jobs.map((job) => (
               <PixelCard key={job.gen_id} className="group hover:bg-[#5a2d9c]/20 transition-all cursor-pointer" onClick={() => setSelectedJob(job)}>
-                  <div className="aspect-square bg-black/40 mb-4 overflow-hidden pixel-border border-2 border-[#5a2d9c] group-hover:border-white/40 relative">
+                  <div className={`aspect-square mb-4 overflow-hidden pixel-border border-2 border-[#5a2d9c] group-hover:border-white/40 relative ${
+                    (job.job_type === 'character' || job.job_type === 'item') ? 'bg-[#2a2a2a]' : 'bg-black/40'
+                  }`}>
                       <div 
                         className="absolute top-1 left-1 z-30 p-1 cursor-pointer transition-transform hover:scale-110 active:scale-95"
                         onClick={(e) => toggleLike(e, job)}
@@ -290,11 +318,13 @@ const HistoryPage: React.FC<HistoryPageProps> = ({
                               {job.job_type === 'character' ? 'CHARACTER' : (job.job_type === 'item' ? 'ITEM' : job.input_params.motion_type)}
                           </div>
                       )}
-                      {(job.input_images?.[0] || job.output_images?.[0]) && (
+                      {(job.input_images?.[0] || job.output_images?.[0] || cachedSprites[job.gen_id]) && (
                           <PixelImage 
-                            src={(job.job_type === 'character' || job.job_type === 'item') 
-                              ? (job.output_images?.[0]?.url || job.input_images?.[0]?.url)
-                              : (job.input_images?.[0]?.url || job.output_images?.[0]?.url)
+                            src={((job.job_type === 'character' || job.job_type === 'item') && cachedSprites[job.gen_id])
+                              ? cachedSprites[job.gen_id]
+                              : ((job.job_type === 'character' || job.job_type === 'item') 
+                                ? (job.output_images?.[0]?.url || job.input_images?.[0]?.url)
+                                : (job.input_images?.[0]?.url || job.output_images?.[0]?.url))
                             } 
                             className="w-full h-full object-cover" 
                             style={{ imageRendering: 'pixelated' }} 
@@ -399,7 +429,9 @@ const HistoryPage: React.FC<HistoryPageProps> = ({
                               </p>
                               <div className="grid grid-cols-3 gap-2">
                                   {selectedJob.input_images?.map((img, i) => (
-                                      <div key={i} className="aspect-square bg-black/40 pixel-border border-[#5a2d9c]">
+                                      <div key={i} className={`aspect-square pixel-border border-[#5a2d9c] ${
+                                        (selectedJob.job_type === 'character' || selectedJob.job_type === 'item') ? 'bg-[#2a2a2a]' : 'bg-black/40'
+                                      }`}>
                                           <PixelImage 
                                             src={img.url} 
                                             className="w-full h-full object-contain" 
@@ -415,7 +447,9 @@ const HistoryPage: React.FC<HistoryPageProps> = ({
                                   <p className={`opacity-50 uppercase mb-2`} style={{ fontSize: zhScale(8) }}>
                                     {isZh ? '生成结果' : 'Generated Output'}
                                   </p>
-                                  <div className="aspect-square bg-black/40 pixel-border border-[#5a2d9c] relative">
+                                  <div className={`aspect-square pixel-border border-[#5a2d9c] relative ${
+                                    (selectedJob.job_type === 'character' || selectedJob.job_type === 'item') ? 'bg-[#2a2a2a]' : 'bg-black/40'
+                                  }`}>
                                       <div 
                                         className="absolute top-2 left-2 z-30 p-2 cursor-pointer transition-transform hover:scale-110 active:scale-95 bg-black/20 rounded-full"
                                         onClick={(e) => toggleLike(e, selectedJob)}
@@ -427,7 +461,10 @@ const HistoryPage: React.FC<HistoryPageProps> = ({
                                         />
                                       </div>
                                       <PixelImage 
-                                        src={selectedJob.output_images[0].url} 
+                                        src={((selectedJob.job_type === 'character' || selectedJob.job_type === 'item') && cachedSprites[selectedJob.gen_id])
+                                          ? cachedSprites[selectedJob.gen_id]
+                                          : selectedJob.output_images[0].url
+                                        } 
                                         className="w-full h-full object-contain" 
                                         style={{ imageRendering: 'pixelated' }} 
                                         alt="Output" 
