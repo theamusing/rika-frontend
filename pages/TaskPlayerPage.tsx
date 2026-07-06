@@ -6,11 +6,12 @@ import { PixelButton, PixelCard, PixelModal, PixelInput } from '../components/Pi
 import { sliceSpriteSheet, reconstructSpriteSheet, processImage, fetchAsDataUrl, sliceCustomSpriteSheet, scaleToSize } from '../utils/imageUtils.ts';
 import { floodFill, RGB, colorDistance, colorMatchRemoval, simplifyColors } from '../utils/editorUtils.ts';
 import { saveSpriteToCache, getSpriteFromCache, CachedSprite } from '../utils/dbUtils.ts';
-import { Heart, ArrowLeft, Move } from 'lucide-react';
+import { Heart, ArrowLeft, Move, Pipette } from 'lucide-react';
 // @ts-ignore
 import gifshot from 'gifshot';
+import { HexColorPicker } from 'react-colorful';
 
-type Tool = 'brush' | 'eraser' | 'move' | 'wand' | 'nudge';
+type Tool = 'brush' | 'eraser' | 'move' | 'wand' | 'nudge' | 'picker';
 type WandMode = 'select' | 'add' | 'remove';
 
 interface TaskPlayerPageProps {
@@ -83,6 +84,9 @@ const TaskPlayerPage: React.FC<TaskPlayerPageProps> = ({
   const [deNoiseThreshold, setDeNoiseThreshold] = useState(10);
   const [useGlobalColorMatch, setUseGlobalColorMatch] = useState(false);
   const [removalBgColor, setRemovalBgColor] = useState('#000000');
+  const [colorInputKey, setColorInputKey] = useState(0);
+  const [showBrushPicker, setShowBrushPicker] = useState(false);
+  const [showRemovalPicker, setShowRemovalPicker] = useState(false);
   const [wandMode, setWandMode] = useState<WandMode>('select');
   const [menuOpenFor, setMenuOpenFor] = useState<Tool | null>(null);
 
@@ -94,7 +98,7 @@ const TaskPlayerPage: React.FC<TaskPlayerPageProps> = ({
   const lastMousePos = useRef({ x: 0, y: 0 });
 
   const isJobRunning = currentJob?.status === 'running' || currentJob?.status === 'queued';
-  const effectiveTool: Tool = isCtrlPressed ? 'move' : activeTool;
+  const effectiveTool: Tool = isCtrlPressed ? 'move' : isQPressed ? 'picker' : activeTool;
 
   const isZh = lang === 'zh';
   const zhScale = (enSize: number) => isZh ? `${enSize + 3}px` : `${enSize}px`;
@@ -264,10 +268,10 @@ const TaskPlayerPage: React.FC<TaskPlayerPageProps> = ({
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
+      if (document.activeElement?.tagName === 'INPUT' || document.activeElement?.tagName === 'TEXTAREA') return;
       const key = e.key.toLowerCase();
       if (e.key === 'Control' || e.key === 'Meta') setIsCtrlPressed(true);
       if (key === 'q') setIsQPressed(true);
-      if (document.activeElement?.tagName === 'INPUT' || document.activeElement?.tagName === 'TEXTAREA') return;
       if (e.ctrlKey || e.metaKey) {
         if (key === 'z') { e.preventDefault(); handleUndo(); }
         else if (key === 'y') { e.preventDefault(); handleRedo(); }
@@ -292,7 +296,7 @@ const TaskPlayerPage: React.FC<TaskPlayerPageProps> = ({
       window.removeEventListener('keydown', handleKeyDown);
       window.removeEventListener('keyup', handleKeyUp);
     };
-  }, [deleteSelection, handleUndo, handleRedo, handleSaveToCache]);
+  }, [deleteSelection, handleUndo, handleRedo, handleSaveToCache, activeTool]);
 
   useEffect(() => {
     const interval = setInterval(() => { if (!isJobRunning && frames.length > 0) handleSaveToCache(); }, 10000);
@@ -464,8 +468,8 @@ const TaskPlayerPage: React.FC<TaskPlayerPageProps> = ({
     }
     if (hoverPixel && !isJobRunning) {
       const defaultColor = isLightBg ? 'rgba(0, 0, 0, 0.3)' : 'rgba(255, 255, 255, 0.4)';
-      ctx.fillStyle = isQPressed ? 'rgba(0, 255, 255, 0.4)' : defaultColor;
-      const size = isQPressed ? 1 : (effectiveTool === 'brush' ? brushSize : effectiveTool === 'eraser' ? eraserSize : 1);
+      ctx.fillStyle = (isQPressed || effectiveTool === 'picker') ? 'rgba(0, 255, 255, 0.4)' : defaultColor;
+      const size = (isQPressed || effectiveTool === 'picker') ? 1 : (effectiveTool === 'brush' ? brushSize : effectiveTool === 'eraser' ? eraserSize : 1);
       const offset = Math.floor((size - 1) / 2); ctx.fillRect(hoverPixel.x - offset, hoverPixel.y - offset, size, size);
     }
   }, [selection, hoverPixel, brushSize, eraserSize, effectiveTool, isJobRunning, frames, isQPressed, isLightBg]);
@@ -500,7 +504,16 @@ const TaskPlayerPage: React.FC<TaskPlayerPageProps> = ({
       }
       return;
     }
-    if (isDrawing && !isQPressed) applyToolAtCoords(x, y);
+    if (isDrawing) {
+      if (effectiveTool === 'picker') {
+        const canvas = canvasRef.current; if (canvas) {
+          const ctx = canvas.getContext('2d')!; const pixelData = ctx.getImageData(x, y, 1, 1).data;
+          if (pixelData[3] > 0) { const hex = "#" + ((1 << 24) + (pixelData[0] << 16) + (pixelData[1] << 8) + pixelData[2]).toString(16).slice(1); setBrushColor(hex); }
+        }
+      } else {
+        applyToolAtCoords(x, y);
+      }
+    }
   };
 
   const handleWandSelection = (startX: number, startY: number) => {
@@ -524,11 +537,12 @@ const TaskPlayerPage: React.FC<TaskPlayerPageProps> = ({
   const handleMouseDown = (e: React.MouseEvent) => {
     if (isJobRunning) return; setIsPlaying(false); lastMousePos.current = { x: e.clientX, y: e.clientY };
     const { x, y } = getEventCoords(e);
-    if (isQPressed) {
+    if (isQPressed || effectiveTool === 'picker') {
       const canvas = canvasRef.current; if (canvas) {
         const ctx = canvas.getContext('2d')!; const pixelData = ctx.getImageData(x, y, 1, 1).data;
         if (pixelData[3] > 0) { const hex = "#" + ((1 << 24) + (pixelData[0] << 16) + (pixelData[1] << 8) + pixelData[2]).toString(16).slice(1); setBrushColor(hex); }
       }
+      if (effectiveTool === 'picker') setIsDrawing(true);
       return;
     }
     if (effectiveTool === 'move') setIsPanning(true); else if (effectiveTool === 'wand') handleWandSelection(x, y); else { setIsDrawing(true); applyToolAtCoords(x, y); }
@@ -536,7 +550,7 @@ const TaskPlayerPage: React.FC<TaskPlayerPageProps> = ({
 
   const handleMouseUp = () => {
     if (isJobRunning) return; if (isDrawing) {
-      const canvas = canvasRef.current; if (canvas) { 
+      const canvas = canvasRef.current; if (canvas && effectiveTool !== 'picker') { 
         const newFrames = [...frames]; 
         newFrames[currentFrameIndex] = { ...newFrames[currentFrameIndex], url: canvas.toDataURL() }; 
         pushToHistory(newFrames); 
@@ -767,6 +781,7 @@ const TaskPlayerPage: React.FC<TaskPlayerPageProps> = ({
         case 'wand': return '魔棒';
         case 'nudge': return '微移';
         case 'move': return '移动';
+        case 'picker': return '吸色';
         default: return id;
       }
     };
@@ -781,7 +796,7 @@ const TaskPlayerPage: React.FC<TaskPlayerPageProps> = ({
           {typeof content === 'string' ? (
              <span className="text-lg leading-none">{content}</span>
           ) : (
-            <div className={`w-6 h-6 flex items-center justify-center shrink-0 ${(!isActive && id !== 'nudge') ? 'invert' : ''}`}>
+            <div className={`w-6 h-6 flex items-center justify-center shrink-0 ${(!isActive && (id === 'brush' || id === 'eraser' || id === 'wand' || id === 'move')) ? 'invert' : ''} ${isActive ? 'text-[#2d1b4e]' : 'text-white'}`}>
               {content}
             </div>
           )}
@@ -976,19 +991,30 @@ const TaskPlayerPage: React.FC<TaskPlayerPageProps> = ({
            {renderToolButton("wand", <img src={`${ICON_BASE}wand.png`} style={{ imageRendering: 'auto' }} className="w-full h-full object-contain" alt="Wand" />, true)}
            {renderToolButton("nudge", <Move size={20} />)}
            {renderToolButton("move", <img src={`${ICON_BASE}drag.png`} style={{ imageRendering: 'auto' }} className="w-full h-full object-contain" alt="Drag" />)}
+           {renderToolButton("picker", <Pipette size={20} />)}
            <div className="mt-4 border-t-2 border-[#5a2d9c] pt-4 flex flex-col items-center gap-4 w-full">
               <div 
-                className="relative w-10 h-10 pixel-border border-2 border-[#5a2d9c] bg-black/40 overflow-hidden shrink-0" 
-                title={isZh ? "Q + 点击取色" : "Q + click to pick color"}
+                className="relative w-10 h-10 pixel-border border-2 border-[#5a2d9c] bg-black/40 overflow-hidden shrink-0 cursor-pointer" 
+                title={isZh ? "选择颜色" : "Choose Color"}
+                onClick={() => { setShowBrushPicker(!showBrushPicker); setIsPlaying(false); }}
               >
                 <div className="absolute inset-0" style={{ backgroundColor: brushColor }}></div>
-                <input 
-                  type="color" 
-                  value={brushColor} 
-                  onChange={(e) => { setBrushColor(e.target.value); setIsPlaying(false); }} 
-                  className="absolute inset-0 w-full h-full opacity-0 cursor-pointer" 
-                />
               </div>
+
+              {showBrushPicker && (
+                <>
+                  <div className="fixed inset-0 z-40" onClick={() => setShowBrushPicker(false)} />
+                  <div className="absolute left-14 bottom-0 z-50 bg-[#1e1e1e] border-2 border-[#5a2d9c] p-2 pixel-border flex flex-col gap-2 w-52 shadow-2xl">
+                    <HexColorPicker color={brushColor} onChange={(color) => { setBrushColor(color); setIsPlaying(false); }} />
+                    <div className="flex justify-between items-center text-xs font-mono text-white/80">
+                      <span>{brushColor.toUpperCase()}</span>
+                      <button className="text-[#a47cfd] font-bold px-1 hover:text-white" onClick={() => setShowBrushPicker(false)}>
+                        {isZh ? '关闭' : 'CLOSE'}
+                      </button>
+                    </div>
+                  </div>
+                </>
+              )}
               <button 
                 onClick={() => { setIsLightBg(!isLightBg); setIsPlaying(false); }} 
                 className={`w-10 h-10 flex items-center justify-center pixel-border border-2 transition-all shrink-0 ${isLightBg ? 'bg-[#f5f5dc] border-black' : 'bg-black text-white border-white'}`}
@@ -1174,17 +1200,29 @@ const TaskPlayerPage: React.FC<TaskPlayerPageProps> = ({
                    </div>
                    
                    {useGlobalColorMatch && (
-                     <div className="flex items-center gap-2 p-1 bg-black/40 border border-white/10">
+                     <div className="flex items-center gap-2 p-1 bg-black/40 border border-white/10 relative">
                        <span className="text-[9px] text-white/40 uppercase">BG:</span>
-                       <div className="flex-1 h-5 relative pixel-border border border-white/20" style={{ backgroundColor: removalBgColor }}>
-                          <input 
-                            type="color" 
-                            value={removalBgColor} 
-                            onChange={e => setRemovalBgColor(e.target.value)}
-                            className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
-                          />
-                       </div>
+                       <div 
+                         className="flex-1 h-5 relative pixel-border border border-white/20 cursor-pointer" 
+                         style={{ backgroundColor: removalBgColor }}
+                         onClick={() => setShowRemovalPicker(!showRemovalPicker)}
+                       />
                        <span className="text-[8px] font-mono text-white/60 uppercase">{removalBgColor}</span>
+
+                       {showRemovalPicker && (
+                         <>
+                           <div className="fixed inset-0 z-40" onClick={() => setShowRemovalPicker(false)} />
+                           <div className="absolute right-0 bottom-6 z-50 bg-[#1e1e1e] border-2 border-[#5a2d9c] p-2 pixel-border flex flex-col gap-2 w-52 shadow-2xl">
+                             <HexColorPicker color={removalBgColor} onChange={setRemovalBgColor} />
+                             <div className="flex justify-between items-center text-xs font-mono text-white/80">
+                               <span>{removalBgColor.toUpperCase()}</span>
+                               <button className="text-[#a47cfd] font-bold px-1 hover:text-white" onClick={() => setShowRemovalPicker(false)}>
+                                 {isZh ? '关闭' : 'CLOSE'}
+                               </button>
+                             </div>
+                           </div>
+                         </>
+                       )}
                      </div>
                    )}
                  </div>

@@ -4,6 +4,7 @@ import { PixelButton, PixelCard, PixelInput, PixelImage } from '../components/Pi
 import { apiService } from '../services/apiService.ts';
 import { processCharacterImage } from '../utils/imageUtils.ts';
 import { Plus, Shuffle, Loader2, X, HelpCircle } from 'lucide-react';
+import { HexColorPicker } from 'react-colorful';
 
 interface CharacterPageProps {
   onJobCreated: (id: string) => void;
@@ -118,6 +119,8 @@ const CharacterPage: React.FC<CharacterPageProps> = ({
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [exampleIndex, setExampleIndex] = useState(0);
+  const [colorInputKey, setColorInputKey] = useState(0);
+  const [activeColorIndex, setActiveColorIndex] = useState<number | null>(null);
 
   const [template, setTemplate] = useState({
     race: '',
@@ -195,6 +198,7 @@ const CharacterPage: React.FC<CharacterPageProps> = ({
     const newColors = [...domainColors];
     newColors[index] = color;
     setDomainColors(newColors);
+    setColorInputKey(prev => prev + 1);
   };
 
   const applyPalette = (colors: string[]) => {
@@ -423,18 +427,27 @@ const CharacterPage: React.FC<CharacterPageProps> = ({
                 </div>
                 
                 <div className={`space-y-4 transition-opacity ${useDomainColor ? 'opacity-100' : 'opacity-30 pointer-events-none'}`}>
-                  <div className="flex gap-2">
+                  <div className="flex gap-2 relative">
                     {domainColors.map((color, i) => (
-                      <div key={i} className="relative w-10 h-10 pixel-border border-2 border-[#5a2d9c] bg-black/40 overflow-hidden">
+                      <div key={i} className="relative w-10 h-10 pixel-border border-2 border-[#5a2d9c] bg-black/40 overflow-hidden cursor-pointer" onClick={() => setActiveColorIndex(i)}>
                         <div className="absolute inset-0" style={{ backgroundColor: color }}></div>
-                        <input
-                          type="color"
-                          value={color}
-                          onChange={(e) => handleColorChange(i, e.target.value)}
-                          className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
-                        />
                       </div>
                     ))}
+
+                    {activeColorIndex !== null && (
+                      <>
+                        <div className="fixed inset-0 z-40" onClick={() => setActiveColorIndex(null)} />
+                        <div className="absolute left-0 top-12 z-50 bg-[#1e1e1e] border-2 border-[#5a2d9c] p-2 pixel-border flex flex-col gap-2 w-52 shadow-2xl">
+                          <HexColorPicker color={domainColors[activeColorIndex]} onChange={(color) => handleColorChange(activeColorIndex, color)} />
+                          <div className="flex justify-between items-center text-xs font-mono text-white/80">
+                            <span>{domainColors[activeColorIndex].toUpperCase()}</span>
+                            <button className="text-[#a47cfd] font-bold px-1 hover:text-white" onClick={() => setActiveColorIndex(null)}>
+                              {isZh ? '关闭' : 'CLOSE'}
+                            </button>
+                          </div>
+                        </div>
+                      </>
+                    )}
                   </div>
                   
                   <div className="relative">

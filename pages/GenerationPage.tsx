@@ -7,6 +7,7 @@ import { MOTION_TYPES, PIXEL_SIZES } from '../constants.ts';
 import { GenerationParams, MotionType, PixelSize } from '../types.ts';
 import { extractCentroids, RGB } from '../utils/editorUtils.ts';
 import { HelpCircle } from 'lucide-react';
+import { HexColorPicker } from 'react-colorful';
 
 interface GenerationPageProps {
   onJobCreated: (id: string) => void;
@@ -58,6 +59,8 @@ const GenerationPage: React.FC<GenerationPageProps> = ({
   const [showPaddingGrid, setShowPaddingGrid] = useState(false);
   const [showCreditModal, setShowCreditModal] = useState(false);
   const [forcedScaleFactor, setForcedScaleFactor] = useState<number | null>(null);
+  const [colorInputKey, setColorInputKey] = useState(0);
+  const [showBgColorPicker, setShowBgColorPicker] = useState(false);
 
   const [uiLength, setUiLength] = useState(12);
   const [paletteSource, setPaletteSource] = useState<ImageData | null>(null);
@@ -732,18 +735,34 @@ const GenerationPage: React.FC<GenerationPageProps> = ({
                         {PIXEL_SIZES.map(s => <option key={s} value={s}>{s}x{s}</option>)}
                     </select>
                 </div>
-                <div className="space-y-2">
+                <div className="space-y-2 relative">
                     <label className="text-[10px] block text-white/60 uppercase" style={{ fontSize: zhScale(10) }}>
                       {isZh ? "背景颜色" : "BG COLOR"}
                     </label>
                     <div className="flex gap-2">
-                      <input 
-                        type="color" 
-                        className="w-full h-9 bg-[#0d0221] border-2 border-[#5a2d9c] cursor-pointer" 
-                        value={params.bg_color || '#004000'} 
-                        onChange={(e) => setParams({...params, bg_color: e.target.value})} 
-                      />
+                      <div 
+                        className="w-full h-9 bg-[#0d0221] border-2 border-[#5a2d9c] cursor-pointer relative flex items-center px-3"
+                        onClick={() => setShowBgColorPicker(!showBgColorPicker)}
+                      >
+                        <div className="w-5 h-5 pixel-border border border-white/20" style={{ backgroundColor: params.bg_color || '#004000' }} />
+                        <span className="ml-3 font-mono text-xs text-white/90 uppercase">{params.bg_color || '#004000'}</span>
+                      </div>
                     </div>
+
+                    {showBgColorPicker && (
+                      <>
+                        <div className="fixed inset-0 z-40" onClick={() => setShowBgColorPicker(false)} />
+                        <div className="absolute right-0 bottom-12 z-50 bg-[#1e1e1e] border-2 border-[#5a2d9c] p-2 pixel-border flex flex-col gap-2 w-52 shadow-2xl">
+                          <HexColorPicker color={params.bg_color || '#004000'} onChange={(color) => setParams({...params, bg_color: color})} />
+                          <div className="flex justify-between items-center text-xs font-mono text-white/80">
+                            <span>{(params.bg_color || '#004000').toUpperCase()}</span>
+                            <button className="text-[#a47cfd] font-bold px-1 hover:text-white" onClick={() => setShowBgColorPicker(false)}>
+                              {isZh ? '关闭' : 'CLOSE'}
+                            </button>
+                          </div>
+                        </div>
+                      </>
+                    )}
                 </div>
                 <div className="space-y-2">
                     <label className="text-[10px] block text-white/60 uppercase" style={{ fontSize: zhScale(10) }}>
