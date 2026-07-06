@@ -84,6 +84,7 @@ const TaskPlayerPage: React.FC<TaskPlayerPageProps> = ({
   const [deNoiseThreshold, setDeNoiseThreshold] = useState(10);
   const [useGlobalColorMatch, setUseGlobalColorMatch] = useState(false);
   const [removalBgColor, setRemovalBgColor] = useState('#000000');
+  const [isPickingRemovalColor, setIsPickingRemovalColor] = useState(false);
   const [colorInputKey, setColorInputKey] = useState(0);
   const [showBrushPicker, setShowBrushPicker] = useState(false);
   const [showRemovalPicker, setShowRemovalPicker] = useState(false);
@@ -99,7 +100,7 @@ const TaskPlayerPage: React.FC<TaskPlayerPageProps> = ({
   const lastMousePos = useRef({ x: 0, y: 0 });
 
   const isJobRunning = currentJob?.status === 'running' || currentJob?.status === 'queued';
-  const effectiveTool: Tool = isCtrlPressed ? 'move' : isQPressed ? 'picker' : activeTool;
+  const effectiveTool: Tool = isPickingRemovalColor ? 'picker' : (isCtrlPressed ? 'move' : isQPressed ? 'picker' : activeTool);
 
   const isZh = lang === 'zh';
   const zhScale = (enSize: number) => isZh ? `${enSize + 3}px` : `${enSize}px`;
@@ -283,7 +284,7 @@ const TaskPlayerPage: React.FC<TaskPlayerPageProps> = ({
         else if (key === 's') { e.preventDefault(); handleSaveToCache(); }
       }
       if (e.key === 'Delete' || e.key === 'Backspace') { e.preventDefault(); deleteSelection(); }
-      else if (e.key === 'Escape') { setSelection(new Set()); }
+      else if (e.key === 'Escape') { setSelection(new Set()); setIsPickingRemovalColor(false); }
       else if (activeTool === 'nudge') {
         if (e.key === 'ArrowUp') { e.preventDefault(); nudgeFrame(0, -1); }
         else if (e.key === 'ArrowDown') { e.preventDefault(); nudgeFrame(0, 1); }
@@ -519,7 +520,14 @@ const TaskPlayerPage: React.FC<TaskPlayerPageProps> = ({
       if (effectiveTool === 'picker') {
         const canvas = canvasRef.current; if (canvas) {
           const ctx = canvas.getContext('2d')!; const pixelData = ctx.getImageData(x, y, 1, 1).data;
-          if (pixelData[3] > 0) { const hex = "#" + ((1 << 24) + (pixelData[0] << 16) + (pixelData[1] << 8) + pixelData[2]).toString(16).slice(1); setBrushColor(hex); }
+          if (pixelData[3] > 0) {
+            const hex = "#" + ((1 << 24) + (pixelData[0] << 16) + (pixelData[1] << 8) + pixelData[2]).toString(16).slice(1);
+            if (isPickingRemovalColor) {
+              setRemovalBgColor(hex);
+            } else {
+              setBrushColor(hex);
+            }
+          }
         }
       } else {
         applyToolAtCoords(x, y);
@@ -551,7 +559,15 @@ const TaskPlayerPage: React.FC<TaskPlayerPageProps> = ({
     if (isQPressed || effectiveTool === 'picker') {
       const canvas = canvasRef.current; if (canvas) {
         const ctx = canvas.getContext('2d')!; const pixelData = ctx.getImageData(x, y, 1, 1).data;
-        if (pixelData[3] > 0) { const hex = "#" + ((1 << 24) + (pixelData[0] << 16) + (pixelData[1] << 8) + pixelData[2]).toString(16).slice(1); setBrushColor(hex); }
+        if (pixelData[3] > 0) {
+          const hex = "#" + ((1 << 24) + (pixelData[0] << 16) + (pixelData[1] << 8) + pixelData[2]).toString(16).slice(1);
+          if (isPickingRemovalColor) {
+            setRemovalBgColor(hex);
+            setIsPickingRemovalColor(false);
+          } else {
+            setBrushColor(hex);
+          }
+        }
       }
       if (effectiveTool === 'picker') setIsDrawing(true);
       return;
@@ -560,7 +576,11 @@ const TaskPlayerPage: React.FC<TaskPlayerPageProps> = ({
   };
 
   const handleMouseUp = () => {
-    if (isJobRunning) return; if (isDrawing) {
+    if (isJobRunning) return;
+    if (isPickingRemovalColor) {
+      setIsPickingRemovalColor(false);
+    }
+    if (isDrawing) {
       const canvas = canvasRef.current; if (canvas && effectiveTool !== 'picker') { 
         const newFrames = [...frames]; 
         newFrames[currentFrameIndex] = { ...newFrames[currentFrameIndex], url: canvas.toDataURL() }; 
@@ -1064,7 +1084,7 @@ const TaskPlayerPage: React.FC<TaskPlayerPageProps> = ({
                 />
               </div>
             )}
-            <div ref={editorContainerRef} className="relative origin-center" style={{ width: '512px', height: '512px', transform: `translate(${pan.x}px, ${pan.y}px) scale(${zoom})`, imageRendering: 'pixelated', backgroundImage: isLightBg ? lightChecker : darkChecker, backgroundSize: `16px 16px` }} onMouseDown={handleMouseDown} onMouseMove={handleCanvasInteraction} onMouseUp={handleMouseUp}>
+            <div ref={editorContainerRef} className="relative origin-center" style={{ width: '512px', height: '512px', transform: `translate(${pan.x}px, ${pan.y}px) scale(${zoom})`, imageRendering: 'pixelated', backgroundImage: isLightBg ? lightChecker : darkChecker, backgroundSize: `16px 16px`, cursor: isPickingRemovalColor ? 'cell' : 'default' }} onMouseDown={handleMouseDown} onMouseMove={handleCanvasInteraction} onMouseUp={handleMouseUp}>
               {(loading || isJobRunning) && (
                 <div className="absolute inset-0 z-50 flex flex-col items-center justify-center overflow-hidden">
                   {/* Black semi-transparent mask */}
@@ -1234,12 +1254,35 @@ const TaskPlayerPage: React.FC<TaskPlayerPageProps> = ({
                          onClick={() => setShowRemovalPicker(!showRemovalPicker)}
                        />
                        <span className="text-[8px] font-mono text-white/60 uppercase">{removalBgColor}</span>
+                       <button
+                         type="button"
+                         className={`p-1 border flex items-center justify-center hover:opacity-80 active:opacity-60 transition-all ${isPickingRemovalColor ? 'bg-white text-black border-white' : 'bg-black/20 text-white/60 border-[#5a2d9c]'}`}
+                         onClick={() => {
+                           setIsPickingRemovalColor(!isPickingRemovalColor);
+                           setShowRemovalPicker(false);
+                         }}
+                         title={isZh ? '从画布提取背景颜色' : 'Pick background color from canvas'}
+                         style={{ imageRendering: 'pixelated' }}
+                       >
+                         <Pipette size={11} />
+                       </button>
 
                        {showRemovalPicker && (
                          <>
                            <div className="fixed inset-0 z-40" onClick={() => setShowRemovalPicker(false)} />
                            <div className="absolute right-0 bottom-6 z-50 bg-[#1e1e1e] border-2 border-[#5a2d9c] p-2 pixel-border flex flex-col gap-2 w-52 shadow-2xl">
                              <HexColorPicker color={removalBgColor} onChange={setRemovalBgColor} />
+                             <button 
+                               type="button"
+                               className="flex items-center justify-center gap-2 py-1.5 px-3 bg-[#5a2d9c]/20 hover:bg-[#5a2d9c]/40 active:bg-[#5a2d9c]/60 border border-[#5a2d9c]/50 text-white font-mono text-[9px] w-full pixel-border transition-all animate-none"
+                               onClick={() => {
+                                 setIsPickingRemovalColor(true);
+                                 setShowRemovalPicker(false);
+                               }}
+                             >
+                               <Pipette size={12} />
+                               <span>{isZh ? '吸取画布颜色' : 'PICK CANVAS COLOR'}</span>
+                             </button>
                              <div className="flex justify-between items-center text-xs font-mono text-white/80">
                                <span>{removalBgColor.toUpperCase()}</span>
                                <button className="text-[#a47cfd] font-bold px-1 hover:text-white" onClick={() => setShowRemovalPicker(false)}>
