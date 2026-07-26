@@ -3,7 +3,7 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { apiService } from '../services/apiService.ts';
 import { Job } from '../types.ts';
 import { PixelButton, PixelCard, PixelModal, PixelInput } from '../components/PixelComponents.tsx';
-import { sliceSpriteSheet, reconstructSpriteSheet, processImage, fetchAsDataUrl, sliceCustomSpriteSheet, scaleToSize } from '../utils/imageUtils.ts';
+import { sliceSpriteSheet, reconstructSpriteSheet, processImage, fetchAsDataUrl, sliceCustomSpriteSheet, scaleToSize, processMapImage } from '../utils/imageUtils.ts';
 import { floodFill, RGB, colorDistance, colorMatchRemoval, simplifyColors } from '../utils/editorUtils.ts';
 import { saveSpriteToCache, getSpriteFromCache, CachedSprite } from '../utils/dbUtils.ts';
 import { Heart, ArrowLeft, Move, Pipette } from 'lucide-react';
@@ -55,6 +55,7 @@ const TaskPlayerPage: React.FC<TaskPlayerPageProps> = ({
   const [loading, setLoading] = useState(false);
   const [isExporting, setIsExporting] = useState(false);
   const [isExportingGif, setIsExportingGif] = useState(false);
+  const [isExporting4x, setIsExporting4x] = useState(false);
   const [isCustomMode, setIsCustomMode] = useState(false);
   const [showUploadModal, setShowUploadModal] = useState(false);
   const [customFile, setCustomFile] = useState<File | null>(null);
@@ -91,6 +92,7 @@ const TaskPlayerPage: React.FC<TaskPlayerPageProps> = ({
   const [wandMode, setWandMode] = useState<WandMode>('select');
   const [menuOpenFor, setMenuOpenFor] = useState<Tool | null>(null);
   const [hasUnsavedEdits, setHasUnsavedEdits] = useState(false);
+  const [dimensions, setDimensions] = useState({ width: 512, height: 512 });
 
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const overlayRef = useRef<HTMLCanvasElement>(null);
@@ -100,6 +102,7 @@ const TaskPlayerPage: React.FC<TaskPlayerPageProps> = ({
   const lastMousePos = useRef({ x: 0, y: 0 });
 
   const isJobRunning = currentJob?.status === 'running' || currentJob?.status === 'queued';
+  const isSingleFrame = currentJob?.job_type === 'character' || currentJob?.job_type === 'item' || currentJob?.job_type === 'map';
   const effectiveTool: Tool = isPickingRemovalColor ? 'picker' : (isCtrlPressed ? 'move' : isQPressed ? 'picker' : activeTool);
 
   const isZh = lang === 'zh';
@@ -329,15 +332,15 @@ const TaskPlayerPage: React.FC<TaskPlayerPageProps> = ({
 
   const updateFramesFromJob = useCallback(async (job: Job) => {
     const apiLength = job.input_params?.length || 33;
-    const isCharacter = job.job_type === 'character' || job.job_type === 'item';
+    const isSingleFrame = job.job_type === 'character' || job.job_type === 'item' || job.job_type === 'map';
 
     try {
       const cached = await getSpriteFromCache(job.gen_id);
       if (cached) {
         const frameMetadata = (cached.customData as any)?.frameMetadata;
-        // For character jobs, we expect 1 frame. sliceSpriteSheet handles this if targetLength is 1.
-        const targetLength = isCharacter ? 1 : frameMetadata?.length;
-        const sliced = isCharacter ? [cached.spriteSheet] : await sliceSpriteSheet(cached.spriteSheet, targetLength, apiLength);
+        // For single frame jobs (character/item/map), we expect 1 frame. sliceSpriteSheet handles this if targetLength is 1.
+        const targetLength = isSingleFrame ? 1 : frameMetadata?.length;
+        let sliced = isSingleFrame ? [cached.spriteSheet] : await sliceSpriteSheet(cached.spriteSheet, targetLength, apiLength);
         if (isMounted.current) {
           const mappedFrames: FrameData[] = sliced.map((url, i) => ({
             id: frameMetadata?.[i]?.id || `f-${Date.now()}-${i}`,
@@ -357,11 +360,18 @@ const TaskPlayerPage: React.FC<TaskPlayerPageProps> = ({
     const outputUrl = job.output_images?.[0]?.url;
     if (job.status === 'succeeded' && outputUrl) {
       try {
-        if (isCharacter) {
-          const pixelSize = parseInt(job.input_params?.pixel_size || '128');
-          const version = parseInt(job.input_params?.version || '1');
-          const targetSize = version === 2 ? pixelSize : (pixelSize === 32 ? 64 : 128);
-          const processed = await scaleToSize(outputUrl, targetSize);
+        if (isSingleFrame) {
+          let processed = outputUrl;
+          if (job.job_type === 'character' || job.job_type === 'item') {
+            const pixelSize = parseInt(job.input_params?.pixel_size || '128');
+            const version = parseInt(job.input_params?.version || '1');
+            const targetSize = version === 2 ? pixelSize : (pixelSize === 32 ? 64 : 128);
+            processed = await scaleToSize(outputUrl, targetSize);
+          } else if (job.job_type === 'map') {
+            processed = await processMapImage(outputUrl);
+          } else {
+            processed = await fetchAsDataUrl(outputUrl);
+          }
           if (isMounted.current) {
             const frame: FrameData = { id: `f-${Date.now()}-0`, url: processed, isOriginal: true };
             setFrames([frame]); setInitialFrames([frame]); setUndoStack([]); setRedoStack([]); setPan({ x: 0, y: 0 }); setSelection(new Set());
@@ -385,11 +395,17 @@ const TaskPlayerPage: React.FC<TaskPlayerPageProps> = ({
         try {
           const rawUrl = job.input_images[0].url;
           let processedUrl: string;
-          if (isCharacter) {
-            const pixelSize = parseInt(job.input_params?.pixel_size || '128');
-            const version = parseInt(job.input_params?.version || '1');
-            const targetSize = version === 2 ? pixelSize : (pixelSize === 32 ? 64 : 128);
-            processedUrl = await scaleToSize(rawUrl, targetSize);
+          if (isSingleFrame) {
+            if (job.job_type === 'character' || job.job_type === 'item') {
+              const pixelSize = parseInt(job.input_params?.pixel_size || '128');
+              const version = parseInt(job.input_params?.version || '1');
+              const targetSize = version === 2 ? pixelSize : (pixelSize === 32 ? 64 : 128);
+              processedUrl = await scaleToSize(rawUrl, targetSize);
+            } else if (job.job_type === 'map') {
+              processedUrl = await processMapImage(rawUrl);
+            } else {
+              processedUrl = await fetchAsDataUrl(rawUrl);
+            }
           } else {
             processedUrl = await fetchAsDataUrl(rawUrl);
           }
@@ -456,10 +472,17 @@ const TaskPlayerPage: React.FC<TaskPlayerPageProps> = ({
     
     if (frames[currentFrameIndex]) {
       const ctx = canvas.getContext('2d'); if (!ctx) return;
-      const img = new Image(); img.onload = () => {
+      const img = new Image();
+      img.crossOrigin = "anonymous";
+      img.onload = () => {
         canvas.width = img.width; canvas.height = img.height; 
         ctx.imageSmoothingEnabled = false; ctx.clearRect(0, 0, canvas.width, canvas.height); 
         ctx.drawImage(img, 0, 0);
+        if (currentJob?.job_type === 'map') {
+          setDimensions({ width: img.width, height: img.height });
+        } else {
+          setDimensions({ width: 512, height: 512 });
+        }
       };
       img.src = frames[currentFrameIndex].url;
     } else {
@@ -467,8 +490,9 @@ const TaskPlayerPage: React.FC<TaskPlayerPageProps> = ({
       canvas.height = 128;
       const ctx = canvas.getContext('2d');
       if (ctx) ctx.clearRect(0, 0, 128, 128);
+      setDimensions({ width: 512, height: 512 });
     }
-  }, [frames, currentFrameIndex]);
+  }, [frames, currentFrameIndex, currentJob]);
 
   useEffect(() => {
     const canvas = canvasRef.current; const overlay = overlayRef.current;
@@ -718,12 +742,19 @@ const TaskPlayerPage: React.FC<TaskPlayerPageProps> = ({
     
     setLoading(true);
     try {
-      const isCharacter = currentJob.job_type === 'character' || currentJob.job_type === 'item';
-      if (isCharacter) {
-        const pixelSize = parseInt(currentJob.input_params?.pixel_size || '128');
-        const version = parseInt(currentJob.input_params?.version || '1');
-        const targetSize = version === 2 ? pixelSize : (pixelSize === 32 ? 64 : 128);
-        const processed = await scaleToSize(outputUrl, targetSize);
+      const isSingleFrameJob = currentJob.job_type === 'character' || currentJob.job_type === 'item' || currentJob.job_type === 'map';
+      if (isSingleFrameJob) {
+        let processed = outputUrl;
+        if (currentJob.job_type === 'character' || currentJob.job_type === 'item') {
+          const pixelSize = parseInt(currentJob.input_params?.pixel_size || '128');
+          const version = parseInt(currentJob.input_params?.version || '1');
+          const targetSize = version === 2 ? pixelSize : (pixelSize === 32 ? 64 : 128);
+          processed = await scaleToSize(outputUrl, targetSize);
+        } else if (currentJob.job_type === 'map') {
+          processed = await processMapImage(outputUrl);
+        } else {
+          processed = await fetchAsDataUrl(outputUrl);
+        }
         const frame: FrameData = { id: `f-${Date.now()}-0`, url: processed, isOriginal: true };
         setIsPlaying(false);
         pushToHistory([frame]);
@@ -761,6 +792,41 @@ const TaskPlayerPage: React.FC<TaskPlayerPageProps> = ({
     } catch (err) {} finally { setIsExporting(false); }
   };
 
+  const handleDownload4x = async () => {
+    if (frames.length === 0 || isJobRunning) return;
+    setIsExporting4x(true);
+    try {
+      const activeFrames = frames.filter(f => !f.isExcluded);
+      if (activeFrames.length === 0) return;
+      const frameUrl = activeFrames[0].url;
+      const img = new Image();
+      img.crossOrigin = "anonymous";
+      await new Promise((resolve, reject) => {
+        img.onload = resolve;
+        img.onerror = reject;
+        img.src = frameUrl;
+      });
+
+      const canvas = document.createElement('canvas');
+      canvas.width = img.width * 4;
+      canvas.height = img.height * 4;
+      const ctx = canvas.getContext('2d');
+      if (ctx) {
+        ctx.imageSmoothingEnabled = false;
+        ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+        const dataUrl = canvas.toDataURL('image/png');
+        const link = document.createElement('a');
+        link.href = dataUrl;
+        link.download = `rika_${selectedJobId?.slice(0,8) || 'work'}_4x.png`;
+        link.click();
+      }
+    } catch (err) {
+      console.error("4x Download failed", err);
+    } finally {
+      setIsExporting4x(false);
+    }
+  };
+
   const handleExportGif = async () => {
     if (frames.length === 0 || isJobRunning) return;
     const activeFrames = frames.filter(f => !f.isExcluded); if (activeFrames.length === 0) return;
@@ -790,6 +856,10 @@ const TaskPlayerPage: React.FC<TaskPlayerPageProps> = ({
   };
 
   useEffect(() => {
+    if (currentJob?.job_type === 'map') {
+      if (isPlaying) setIsPlaying(false);
+      return;
+    }
     if (isPlaying && frames.length > 1 && !isJobRunning) {
       playbackRef.current = window.setInterval(() => {
         setCurrentFrameIndex(prev => {
@@ -800,7 +870,7 @@ const TaskPlayerPage: React.FC<TaskPlayerPageProps> = ({
       }, 1000 / fps);
     } else if (playbackRef.current) clearInterval(playbackRef.current);
     return () => { if (playbackRef.current) clearInterval(playbackRef.current); };
-  }, [isPlaying, frames.length, fps, isJobRunning]);
+  }, [isPlaying, frames.length, fps, isJobRunning, currentJob]);
 
   const renderToolButton = (id: Tool, content: React.ReactNode, hasParams?: boolean) => {
     const isActive = effectiveTool === id;
@@ -1084,7 +1154,7 @@ const TaskPlayerPage: React.FC<TaskPlayerPageProps> = ({
                 />
               </div>
             )}
-            <div ref={editorContainerRef} className="relative origin-center" style={{ width: '512px', height: '512px', transform: `translate(${pan.x}px, ${pan.y}px) scale(${zoom})`, imageRendering: 'pixelated', backgroundImage: isLightBg ? lightChecker : darkChecker, backgroundSize: `16px 16px`, cursor: isPickingRemovalColor ? 'cell' : 'default' }} onMouseDown={handleMouseDown} onMouseMove={handleCanvasInteraction} onMouseUp={handleMouseUp}>
+            <div ref={editorContainerRef} className="relative origin-center" style={{ width: `${dimensions.width}px`, height: `${dimensions.height}px`, transform: `translate(${pan.x}px, ${pan.y}px) scale(${zoom})`, imageRendering: 'pixelated', backgroundImage: isLightBg ? lightChecker : darkChecker, backgroundSize: `16px 16px`, cursor: isPickingRemovalColor ? 'cell' : 'default' }} onMouseDown={handleMouseDown} onMouseMove={handleCanvasInteraction} onMouseUp={handleMouseUp}>
               {(loading || isJobRunning) && (
                 <div className="absolute inset-0 z-50 flex flex-col items-center justify-center overflow-hidden">
                   {/* Black semi-transparent mask */}
@@ -1332,7 +1402,7 @@ const TaskPlayerPage: React.FC<TaskPlayerPageProps> = ({
                 </PixelButton>
               </div>
            </PixelCard>
-           <PixelCard title={isZh ? '控制工具' : 'CONTROLS'}>
+           <PixelCard title={isZh ? '控制工具' : 'CONTROLS'} className={currentJob?.job_type === 'map' ? 'hidden' : ''}>
               <div className="space-y-4 pt-2">
                  <PixelButton variant={isPlaying ? 'secondary' : 'primary'} className="w-full" onClick={() => setIsPlaying(!isPlaying)} disabled={isJobRunning || frames.length <= 1} style={{ fontSize: zhScale(10) }}>
                    {isPlaying ? (isZh ? '暂停' : 'PAUSE') : (isZh ? '播放' : 'PLAY')}
@@ -1347,12 +1417,25 @@ const TaskPlayerPage: React.FC<TaskPlayerPageProps> = ({
               <PixelButton variant="secondary" className="h-12" onClick={() => onRegenerate(currentJob!)} disabled={isJobRunning || !currentJob} style={{ fontSize: zhScale(10) }}>
                 {isZh ? '重新生成' : 'RE-GENERATE'}
               </PixelButton>
-              <PixelButton variant="primary" className="h-12" disabled={isExportingGif || isJobRunning} onClick={handleExportGif} style={{ fontSize: zhScale(10) }}> 
-                {isExportingGif ? (isZh ? '打包中...' : 'PACKING...') : (isZh ? '导出动图' : 'EXPORT GIF')} 
-              </PixelButton>
-              <PixelButton variant="secondary" className="h-12" disabled={isExporting || isJobRunning} onClick={handleDownload} style={{ fontSize: zhScale(10) }}> 
-                {isExporting ? (isZh ? '导出中...' : 'EXPORTING...') : (isZh ? '导出序列帧' : 'DOWNLOAD PNG')} 
-              </PixelButton>
+              {isSingleFrame ? (
+                <>
+                  <PixelButton variant="primary" className="h-12" disabled={isExporting || isJobRunning} onClick={handleDownload} style={{ fontSize: zhScale(10) }}>
+                    {isExporting ? (isZh ? '导出中...' : 'EXPORTING...') : (isZh ? '导出图片' : 'DOWNLOAD PNG')}
+                  </PixelButton>
+                  <PixelButton variant="secondary" className="h-12" disabled={isExporting4x || isJobRunning} onClick={handleDownload4x} style={{ fontSize: zhScale(10) }}>
+                    {isExporting4x ? (isZh ? '导出中...' : 'EXPORTING...') : (isZh ? '导出大图' : 'DOWNLOAD PNG (4x)')}
+                  </PixelButton>
+                </>
+              ) : (
+                <>
+                  <PixelButton variant="primary" className={`h-12 ${currentJob?.job_type === 'map' ? 'hidden' : ''}`} disabled={isExportingGif || isJobRunning} onClick={handleExportGif} style={{ fontSize: zhScale(10) }}> 
+                    {isExportingGif ? (isZh ? '打包中...' : 'PACKING...') : (isZh ? '导出动图' : 'EXPORT GIF')} 
+                  </PixelButton>
+                  <PixelButton variant="secondary" className="h-12" disabled={isExporting || isJobRunning} onClick={handleDownload} style={{ fontSize: zhScale(10) }}> 
+                    {isExporting ? (isZh ? '导出中...' : 'EXPORTING...') : (isZh ? '导出序列帧' : 'DOWNLOAD PNG')} 
+                  </PixelButton>
+                </>
+              )}
            </div>
         </div>
       </div>

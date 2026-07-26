@@ -1,13 +1,19 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { PixelButton, PixelCard, PixelInput, PixelModal } from '../components/PixelComponents.tsx';
-import { Plus, Shuffle, Loader2, X, Sparkles } from 'lucide-react';
+import { PixelButton, PixelCard, PixelInput } from '../components/PixelComponents.tsx';
+import { Plus, Shuffle, Loader2, X, Sparkles, Grid, Edit3 } from 'lucide-react';
 import { HexColorPicker } from 'react-colorful';
+import { apiService } from '../services/apiService.ts';
+import { fetchAsDataUrl } from '../utils/imageUtils.ts';
+import { StructureEditorModal, StructureData, exportStructureCanvasToDataUrl } from '../components/StructureEditorModal.tsx';
 
 interface MapPageProps {
+  onJobCreated: (id: string) => void;
   lang?: 'en' | 'zh';
   credits: number;
   onOpenPricing: () => void;
   isBackendDown?: boolean;
+  initialParams?: any;
+  onConsumed?: () => void;
   isLoggedIn?: boolean;
   onLoginRequest?: () => void;
 }
@@ -23,51 +29,47 @@ const PRESET_PALETTES = [
 ];
 
 const PRESET_ART_STYLES = [
-  { id: 'Retro16', en: 'Retro 16-Bit Platformer', zh: '复古16位平台游戏' },
-  { id: 'Metro8', en: 'NES 8-Bit Retro Tile', zh: '红白机8位像素瓦片' },
-  { id: 'ModernPixel', en: 'Modern High-Fidelity Pixel', zh: '现代高精度像素' },
-  { id: 'Handdrawn', en: 'Hand-drawn Cartoon Pixel', zh: '手绘卡通风格像素' },
+  { id: 'Retro', en: 'Retro Game Pixel', zh: '复古游戏像素' },
+  { id: 'Anime', en: 'Anime/Cartoon Pixel', zh: '动画卡通像素' },
 ];
 
-const PRESET_ALIGNMENTS = [
-  { id: 'strict', en: 'Strict Conformity (完全贴合)', zh: '完全贴合' },
-  { id: 'approximate', en: 'Approximate Conformity (大致贴合)', zh: '大致贴合' },
-  { id: 'free', en: 'Creative Freedom (完全自由)', zh: '完全自由' },
+const PRESET_BG_STYLES = [
+  { id: 'Parallax', en: 'Parallax', zh: '视差滚动' },
+  { id: 'Flat', en: 'Flat', zh: '扁平静态' },
+  { id: 'None', en: 'None', zh: '无背景' },
 ];
 
 const RANDOM_MAP_PROMPTS = [
   { 
     en: "A dark cyberpunk sewer level with neon signs, rusty metal pipes, and glowing green water", 
-    zh: "一个带霓虹灯牌、生锈金属管道和发光绿色积水的阴暗赛博朋克下水道场景",
-    bg: "Cyberpunk neon skyline mist / 赛博朋克霓虹迷雾天际线"
+    zh: "一个带霓虹灯牌、生锈金属管道和发光绿色积水的阴暗赛博朋克下水道场景"
   },
   { 
     en: "A lush green woodland forest with wooden mossy platforms, hanging vines, and sparkling light shafts", 
-    zh: "一个包含青苔木质平台、悬挂藤蔓和斑驳阳光洒下的茂密绿林场景",
-    bg: "Serene pine trees misty mountains / 宁静落叶松和云雾缭绕的山峦"
+    zh: "一个包含青苔木质平台、悬挂藤蔓和斑驳阳光洒下的茂密绿林场景"
   },
   { 
     en: "A molten lava volcanic cave with dark basalt stone blocks, hot bubbling lava river, and glowing heat haze", 
-    zh: "一个具有黑色玄武岩石块、滚烫起泡岩浆河和高温热浪的熔岩火山洞穴场景",
-    bg: "Subterranean magma glow cavern / 地底炽热岩浆岩洞"
+    zh: "一个具有黑色玄武岩石块、滚烫起泡岩浆河 and 高温热浪的熔岩火山洞穴场景"
   },
   { 
     en: "An ancient gothic castle hall with cracked stone brick walls, candlelight brass chandeliers, and iron grates", 
-    zh: "一个拥有开裂石砖墙、黄铜烛台吊灯和铁栅栏的古老哥特城堡大厅场景",
-    bg: "Spooky moonlit stained glass windows / 月光投影下的阴森彩绘玻璃窗"
+    zh: "一个拥有开裂石砖墙、黄铜烛台吊灯和铁栅栏的古老哥特城堡大厅场景"
   },
   { 
     en: "A futuristic alien space station deck with white metal armor tiles, holographic blue terminals, and stellar views", 
-    zh: "一个采用白色金属护甲瓦片、蓝色全息终端和星空景观的未来科幻外星空间站甲板场景",
-    bg: "Orbiting planet cosmic field / 轨道运行的星球与浩瀚星云"
+    zh: "一个采用白色金属护甲瓦片、蓝色全息终端和星空景观的未来科幻外星空间站甲板场景"
   }
 ];
 
 const MapPage: React.FC<MapPageProps> = ({
+  onJobCreated,
   lang = 'en',
   credits,
   onOpenPricing,
   isBackendDown,
+  initialParams,
+  onConsumed,
   isLoggedIn = false,
   onLoginRequest,
 }) => {
@@ -76,34 +78,125 @@ const MapPage: React.FC<MapPageProps> = ({
 
   // Form State
   const [prompt, setPrompt] = useState('');
-  const [bgPrompt, setBgPrompt] = useState('');
-  const [artStyle, setArtStyle] = useState('Retro16');
-  const [alignment, setAlignment] = useState('approximate');
-  const [includeBackground, setIncludeBackground] = useState('no'); // 'yes' | 'no'
+  const [artStyle, setArtStyle] = useState('Retro');
+  const [bgStyle, setBgStyle] = useState('Flat');
   const [useDomainColor, setUseDomainColor] = useState(false);
   const [domainColors, setDomainColors] = useState<string[]>(['#FFD700', '#F7D51D', '#B8860B', '#453200']);
   const [refImage, setRefImage] = useState<File | string | null>(null);
   const [refPreview, setRefPreview] = useState<string | null>(null);
+  const [styleRefImage, setStyleRefImage] = useState<File | string | null>(null);
+  const [styleRefPreview, setStyleRefPreview] = useState<string | null>(null);
+
+  // Structure Editor State
+  const [isEditorOpen, setIsEditorOpen] = useState(false);
+  const [gridCols, setGridCols] = useState<number>(32);
+  const [gridRows, setGridRows] = useState<number>(18);
+  const [gridData, setGridData] = useState<number[][] | null>(null);
 
   // UI state
-  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [colorInputKey, setColorInputKey] = useState(0);
   const [activeColorIndex, setActiveColorIndex] = useState<number | null>(null);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const styleFileInputRef = useRef<HTMLInputElement>(null);
+  const hasLoadedInitialParams = useRef(false);
 
   // Set first prompt initially on load
   useEffect(() => {
+    if (initialParams && initialParams.job_type === 'map') {
+      hasLoadedInitialParams.current = true;
+      return;
+    }
+    if (hasLoadedInitialParams.current) return;
     const random = RANDOM_MAP_PROMPTS[0];
     setPrompt(isZh ? random.zh : random.en);
-    setBgPrompt(isZh ? "无" : "None");
-  }, [isZh]);
+  }, [isZh, initialParams]);
+
+  useEffect(() => {
+    if (initialParams && initialParams.job_type === 'map') {
+      const { input_params, input_images } = initialParams;
+      if (input_params) {
+        setPrompt(input_params.prompt || '');
+        setArtStyle(input_params.style || 'Retro');
+        setBgStyle(input_params.bg_style || 'Flat');
+
+        // Restore structure grid if present
+        if (input_params.grid_width && input_params.grid_data) {
+          try {
+            const cols = Number(input_params.grid_width) || 32;
+            const rows = Number(input_params.grid_height) || 18;
+            let data: number[][] = [];
+            if (typeof input_params.grid_data === 'string') {
+              data = JSON.parse(input_params.grid_data);
+            } else if (Array.isArray(input_params.grid_data)) {
+              data = input_params.grid_data;
+            }
+            if (data && data.length > 0) {
+              setGridCols(cols);
+              setGridRows(rows);
+              setGridData(data);
+              const exportedUrl = exportStructureCanvasToDataUrl(cols, rows, data);
+              setRefImage(exportedUrl);
+              setRefPreview(exportedUrl);
+            }
+          } catch (e) {
+            console.error("Failed to parse grid_data", e);
+          }
+        }
+
+        if (input_params.domain_color) {
+          try {
+            const raw = input_params.domain_color;
+            let colors: string[] = [];
+            if (raw.includes("'") || raw.includes('"')) {
+              colors = JSON.parse(raw.replace(/'/g, '"'));
+            } else {
+              colors = raw.replace(/[\[\]']/g, '').split(',').map((c: string) => c.trim()).filter(Boolean);
+            }
+            if (Array.isArray(colors) && colors.length > 0) {
+              setDomainColors(colors);
+              setUseDomainColor(true);
+            }
+          } catch (e) {
+            console.error("Failed to parse domain colors", e);
+            try {
+              const raw = input_params.domain_color;
+              const cleanColors = raw.replace(/[\[\]'"]/g, '').split(',').map((c: string) => c.trim()).filter(Boolean);
+              if (cleanColors.length > 0) {
+                setDomainColors(cleanColors);
+                setUseDomainColor(true);
+              }
+            } catch (e2) {
+              console.error("Fallback parsing failed", e2);
+            }
+          }
+        } else {
+          setUseDomainColor(false);
+        }
+      }
+      if (input_images && input_images.length > 0) {
+        // If gridData was not set from input_params, fallback to first image
+        if (!input_params?.grid_data) {
+          setRefImage(input_images[0].url);
+          setRefPreview(input_images[0].url);
+        }
+        if (input_images.length > 1) {
+          setStyleRefImage(input_images[1].url);
+          setStyleRefPreview(input_images[1].url);
+        } else {
+          setStyleRefImage(null);
+          setStyleRefPreview(null);
+        }
+      }
+      onConsumed?.();
+    }
+  }, [initialParams, onConsumed]);
 
   const handleRandomPrompt = () => {
     const random = RANDOM_MAP_PROMPTS[Math.floor(Math.random() * RANDOM_MAP_PROMPTS.length)];
     setPrompt(isZh ? random.zh : random.en);
-    setBgPrompt(isZh ? '无' : 'None');
   };
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -111,6 +204,7 @@ const MapPage: React.FC<MapPageProps> = ({
     if (file) {
       setRefImage(file);
       setRefPreview(URL.createObjectURL(file));
+      setGridData(null);
     }
   };
 
@@ -118,8 +212,26 @@ const MapPage: React.FC<MapPageProps> = ({
     e.stopPropagation();
     setRefImage(null);
     setRefPreview(null);
+    setGridData(null);
     if (fileInputRef.current) {
       fileInputRef.current.value = '';
+    }
+  };
+
+  const handleStyleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      setStyleRefImage(file);
+      setStyleRefPreview(URL.createObjectURL(file));
+    }
+  };
+
+  const handleRemoveStyleRefImage = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    setStyleRefImage(null);
+    setStyleRefPreview(null);
+    if (styleFileInputRef.current) {
+      styleFileInputRef.current.value = '';
     }
   };
 
@@ -134,9 +246,22 @@ const MapPage: React.FC<MapPageProps> = ({
     setDomainColors([...colors]);
   };
 
-  const handleGenerate = () => {
+  const fileToBase64 = (file: File): Promise<string> => {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.readAsDataURL(file);
+      reader.onload = () => resolve(reader.result as string);
+      reader.onerror = error => reject(error);
+    });
+  };
+
+  const handleGenerate = async () => {
     if (!isLoggedIn) {
       onLoginRequest?.();
+      return;
+    }
+    if (!refImage) {
+      setError(isZh ? '请上传场景结构参考图' : 'Please upload a scene structure reference image');
       return;
     }
     if (!prompt.trim()) {
@@ -144,11 +269,58 @@ const MapPage: React.FC<MapPageProps> = ({
       return;
     }
     if (credits < 2) {
-      onOpenPricing();
+      onOpenPricing?.();
       return;
     }
+
+    setLoading(true);
     setError(null);
-    setIsModalOpen(true);
+
+    try {
+      const images: string[] = [];
+
+      let base64Str1: string;
+      if (typeof refImage === 'string') {
+        base64Str1 = await fetchAsDataUrl(refImage);
+      } else {
+        base64Str1 = await fileToBase64(refImage);
+      }
+      images.push(base64Str1);
+
+      if (styleRefImage) {
+        let base64Str2: string;
+        if (typeof styleRefImage === 'string') {
+          base64Str2 = await fetchAsDataUrl(styleRefImage);
+        } else {
+          base64Str2 = await fileToBase64(styleRefImage);
+        }
+        images.push(base64Str2);
+      }
+      
+      const params: any = {
+        prompt: prompt.trim(),
+        style: artStyle,
+        bg_style: bgStyle,
+        bg_prompt: 'None',
+      };
+
+      if (gridData && gridData.length > 0) {
+        params.grid_width = gridCols;
+        params.grid_height = gridRows;
+        params.grid_data = JSON.stringify(gridData);
+      }
+
+      if (useDomainColor) {
+        params.domain_color = `[${domainColors.join(',')}]`;
+      }
+
+      const res = await apiService.generateMap(images, params);
+      onJobCreated(res.gen_id);
+    } catch (err: any) {
+      setError(err.message || 'Generation failed');
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -156,117 +328,80 @@ const MapPage: React.FC<MapPageProps> = ({
       <div className="flex flex-col md:flex-row gap-6">
         {/* Left Column */}
         <div className="flex-1 space-y-6">
+          {/* Top Row: Map Description (Top Left) & Style Reference (Top Right) */}
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-stretch">
-            {/* Scene Structure Placeholder (16:9 aspect) */}
+            {/* Top Left: Map Description */}
+            <div className="lg:col-span-2 flex">
+              <PixelCard 
+                title={isZh ? '地图描述' : 'MAP DESCRIPTION'} 
+                titleStyle={{ fontSize: zhScale(10) }} 
+                className="w-full flex flex-col"
+              >
+                <div className="relative pt-2 flex-1 flex flex-col">
+                  <textarea
+                    value={prompt}
+                    onChange={(e) => setPrompt(e.target.value)}
+                    placeholder={isZh ? "描述你的场景，比如地面、天气、关卡元素等" : "Describe your scene, such as ground, weather, levels elements, etc."}
+                    className="w-full h-64 bg-black/40 pixel-border border-[#5a2d9c] p-4 text-white outline-none focus:border-[#f7d51d] resize-none"
+                    style={{ fontSize: zhScale(10) }}
+                  />
+                  <button
+                    onClick={handleRandomPrompt}
+                    className="absolute bottom-4 right-4 p-2 bg-[#5a2d9c] hover:bg-[#f7d51d] hover:text-[#2d1b4e] transition-colors pixel-border border-white/20 z-10"
+                    title={isZh ? "随机描述" : "Random Prompt"}
+                  >
+                    <Shuffle size={16} />
+                  </button>
+                </div>
+              </PixelCard>
+            </div>
+
+            {/* Top Right: Style Reference Image (Optional) */}
             <div className="flex">
               <PixelCard 
-                title={isZh ? '场景结构' : 'SCENE STRUCTURE'} 
+                title={isZh ? '风格参考图 (可选)' : 'STYLE REFERENCE (OPTIONAL)'} 
                 titleStyle={{ fontSize: zhScale(10) }} 
                 className="w-full flex flex-col"
               >
                 <div className="pt-2 flex-1 flex flex-col justify-center">
-                  {/* Aspect Video (16:9) Container block */}
-                  <div className="aspect-video w-full bg-black/50 pixel-border border-[#5a2d9c] relative overflow-hidden flex items-center justify-center">
+                  <div 
+                    onClick={() => styleFileInputRef.current?.click()}
+                    className="w-full h-full min-h-[180px] bg-black/40 pixel-border border-2 border-[#5a2d9c] border-dashed hover:border-[#f7d51d] cursor-pointer flex flex-col items-center justify-center relative overflow-hidden group"
+                  >
                     {/* Retro Grid Background Overlay */}
                     <div className="absolute inset-0 opacity-10 bg-[radial-gradient(#5a2d9c_1px,transparent_1px)] [background-size:16px_16px]"></div>
-                    <div className="absolute inset-0" style={{
-                      backgroundImage: 'linear-gradient(to right, rgba(90,45,156,0.1) 1px, transparent 1px), linear-gradient(to bottom, rgba(90,45,156,0.1) 1px, transparent 1px)',
-                      backgroundSize: '24px 24px'
-                    }}></div>
                     
-                    {/* Visual schematic elements */}
-                    <div className="border border-dashed border-[#5a2d9c] w-3/4 h-1/2 flex items-center justify-center bg-black/40 relative z-10">
-                      <span className="text-[8px] font-bold text-[#f7d51d]/40 uppercase text-center select-none tracking-widest leading-normal">
-                        {isZh ? '场景结构图占位\n[ 正在开发中 ]' : 'SCENE STRUCTURE PLACEHOLDER\n[ UNDER DEV ]'}
-                      </span>
-                    </div>
-                  </div>
-                </div>
-              </PixelCard>
-            </div>
-
-            {/* Title / Description Settings */}
-            <div className="lg:col-span-2 flex">
-              <PixelCard 
-                title={isZh ? '场景描述' : 'SCENE DESCRIPTION'} 
-                titleStyle={{ fontSize: zhScale(10) }} 
-                className="w-full flex flex-col"
-              >
-                <div className="relative pt-2 flex-1 flex flex-col gap-4">
-                  {/* Main prompt input */}
-                  <div className="relative flex-1 flex flex-col">
-                    <textarea
-                      value={prompt}
-                      onChange={(e) => setPrompt(e.target.value)}
-                      placeholder={isZh ? "描述你的场景，比如地面、天气、关卡元素等" : "Describe your scene, such as ground, weather, levels elements, etc."}
-                      className="w-full h-44 bg-black/40 pixel-border border-[#5a2d9c] p-4 text-white outline-none focus:border-[#f7d51d] resize-none"
-                      style={{ fontSize: zhScale(10) }}
-                    />
-                    <button
-                      onClick={handleRandomPrompt}
-                      className="absolute bottom-4 right-4 p-2 bg-[#5a2d9c]/50 hover:bg-[#f7d51d] hover:text-[#2d1b4e] transition-colors pixel-border border-white/20 z-10"
-                      title={isZh ? "随机描述" : "Random Prompt"}
-                    >
-                      <Shuffle size={16} />
-                    </button>
-                  </div>
-
-                  {/* Background description */}
-                  <div className="space-y-1">
-                    <label className="text-[9px] font-bold text-white/60 uppercase">
-                      {isZh ? '背景描述 (默认是无)' : 'BACKGROUND DESCRIPTION (OPTIONAL)'}
-                    </label>
-                    <PixelInput
-                      value={bgPrompt}
-                      onChange={(e) => setBgPrompt(e.target.value)}
-                      placeholder={isZh ? "例如：远景群山，落日余晖 (默认是无)" : "Misty background hills, purple sunset... (default is None)"}
-                      className="w-full h-10 px-3 bg-black/40"
-                    />
-                  </div>
-                </div>
-              </PixelCard>
-            </div>
-          </div>
-
-          {/* Reference Image / Examples */}
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 items-stretch">
-            {/* Reference Image Section */}
-            <div className="flex">
-              <PixelCard 
-                title={isZh ? '参考图 (可选)' : 'REFERENCE IMAGE (OPTIONAL)'} 
-                titleStyle={{ fontSize: zhScale(10) }} 
-                className="w-full flex flex-col"
-              >
-                <div className="pt-2 flex-1 flex items-center">
-                  <div 
-                    onClick={() => fileInputRef.current?.click()}
-                    className="w-24 h-24 bg-black/40 pixel-border border-2 border-[#5a2d9c] border-dashed hover:border-[#f7d51d] cursor-pointer flex flex-col items-center justify-center relative overflow-hidden group"
-                  >
-                    {refPreview ? (
-                      <div className="w-full h-full relative group/preview">
+                    {styleRefPreview ? (
+                      <div className="w-full h-full relative group/preview z-10 flex items-center justify-center bg-black/80 p-2">
                         <img 
-                          src={refPreview} 
+                          src={styleRefPreview} 
                           className="w-full h-full object-contain" 
                           style={{ imageRendering: 'pixelated' }} 
-                          alt="Map Reference Preview" 
+                          alt="Style Reference Preview" 
                         />
                         <div className="absolute inset-0 bg-black/60 opacity-0 group-hover/preview:opacity-100 flex items-center justify-center transition-opacity">
                           <Plus size={20} className="text-white" />
                         </div>
                         <button
-                          onClick={handleRemoveRefImage}
-                          className="absolute -top-3 -right-3 w-7 h-7 bg-red-600 text-white flex items-center justify-center pixel-border border-white z-[60] hover:bg-red-500 transition-colors shadow-lg"
+                          type="button"
+                          onClick={handleRemoveStyleRefImage}
+                          className="absolute -top-1 -right-1 w-6 h-6 bg-red-600 text-white flex items-center justify-center pixel-border border-white z-[60] hover:bg-red-500 transition-colors shadow-lg"
                         >
-                          <X size={16} />
+                          <X size={14} />
                         </button>
                       </div>
                     ) : (
-                      <Plus size={24} className="text-white/20 group-hover:text-white/40" />
+                      <div className="flex flex-col items-center justify-center p-4 text-center z-10 space-y-2 select-none">
+                        <Plus size={24} className="text-[#f7d51d]" />
+                        <span className="font-bold text-white/60 uppercase tracking-wider leading-tight whitespace-pre-line" style={{ fontSize: zhScale(9) }}>
+                          {isZh ? '上传风格参考图\n(点击或拖拽)' : 'UPLOAD STYLE REFERENCE\n(CLICK OR DRAG)'}
+                        </span>
+                      </div>
                     )}
                     <input 
                       type="file" 
-                      ref={fileInputRef}
-                      onChange={handleFileChange}
+                      ref={styleFileInputRef}
+                      onChange={handleStyleFileChange}
                       accept="image/*"
                       className="hidden" 
                     />
@@ -274,18 +409,61 @@ const MapPage: React.FC<MapPageProps> = ({
                 </div>
               </PixelCard>
             </div>
+          </div>
 
-            {/* Template Card */}
-            <div className="flex">
+          {/* Bottom Row: Structure Reference */}
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-stretch">
+            {/* Bottom Left: Structure Reference (spans 2 columns, matching Map Description above) */}
+            <div className="lg:col-span-2 flex">
               <PixelCard 
-                title={isZh ? '模板 (可选)' : 'TEMPLATE (OPTIONAL)'} 
+                title={isZh ? '结构参考图' : 'STRUCTURE REFERENCE'} 
                 titleStyle={{ fontSize: zhScale(10) }} 
-                className="w-full flex flex-col relative"
+                className="w-full flex flex-col"
               >
-                <div className="pt-2 flex-1 flex items-center justify-center">
-                  <p className="text-white/20 uppercase tracking-[0.2em] font-bold text-[12px] animate-pulse">
-                    {isZh ? '敬请期待' : 'COMING SOON'}
-                  </p>
+                <div className="pt-2 flex-1 flex flex-col justify-center">
+                  <div 
+                    onClick={() => setIsEditorOpen(true)}
+                    className="aspect-video w-full bg-black/40 pixel-border border-2 border-[#5a2d9c] border-dashed hover:border-[#f7d51d] cursor-pointer flex flex-col items-center justify-center relative overflow-hidden group"
+                  >
+                    {/* Retro Grid Background Overlay */}
+                    <div className="absolute inset-0 opacity-10 bg-[radial-gradient(#5a2d9c_1px,transparent_1px)] [background-size:16px_16px]"></div>
+                    <div className="absolute inset-0" style={{
+                      backgroundImage: 'linear-gradient(to right, rgba(90,45,156,0.1) 1px, transparent 1px), linear-gradient(to bottom, rgba(90,45,156,0.1) 1px, transparent 1px)',
+                      backgroundSize: '24px 24px'
+                    }}></div>
+                    
+                    {refPreview ? (
+                      <div className="w-full h-full relative group/preview z-10 flex items-center justify-center bg-black/80 p-2">
+                        <img 
+                          src={refPreview} 
+                          className="w-full h-full object-contain" 
+                          style={{ imageRendering: 'pixelated' }} 
+                          alt="Structure Reference Preview" 
+                        />
+                        <div className="absolute inset-0 bg-black/60 opacity-0 group-hover/preview:opacity-100 flex flex-col items-center justify-center gap-2 transition-opacity">
+                          <Edit3 size={24} className="text-[#f7d51d]" />
+                          <span className="font-bold text-white uppercase tracking-wider" style={{ fontSize: zhScale(10) }}>
+                            {isZh ? '网格编辑器' : 'GRID EDITOR'}
+                          </span>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={handleRemoveRefImage}
+                          className="absolute -top-3 -right-3 w-7 h-7 bg-red-600 text-white flex items-center justify-center pixel-border border-white z-[60] hover:bg-red-500 transition-colors shadow-lg"
+                          title={isZh ? '清除结构' : 'Clear Structure'}
+                        >
+                          <X size={16} />
+                        </button>
+                      </div>
+                    ) : (
+                      <div className="flex flex-col items-center justify-center p-4 text-center z-10 space-y-2 select-none">
+                        <Grid size={28} className="text-[#f7d51d]" />
+                        <span className="font-bold text-white/80 uppercase tracking-wider" style={{ fontSize: zhScale(10) }}>
+                          {isZh ? '网格编辑器' : 'GRID EDITOR'}
+                        </span>
+                      </div>
+                    )}
+                  </div>
                 </div>
               </PixelCard>
             </div>
@@ -318,44 +496,26 @@ const MapPage: React.FC<MapPageProps> = ({
                 </div>
               </div>
 
-              {/* Alignment / Conformity (完全贴合，大致贴合，完全自由) */}
+              {/* Background Style */}
               <div className="space-y-2">
                 <label className="font-bold text-white/60 uppercase" style={{ fontSize: zhScale(10) }}>
-                  {isZh ? '结构图贴合程度' : 'STRUCTURE ALIGNMENT'}
+                  {isZh ? '背景风格' : 'BACKGROUND STYLE'}
                 </label>
                 <div className="relative">
                   <select 
-                    value={alignment}
-                    onChange={(e) => setAlignment(e.target.value)}
+                    value={bgStyle}
+                    onChange={(e) => setBgStyle(e.target.value)}
                     className="w-full bg-black/40 pixel-border border-[#5a2d9c] p-2 text-white outline-none appearance-none cursor-pointer"
                     style={{ fontSize: zhScale(10) }}
                   >
-                    {PRESET_ALIGNMENTS.map(align => (
-                      <option key={align.id} value={align.id}>{align.zh}</option>
+                    {PRESET_BG_STYLES.map(bg => (
+                      <option key={bg.id} value={bg.id}>{isZh ? bg.zh : bg.en}</option>
                     ))}
                   </select>
                 </div>
               </div>
 
-              {/* Include Background Option (是否包含背景) */}
-              <div className="space-y-2">
-                <label className="font-bold text-white/60 uppercase" style={{ fontSize: zhScale(10) }}>
-                  {isZh ? '是否包含背景' : 'INCLUDE BACKGROUND'}
-                </label>
-                <div className="relative">
-                  <select 
-                    value={includeBackground}
-                    onChange={(e) => setIncludeBackground(e.target.value)}
-                    className="w-full bg-black/40 pixel-border border-[#5a2d9c] p-2 text-white outline-none appearance-none cursor-pointer"
-                    style={{ fontSize: zhScale(10) }}
-                  >
-                    <option value="no">{isZh ? '否 (仅生成主体/瓦片集透明图层)' : 'No (Transparent tilesets layer only)'}</option>
-                    <option value="yes">{isZh ? '是 (附带渲染对应的背景插图)' : 'Yes (Render complete background illustration)'}</option>
-                  </select>
-                </div>
-              </div>
-
-              {/* Dominant Colors matching CharacterPage exactly */}
+              {/* Dominant Colors */}
               <div className="space-y-3">
                 <div className="flex items-center gap-2">
                   <input 
@@ -418,58 +578,48 @@ const MapPage: React.FC<MapPageProps> = ({
           {/* Error display */}
           <div className="space-y-4">
             {error && (
-              <div className="p-3 bg-red-900/40 border border-red-500 text-red-200 uppercase text-center" style={{ fontSize: zhScale(10) }}>
+              <div className="p-3 bg-red-900/40 border border-red-500 text-red-200 uppercase text-center font-mono" style={{ fontSize: zhScale(9) }}>
                 {error}
               </div>
             )}
 
-            {/* Generate Action trigger matching Character UI Button */}
             <PixelButton
               variant="primary"
               className="w-full h-14"
               onClick={handleGenerate}
-              disabled={isBackendDown}
+              disabled={isBackendDown || loading}
               style={{ fontSize: 14 }}
             >
-              {isZh ? '生成 (花费2点积分)' : 'GENERATE (2 CREDITS)'}
+              {loading ? (
+                <div className="flex items-center justify-center gap-2">
+                  <Loader2 className="animate-spin" size={18} />
+                  <span>{isZh ? '正在生成中...' : 'GENERATING...'}</span>
+                </div>
+              ) : (
+                'GENERATE (2 CREDITS)'
+              )}
             </PixelButton>
           </div>
 
         </div>
       </div>
 
-      {/* Beautiful Modal popup for the temporary placeholder state, avoiding raw window.alert */}
-      <PixelModal
-        isOpen={isModalOpen}
-        onClose={() => setIsModalOpen(false)}
-        title={isZh ? "场景生成即将推出！" : "MAP GENERATOR COMING SOON!"}
-        titleStyle={{ color: '#f7d51d' }}
-      >
-        <div className="space-y-4 text-center py-2 max-w-sm mx-auto">
-          <div className="w-12 h-12 bg-[#5a2d9c]/30 rounded-full flex items-center justify-center mx-auto text-[#f7d51d] animate-pulse mb-3">
-            <Sparkles size={24} />
-          </div>
-          <p className="text-white text-xs leading-relaxed">
-            {isZh 
-              ? "地图与平台场景生成功能正在进行最后的精细化模型微调！" 
-              : "Our side-scrolling map & tileset generator is in final calibration and model optimization!"}
-          </p>
-          <div className="p-3 bg-black/40 pixel-border border-[#5a2d9c]/50 text-left text-[10px] text-white/60 space-y-2 leading-relaxed">
-            <p><strong>{isZh ? "您的配置为：" : "Your Configuration:"}</strong></p>
-            <ul className="list-disc pl-4 space-y-1">
-              <li>{isZh ? "艺术风格：" : "Style: "} {PRESET_ART_STYLES.find(s => s.id === artStyle)?.[isZh ? 'zh' : 'en'] || artStyle}</li>
-              <li>{isZh ? "场景地形：" : "Terrain prompt: "} &quot;{prompt.substring(0, 40)}...&quot;</li>
-              <li>{isZh ? "场景贴合：" : "Conformity: "} {alignment}</li>
-              <li>{isZh ? "渲染背景：" : "Render background: "} {includeBackground}</li>
-              <li>{isZh ? "限制主导色：" : "Dominant Colors: "} {useDomainColor ? (isZh ? '已开启' : 'Enabled') + ` (${domainColors.join(', ')})` : (isZh ? '未开启' : 'Disabled')}</li>
-            </ul>
-          </div>
-          <p className="text-[#f7d51d] text-[10px] font-bold uppercase tracking-wider mt-4">
-            {isZh ? "上线后本次生成将花费 2 积分。敬请期待！" : "This feature will fully consume 2 credits on release. Stay tuned!"}
-          </p>
-        </div>
-      </PixelModal>
-
+      {/* Structure Editor Modal */}
+      <StructureEditorModal
+        isOpen={isEditorOpen}
+        onClose={() => setIsEditorOpen(false)}
+        onSave={(data: StructureData) => {
+          setGridCols(data.cols);
+          setGridRows(data.rows);
+          setGridData(data.gridData);
+          setRefImage(data.dataUrl);
+          setRefPreview(data.dataUrl);
+        }}
+        initialCols={gridCols}
+        initialRows={gridRows}
+        initialGridData={gridData}
+        lang={lang}
+      />
     </div>
   );
 };

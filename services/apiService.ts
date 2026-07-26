@@ -141,6 +141,10 @@ class ApiService {
     return this.request('POST', 'generate-item', { image_base64, params });
   }
 
+  async generateMap(image_base64: string[] | null, params: any) {
+    return this.request('POST', 'generate-map', { image_base64, params });
+  }
+
   async getJobInfo(genId: string): Promise<Job> {
     return this.request('GET', `jobs/${genId}`);
   }

@@ -251,6 +251,7 @@ const HistoryPage: React.FC<HistoryPageProps> = ({
                 <option value="">{isZh ? '全部' : 'ALL'}</option>
                 <option value="character">{isZh ? '角色' : 'CHARACTER'}</option>
                 <option value="item">{isZh ? '道具' : 'ITEM'}</option>
+                <option value="map">{isZh ? '地图' : 'MAP'}</option>
                 <option value="animation">{isZh ? '动画' : 'ANIMATION'}</option>
               </select>
             </div>
@@ -301,7 +302,7 @@ const HistoryPage: React.FC<HistoryPageProps> = ({
             return jobs.map((job) => (
               <PixelCard key={job.gen_id} className="group hover:bg-[#5a2d9c]/20 transition-all cursor-pointer" onClick={() => setSelectedJob(job)}>
                   <div className={`aspect-square mb-4 overflow-hidden pixel-border border-2 border-[#5a2d9c] group-hover:border-white/40 relative ${
-                    (job.job_type === 'character' || job.job_type === 'item') ? 'bg-[#2a2a2a]' : 'bg-black/40'
+                    (job.job_type === 'character' || job.job_type === 'item' || job.job_type === 'map') ? 'bg-[#2a2a2a]' : 'bg-black/40'
                   }`}>
                       <div 
                         className="absolute top-1 left-1 z-30 p-1 cursor-pointer transition-transform hover:scale-110 active:scale-95"
@@ -313,16 +314,16 @@ const HistoryPage: React.FC<HistoryPageProps> = ({
                           strokeWidth={job.liked ? 0 : 2}
                         />
                       </div>
-                      {(job.job_type === 'character' || job.job_type === 'item' || job.input_params?.motion_type) && (
+                      {(job.job_type === 'character' || job.job_type === 'item' || job.job_type === 'map' || job.input_params?.motion_type) && (
                           <div className="absolute top-1 right-1 z-20 px-1.5 py-0.5 bg-[#f7d51d] text-[#2d1b4e] text-[8px] font-bold uppercase">
-                              {job.job_type === 'character' ? 'CHARACTER' : (job.job_type === 'item' ? 'ITEM' : job.input_params.motion_type)}
+                              {job.job_type === 'character' ? 'CHARACTER' : (job.job_type === 'item' ? 'ITEM' : (job.job_type === 'map' ? 'MAP' : job.input_params.motion_type))}
                           </div>
                       )}
                       {(job.input_images?.[0] || job.output_images?.[0] || cachedSprites[job.gen_id]) && (
                           <PixelImage 
                             src={((job.job_type === 'character' || job.job_type === 'item') && cachedSprites[job.gen_id])
                               ? cachedSprites[job.gen_id]
-                              : ((job.job_type === 'character' || job.job_type === 'item') 
+                              : ((job.job_type === 'character' || job.job_type === 'item' || job.job_type === 'map') 
                                 ? (job.output_images?.[0]?.url || job.input_images?.[0]?.url)
                                 : (job.input_images?.[0]?.url || job.output_images?.[0]?.url))
                             } 
@@ -430,7 +431,7 @@ const HistoryPage: React.FC<HistoryPageProps> = ({
                               <div className="grid grid-cols-3 gap-2">
                                   {selectedJob.input_images?.map((img, i) => (
                                       <div key={i} className={`aspect-square pixel-border border-[#5a2d9c] ${
-                                        (selectedJob.job_type === 'character' || selectedJob.job_type === 'item') ? 'bg-[#2a2a2a]' : 'bg-black/40'
+                                        (selectedJob.job_type === 'character' || selectedJob.job_type === 'item' || selectedJob.job_type === 'map') ? 'bg-[#2a2a2a]' : 'bg-black/40'
                                       }`}>
                                           <PixelImage 
                                             src={img.url} 
@@ -448,7 +449,7 @@ const HistoryPage: React.FC<HistoryPageProps> = ({
                                     {isZh ? '生成结果' : 'Generated Output'}
                                   </p>
                                   <div className={`aspect-square pixel-border border-[#5a2d9c] relative ${
-                                    (selectedJob.job_type === 'character' || selectedJob.job_type === 'item') ? 'bg-[#2a2a2a]' : 'bg-black/40'
+                                    (selectedJob.job_type === 'character' || selectedJob.job_type === 'item' || selectedJob.job_type === 'map') ? 'bg-[#2a2a2a]' : 'bg-black/40'
                                   }`}>
                                       <div 
                                         className="absolute top-2 left-2 z-30 p-2 cursor-pointer transition-transform hover:scale-110 active:scale-95 bg-black/20 rounded-full"

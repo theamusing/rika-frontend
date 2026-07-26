@@ -611,6 +611,308 @@ export const scaleToSize = async (url: string, size: number): Promise<string> =>
   }
 };
 
+export function pixelSnap(image: HTMLImageElement | HTMLCanvasElement, gridSize: number): HTMLCanvasElement {
+  const MIN_GRID = 3;
+
+  if (!Number.isFinite(gridSize) || gridSize < MIN_GRID) {
+    throw new Error(`gridSize 必须大于等于 ${MIN_GRID}`);
+  }
+
+  const width = (image as HTMLImageElement).naturalWidth || (image as unknown as HTMLVideoElement).videoWidth || image.width;
+  const height = (image as HTMLImageElement).naturalHeight || (image as unknown as HTMLVideoElement).videoHeight || image.height;
+
+  if (!width || !height) {
+    throw new Error("输入图像尺寸无效");
+  }
+
+  const sourceCanvas = document.createElement("canvas");
+  sourceCanvas.width = width;
+  sourceCanvas.height = height;
+
+  const sourceContext = sourceCanvas.getContext("2d", {
+    willReadFrequently: true
+  });
+
+  if (!sourceContext) {
+    throw new Error("无法获取 Source Context");
+  }
+
+  sourceContext.drawImage(image, 0, 0, width, height);
+
+  const sourceImageData = sourceContext.getImageData(
+    0,
+    0,
+    width,
+    height
+  );
+
+  const sourcePixels = sourceImageData.data;
+
+  function grayAt(x: number, y: number) {
+    const index = (y * width + x) * 4;
+    const alpha = sourcePixels[index + 3] / 255;
+
+    return (
+      0.299 * sourcePixels[index] +
+      0.587 * sourcePixels[index + 1] +
+      0.114 * sourcePixels[index + 2]
+    ) * alpha;
+  }
+
+  function computeProfiles() {
+    const profileX = new Float64Array(width);
+    const profileY = new Float64Array(height);
+
+    for (let y = 0; y < height; y++) {
+      for (let x = 1; x < width - 1; x++) {
+        profileX[x] += Math.abs(
+          grayAt(x + 1, y) - grayAt(x - 1, y)
+        );
+      }
+    }
+
+    for (let x = 0; x < width; x++) {
+      for (let y = 1; y < height - 1; y++) {
+        profileY[y] += Math.abs(
+          grayAt(x, y + 1) - grayAt(x, y - 1)
+        );
+      }
+    }
+
+    return { profileX, profileY };
+  }
+
+  function findCuts(profile: Float64Array, limit: number) {
+    const cuts = [0];
+    const searchWindow = Math.max(2, gridSize * 0.35);
+
+    let profileMean = 0;
+
+    for (const value of profile) {
+      profileMean += value;
+    }
+
+    profileMean /= Math.max(1, profile.length);
+
+    let currentPosition = 0;
+
+    while (true) {
+      const targetPosition = currentPosition + gridSize;
+
+      if (targetPosition >= limit) {
+        break;
+      }
+
+      const searchStart = Math.max(
+        Math.ceil(currentPosition + MIN_GRID),
+        Math.floor(targetPosition - searchWindow)
+      );
+
+      const searchEnd = Math.min(
+        limit - 1,
+        Math.ceil(targetPosition + searchWindow)
+      );
+
+      let bestPosition = Math.round(targetPosition);
+      let bestStrength = -1;
+
+      for (let position = searchStart; position <= searchEnd; position++) {
+        if (profile[position] > bestStrength) {
+          bestStrength = profile[position];
+          bestPosition = position;
+        }
+      }
+
+      if (bestStrength < profileMean * 0.5) {
+        bestPosition = Math.round(targetPosition);
+      }
+
+      bestPosition = Math.max(
+        cuts[cuts.length - 1] + MIN_GRID,
+        bestPosition
+      );
+
+      if (bestPosition >= limit) {
+        break;
+      }
+
+      cuts.push(bestPosition);
+      currentPosition = bestPosition;
+    }
+
+    cuts.push(limit);
+
+    if (
+      cuts.length >= 3 &&
+      cuts[cuts.length - 1] - cuts[cuts.length - 2] < MIN_GRID
+    ) {
+      cuts.splice(cuts.length - 2, 1);
+    }
+
+    return cuts;
+  }
+
+  const { profileX, profileY } = computeProfiles();
+
+  const columnCuts = findCuts(profileX, width);
+  const rowCuts = findCuts(profileY, height);
+
+  const outputWidth = columnCuts.length - 1;
+  const outputHeight = rowCuts.length - 1;
+
+  const outputCanvas = document.createElement("canvas");
+  outputCanvas.width = outputWidth;
+  outputCanvas.height = outputHeight;
+
+  const outputContext = outputCanvas.getContext("2d");
+  if (!outputContext) {
+    throw new Error("无法获取 Output Context");
+  }
+
+  const outputImageData = outputContext.createImageData(
+    outputWidth,
+    outputHeight
+  );
+
+  const outputPixels = outputImageData.data;
+
+  for (let outputY = 0; outputY < outputHeight; outputY++) {
+    const top = rowCuts[outputY];
+    const bottom = rowCuts[outputY + 1];
+
+    for (let outputX = 0; outputX < outputWidth; outputX++) {
+      const left = columnCuts[outputX];
+      const right = columnCuts[outputX + 1];
+
+      const sampleX = Math.min(
+        width - 1,
+        Math.floor((left + right - 1) / 2)
+      );
+
+      const sampleY = Math.min(
+        height - 1,
+        Math.floor((top + bottom - 1) / 2)
+      );
+
+      const sourceIndex = (sampleY * width + sampleX) * 4;
+      const outputIndex = (outputY * outputWidth + outputX) * 4;
+
+      outputPixels[outputIndex] = sourcePixels[sourceIndex];
+      outputPixels[outputIndex + 1] = sourcePixels[sourceIndex + 1];
+      outputPixels[outputIndex + 2] = sourcePixels[sourceIndex + 2];
+      outputPixels[outputIndex + 3] = sourcePixels[sourceIndex + 3];
+    }
+  }
+
+  outputContext.putImageData(outputImageData, 0, 0);
+
+  return outputCanvas;
+}
+
+export const processMapImage = async (
+  url: string,
+  targetWidth = 512,
+  targetHeight = 288,
+  gridSize = 5
+): Promise<string> => {
+  try {
+    const sourceDataUrl = await fetchAsDataUrl(url);
+    const isDataUrl = sourceDataUrl.startsWith('data:');
+
+    return new Promise((resolve, reject) => {
+      const img = new Image();
+      if (!isDataUrl) img.crossOrigin = "anonymous";
+
+      img.onload = () => {
+        try {
+          // 1. Run pixelSnap on the input image
+          const snappedCanvas = pixelSnap(img, gridSize);
+          const sw = snappedCanvas.width;
+          const sh = snappedCanvas.height;
+
+          // 2. Check if dimensions are within 10% of target (480 x 268)
+          const wDiff = Math.abs(sw - targetWidth) / targetWidth;
+          const hDiff = Math.abs(sh - targetHeight) / targetHeight;
+
+          const isWithin10Percent = wDiff <= 0.15 && hDiff <= 0.15;
+
+          const finalCanvas = document.createElement('canvas');
+          finalCanvas.width = targetWidth;
+          finalCanvas.height = targetHeight;
+          const ctx = finalCanvas.getContext('2d');
+          if (!ctx) return reject(new Error("No context"));
+          ctx.imageSmoothingEnabled = false;
+
+          if (isWithin10Percent) {
+            // Edge crop / center crop to get target size (480 x 268)
+            const sx = sw >= targetWidth ? Math.floor((sw - targetWidth) / 2) : 0;
+            const sy = sh >= targetHeight ? Math.floor((sh - targetHeight) / 2) : 0;
+            const sWidth = Math.min(sw, targetWidth);
+            const sHeight = Math.min(sh, targetHeight);
+
+            const dx = sw < targetWidth ? Math.floor((targetWidth - sw) / 2) : 0;
+            const dy = sh < targetHeight ? Math.floor((targetHeight - sh) / 2) : 0;
+
+            ctx.drawImage(
+              snappedCanvas,
+              sx, sy, sWidth, sHeight,
+              dx, dy, sWidth, sHeight
+            );
+          } else {
+            // Directly resize snappedCanvas to target size
+            ctx.drawImage(snappedCanvas, 0, 0, targetWidth, targetHeight);
+          }
+
+          resolve(finalCanvas.toDataURL('image/png'));
+        } catch (e) {
+          reject(e);
+        }
+      };
+
+      img.onerror = () => reject(new Error("Image load failed"));
+      img.src = sourceDataUrl;
+    });
+  } catch (err) {
+    console.error("Process map image error:", err);
+    throw err;
+  }
+};
+
+export const scaleMapToQuarter = async (url: string): Promise<string> => {
+  return processMapImage(url, 512, 288, 5);
+};
+
+export const scaleMapToHalf = async (url: string): Promise<string> => {
+  try {
+    const sourceDataUrl = await fetchAsDataUrl(url);
+    const isDataUrl = sourceDataUrl.startsWith('data:');
+
+    return new Promise((resolve, reject) => {
+      const img = new Image();
+      if (!isDataUrl) img.crossOrigin = "anonymous";
+
+      img.onload = () => {
+        const targetW = Math.floor(img.width / 2);
+        const targetH = Math.floor(img.height / 2);
+        const canvas = document.createElement('canvas');
+        canvas.width = targetW;
+        canvas.height = targetH;
+        const ctx = canvas.getContext('2d');
+        if (!ctx) return reject(new Error("No context"));
+
+        ctx.imageSmoothingEnabled = false;
+        ctx.drawImage(img, 0, 0, targetW, targetH);
+        resolve(canvas.toDataURL('image/png'));
+      };
+      img.onerror = () => reject(new Error("Image load failed"));
+      img.src = sourceDataUrl;
+    });
+  } catch (err) {
+    console.error("Scale to half error:", err);
+    throw err;
+  }
+};
+
 export const downsampleTo128 = async (url: string): Promise<string> => {
   return scaleToSize(url, 128);
 };

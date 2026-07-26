@@ -186,6 +186,8 @@ const App: React.FC = () => {
       setActiveTab('character');
     } else if (params.job_type === 'item') {
       setActiveTab('item');
+    } else if (params.job_type === 'map') {
+      setActiveTab('map');
     } else {
       setActiveTab('generate');
     }
@@ -439,10 +441,13 @@ const App: React.FC = () => {
             )}
             {activeTab === 'map' && (
               <MapPage
+                onJobCreated={(id) => { setSelectedJobId(id); setActiveTab('player'); }}
                 lang={lang}
                 credits={credits}
                 onOpenPricing={() => setIsPricingOpen(true)}
                 isBackendDown={isBackendDown}
+                initialParams={initialParams}
+                onConsumed={() => setInitialParams(null)}
                 isLoggedIn={!!user}
                 onLoginRequest={() => {
                   setPendingTab('map');
