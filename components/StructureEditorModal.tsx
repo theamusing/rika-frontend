@@ -123,11 +123,10 @@ export function renderTileCell(
     ctx.fillRect(rightRailX, y, railW, h);
 
     const rungH = Math.max(2, Math.round(h * 0.1));
-    const rungYs = [
-      y + Math.round(h * 0.25) - Math.floor(rungH / 2),
-      y + Math.round(h * 0.50) - Math.floor(rungH / 2),
-      y + Math.round(h * 0.75) - Math.floor(rungH / 2),
-    ];
+    const numRungs = 3;
+    const rungYs = Array.from({ length: numRungs }, (_, i) => 
+      y + Math.round((i + 0.5) * h / numRungs) - Math.floor(rungH / 2)
+    );
     for (const ry of rungYs) {
       ctx.fillRect(leftRailX, ry, Math.max(1, rightRailX + railW - leftRailX), rungH);
     }
