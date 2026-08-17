@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { PixelButton, PixelCard } from './PixelComponents.tsx';
-import { X, Eraser, Trash2, Check, AlertTriangle } from 'lucide-react';
+import { X, Eraser, Trash2, Check, AlertTriangle, Download } from 'lucide-react';
 
 export interface StructureData {
   cols: number;
@@ -424,6 +424,17 @@ export const StructureEditorModal: React.FC<StructureEditorModalProps> = ({
     }
   };
 
+  const handleDownloadPng = () => {
+    const dataUrl = exportStructureCanvasToDataUrl(cols, rows, grid);
+    if (!dataUrl) return;
+    const a = document.createElement('a');
+    a.href = dataUrl;
+    a.download = `map_structure_${cols}x${rows}.png`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+  };
+
   const handleConfirmSave = () => {
     const dataUrl = exportStructureCanvasToDataUrl(cols, rows, grid);
     onSave({
@@ -459,7 +470,20 @@ export const StructureEditorModal: React.FC<StructureEditorModalProps> = ({
         {/* Modal Main Body */}
         <div className="p-4 flex-1 flex flex-col lg:flex-row gap-4 overflow-y-auto">
           {/* Left: Interactive Canvas Workspace */}
-          <div className="flex-1 flex flex-col items-center justify-center bg-black/60 p-3 pixel-border border-[#5a2d9c]">
+          <div className="flex-1 flex flex-col items-center justify-center bg-black/60 p-3 pixel-border border-[#5a2d9c] relative">
+            {/* Top-right Download Button */}
+            <button
+              type="button"
+              onClick={handleDownloadPng}
+              className="absolute top-3 right-3 px-2.5 py-1.5 bg-[#1b0a38] hover:bg-[#5a2d9c] text-white hover:text-[#f7d51d] pixel-border border-white/40 flex items-center gap-1.5 transition-colors z-20 shadow-md group"
+              title={isZh ? '下载结构图 (PNG)' : 'Download Structure Map (PNG)'}
+            >
+              <Download size={14} className="text-[#f7d51d] group-hover:scale-110 transition-transform" />
+              <span className="font-bold uppercase tracking-wider text-[9px]" style={{ fontSize: zhScale(8) }}>
+                {isZh ? '下载 PNG' : 'DOWNLOAD PNG'}
+              </span>
+            </button>
+
             <div className="w-full max-w-[760px] aspect-[16/9] relative flex items-center justify-center bg-white pixel-border border-2 border-white/40 shadow-inner overflow-hidden">
               <canvas
                 ref={canvasRef}
