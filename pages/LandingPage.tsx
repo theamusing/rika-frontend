@@ -6,6 +6,7 @@ import { MOTION_TYPES } from '../constants.ts';
 interface LandingPageProps {
   onGetStarted: () => void;
   onGenerateCharacter: () => void;
+  onGenerateMap?: () => void;
   onViewDocs: () => void;
   lang?: 'en' | 'zh';
 }
@@ -37,6 +38,9 @@ const TRANSLATIONS = {
     secCharTitle: "Consistent Character Generator",
     secCharSub: "Style-controlled pixel character generation",
     genCharBtn: "GENERATE",
+    secMapTitle: "Controllable Map Generation",
+    secMapSub: "Structure-controlled pixel map generation",
+    genMapBtn: "GENERATE",
     step1: "upload pixel character",
     step2: "choose motion",
     step3: "generate animation",
@@ -87,6 +91,9 @@ const TRANSLATIONS = {
     secCharTitle: "像素角色生成器",
     secCharSub: "风格可控的像素角色生成",
     genCharBtn: "生成",
+    secMapTitle: "像素地图生成",
+    secMapSub: "基于结构图生成像素地图",
+    genMapBtn: "生成",
     step1: "上传像素角色",
     step2: "选择动作类型",
     step3: "生成动画序列",
@@ -203,9 +210,31 @@ const CHARACTER_PRESETS = [
   }
 ];
 
-const LandingPage: React.FC<LandingPageProps> = ({ onGetStarted, onGenerateCharacter, onViewDocs, lang = 'en' }) => {
+const MAP_PRESETS = [
+  {
+    en: "Lush green forest with slanted sunlight streaming down, creating a cozy and pleasant atmosphere.",
+    zh: "翠绿的森林，阳光斜着洒下来，营造出惬意的氛围。",
+    structure: `${EXAMPLES_BASE}structure1.png`,
+    map: `${EXAMPLES_BASE}map1.png`
+  },
+  {
+    en: "Futuristic sci-fi space base interior.",
+    zh: "充满科技感的太空基地内部。",
+    structure: `${EXAMPLES_BASE}structure2.png`,
+    map: `${EXAMPLES_BASE}map2.png`
+  },
+  {
+    en: "Modern style city landscape with towering skyscrapers.",
+    zh: "现代风格，高楼林立的城市景观",
+    structure: `${EXAMPLES_BASE}structure3.png`,
+    map: `${EXAMPLES_BASE}map3.png`
+  }
+];
+
+const LandingPage: React.FC<LandingPageProps> = ({ onGetStarted, onGenerateCharacter, onGenerateMap, onViewDocs, lang = 'en' }) => {
   const [selectedMotion, setSelectedMotion] = useState<string>('idle');
   const [charIndex, setCharIndex] = useState(() => Math.floor(Math.random() * CHARACTER_PRESETS.length));
+  const [mapIndex, setMapIndex] = useState<number>(0);
   const [isTermsOpen, setIsTermsOpen] = useState(false);
   const [isPrivacyOpen, setIsPrivacyOpen] = useState(false);
   const t = TRANSLATIONS[lang];
@@ -443,6 +472,110 @@ const LandingPage: React.FC<LandingPageProps> = ({ onGetStarted, onGenerateChara
             >
               VIEW DOCUMENTATION
             </PixelButton>
+          </div>
+        </div>
+      </section>
+
+      {/* SECTION 2.5: CONTROLLABLE MAP GENERATOR */}
+      <section className="min-h-[70vh] flex flex-col justify-center py-24 px-6 lg:px-24 bg-black/5 border-t border-[#5a2d9c]/10">
+        <div className="text-center mb-16 space-y-2">
+          <h2 className="text-xl md:text-2xl font-bold uppercase tracking-tight text-[#f7d51d] text-pretty">{t.secMapTitle}</h2>
+          <p className={`uppercase tracking-[0.4em] text-pretty ${isZh ? 'text-[11px] text-white/50' : 'text-[8px] text-white/30'}`}>{t.secMapSub}</p>
+        </div>
+
+        <div className="max-w-5xl mx-auto w-full flex flex-col items-center gap-8">
+          {/* Side-by-side 16:9 boxes */}
+          <div className="w-full grid grid-cols-1 md:grid-cols-2 gap-6 items-center">
+            {/* Left Box: Structure Reference */}
+            <div className="flex flex-col gap-2">
+              <div className="w-full aspect-video bg-[#1e1e1e]/60 pixel-border border-[#5a2d9c] p-3 flex items-center justify-center relative overflow-hidden group">
+                <div className="absolute inset-0 bg-gradient-to-br from-[#5a2d9c]/5 to-transparent pointer-events-none"></div>
+                <PixelImage 
+                  src={MAP_PRESETS[mapIndex].structure} 
+                  key={`struct-${mapIndex}`}
+                  className="w-full h-full object-contain animate-fade-in z-10" 
+                  style={{ imageRendering: 'pixelated' }}
+                  alt="Structure Reference Preview"
+                  onError={(e) => {
+                    e.currentTarget.src = FALLBACK_IMAGE;
+                  }}
+                />
+                <div 
+                  className="absolute bottom-3 left-3 px-2 py-0.5 bg-black/80 pixel-border border-white/20 text-white/70 uppercase font-bold tracking-wider z-20 select-none"
+                  style={{ fontSize: zhScale(7.5) }}
+                >
+                  {isZh ? '结构参考' : 'STRUCTURE'}
+                </div>
+              </div>
+            </div>
+
+            {/* Right Box: Map Result */}
+            <div className="flex flex-col gap-2">
+              <div className="w-full aspect-video bg-[#1e1e1e]/60 pixel-border border-[#f7d51d] p-3 flex items-center justify-center relative overflow-hidden group">
+                <div className="absolute inset-0 bg-gradient-to-br from-[#f7d51d]/5 to-transparent pointer-events-none"></div>
+                <PixelImage 
+                  src={MAP_PRESETS[mapIndex].map} 
+                  key={`map-${mapIndex}`}
+                  className="w-full h-full object-contain animate-fade-in z-10" 
+                  style={{ imageRendering: 'pixelated' }}
+                  alt="Map Preview"
+                  onError={(e) => {
+                    e.currentTarget.src = FALLBACK_IMAGE;
+                  }}
+                />
+                <div 
+                  className="absolute bottom-3 left-3 px-2 py-0.5 bg-black/80 pixel-border border-[#f7d51d]/40 text-[#f7d51d] uppercase font-bold tracking-wider z-20 select-none"
+                  style={{ fontSize: zhScale(7.5) }}
+                >
+                  {isZh ? '像素地图' : 'PIXEL MAP'}
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Middle: Clickable prompt area to switch to next set */}
+          <div className="w-full flex flex-col items-center justify-center max-w-3xl">
+            <div 
+              className="w-full text-center cursor-pointer group py-2 px-4 select-none"
+              onClick={() => {
+                setMapIndex((prev) => (prev + 1) % MAP_PRESETS.length);
+              }}
+              title={isZh ? "点击切换下一组示例" : "Click to switch to next example"}
+            >
+              <p className={`font-bold text-white leading-relaxed transition-colors group-hover:text-[#f7d51d] ${isZh ? 'text-[13px]' : 'text-[9.5px] md:text-[10px]'}`}>
+                "{isZh ? MAP_PRESETS[mapIndex].zh : MAP_PRESETS[mapIndex].en}"
+              </p>
+            </div>
+
+            {/* Step Indicators */}
+            <div className="flex justify-center items-center gap-2.5 mt-2">
+              {MAP_PRESETS.map((_, idx) => (
+                <button
+                  key={idx}
+                  type="button"
+                  onClick={() => setMapIndex(idx)}
+                  className={`w-3 h-3 pixel-border transition-all cursor-pointer ${
+                    mapIndex === idx 
+                      ? 'bg-[#f7d51d] border-white scale-110' 
+                      : 'bg-[#2d1b4e] border-[#5a2d9c] hover:border-white/50'
+                  }`}
+                  aria-label={`Switch to map example ${idx + 1}`}
+                />
+              ))}
+            </div>
+          </div>
+
+          {/* Bottom: Generate Map Button */}
+          <div className="w-full flex justify-center mt-2">
+            <div className="w-full max-w-[200px]">
+              <PixelButton 
+                variant="primary"
+                className="w-full h-11 text-[9px] shadow-[0_0_15px_rgba(247,213,29,0.3)]"
+                onClick={onGenerateMap || onGetStarted}
+              >
+                {t.genMapBtn}
+              </PixelButton>
+            </div>
           </div>
         </div>
       </section>

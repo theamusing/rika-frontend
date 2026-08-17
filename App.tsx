@@ -392,6 +392,7 @@ const App: React.FC = () => {
             lang={lang} 
             onGetStarted={() => navigateTo('generate')} 
             onGenerateCharacter={() => navigateTo('character')}
+            onGenerateMap={() => navigateTo('map')}
             onViewDocs={() => navigateTo('docs')} 
           />
         ) : activeTab === 'docs' ? (
