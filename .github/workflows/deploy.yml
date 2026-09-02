@@ -25,12 +25,15 @@ jobs:
         with:
           node-version: 20
           # Removed cache: 'npm' to avoid "lock file not found" error
+      - name: Setup Pages
+        uses: actions/configure-pages@v4
+        id: pages
       - name: Install dependencies
         run: npm install
       - name: Build
         run: npm run build
-      - name: Setup Pages
-        uses: actions/configure-pages@v4
+        env:
+          VITE_BASE_URL: ${{ steps.pages.outputs.base_path }}
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3
         with:
