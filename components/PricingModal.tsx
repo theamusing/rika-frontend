@@ -236,8 +236,8 @@ export const PricingModal: React.FC<PricingModalProps> = ({
             <PixelButton
               onClick={onClose}
               variant="outline"
-              className="h-8 min-w-[96px] px-8 whitespace-nowrap"
-              style={{ fontSize: zhScale(8) }}
+              className="h-8 min-w-[120px] shrink-0 px-8"
+              style={{ fontSize: zhScale(8), whiteSpace: 'nowrap', flexShrink: 0 }}
             >
               {t.cancel}
             </PixelButton>
