@@ -690,12 +690,15 @@ const GenerationPage: React.FC<GenerationPageProps> = ({
                       </button>
                     </div>
                     {idx === 0 && onGenerateImage && (
-                      <div className={`flex justify-center ${!expandImages ? 'max-w-md mx-auto w-full' : ''}`}>
+                      <div className={`flex flex-col items-center gap-2 ${!expandImages ? 'max-w-md mx-auto w-full' : ''}`}>
+                        <p className="text-white/45 text-center" style={{ fontSize: zhScale(7) }}>
+                          {isZh ? '没有像素图？' : 'NO PIXEL ART YET?'}
+                        </p>
                         <PixelButton
                           type="button"
                           variant="outline"
                           onClick={onGenerateImage}
-                          className="w-full sm:w-auto"
+                          className="w-full sm:w-44"
                           style={{ fontSize: zhScale(8) }}
                         >
                           {isZh ? '生成图片' : 'GENERATE IMAGE'}
