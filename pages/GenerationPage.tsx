@@ -69,7 +69,6 @@ const GenerationPage: React.FC<GenerationPageProps> = ({
   const [error, setError] = useState('');
   const [usePadding, setUsePadding] = useState(false);
   const [paddingPosition, setPaddingPosition] = useState<'tl' | 'tc' | 'tr' | 'ml' | 'mc' | 'mr' | 'bl' | 'bc' | 'br'>('mc');
-  const [showPaddingGrid, setShowPaddingGrid] = useState(false);
   const [showCreditModal, setShowCreditModal] = useState(false);
   const [forcedScaleFactor, setForcedScaleFactor] = useState<number | null>(null);
   const [colorInputKey, setColorInputKey] = useState(0);
@@ -120,6 +119,18 @@ const GenerationPage: React.FC<GenerationPageProps> = ({
   const creditsCost = isV2 ? 6 : 4;
   const actualPadding = usePadding ? constrainPadding(v2Size, v2Padding) : EMPTY_PADDING;
   const v2CanvasSize = paddedDimensions(v2Size, actualPadding);
+  const paddingPositions = ['tl', 'tc', 'tr', 'ml', 'mc', 'mr', 'bl', 'bc', 'br'] as const;
+  const paddingPositionLabels: Record<(typeof paddingPositions)[number], string> = {
+    tl: isZh ? '左上' : 'TOP LEFT',
+    tc: isZh ? '上方' : 'TOP',
+    tr: isZh ? '右上' : 'TOP RIGHT',
+    ml: isZh ? '左侧' : 'LEFT',
+    mc: isZh ? '居中' : 'CENTER',
+    mr: isZh ? '右侧' : 'RIGHT',
+    bl: isZh ? '左下' : 'BOTTOM LEFT',
+    bc: isZh ? '下方' : 'BOTTOM',
+    br: isZh ? '右下' : 'BOTTOM RIGHT',
+  };
 
   const changeV2Size = (size: PixelDimensions) => {
     setV2Size(size);
@@ -597,7 +608,6 @@ const GenerationPage: React.FC<GenerationPageProps> = ({
                   setParams(current => ({ ...current, pixel_size: v2PixelChoice }));
                 }
                 setGenerationVersion('v1');
-                setShowPaddingGrid(false);
                 setError('');
               }}>
               <span className="version-button-label">V1</span>
@@ -611,7 +621,6 @@ const GenerationPage: React.FC<GenerationPageProps> = ({
                   changeV2Size({ x: Number(inheritedSize), y: Number(inheritedSize) });
                 }
                 setGenerationVersion('v2');
-                setShowPaddingGrid(false);
                 setError('');
               }}>
               <span className="version-button-label">
@@ -736,81 +745,7 @@ const GenerationPage: React.FC<GenerationPageProps> = ({
                       {isZh ? '扩展图像' : 'PADDING'}
                     </label>
 
-                    {/* 3x3 Grid indicator button */}
-                    {!isV2 && <div className="relative flex items-center">
-                      <button
-                        type="button"
-                        onClick={() => usePadding && setShowPaddingGrid(!showPaddingGrid)}
-                        disabled={!usePadding}
-                        className={`p-[3px] border-2 transition-all ${
-                          usePadding 
-                            ? 'border-white bg-[#512391] hover:bg-[#6c3fb8] cursor-pointer' 
-                            : 'border-white/20 bg-black/40 opacity-40 cursor-not-allowed'
-                        }`}
-                        style={{ width: '22px', height: '22px' }}
-                        title={isZh ? '选择 Padding 初始图对齐方向' : 'Choose Padding Alignment'}
-                      >
-                        <div className="grid grid-cols-3 gap-[1px] w-full h-full">
-                          {(['tl', 'tc', 'tr', 'ml', 'mc', 'mr', 'bl', 'bc', 'br'] as const).map((pos) => (
-                            <div 
-                              key={pos} 
-                              className={`w-full h-full transition-colors ${
-                                paddingPosition === pos 
-                                  ? 'bg-[#f7d51d]' 
-                                  : 'bg-white/20'
-                              }`} 
-                            />
-                          ))}
-                        </div>
-                      </button>
-
-                      {/* 3x3 Grid popup overlay */}
-                      {showPaddingGrid && usePadding && (
-                        <>
-                          <div 
-                            className="fixed inset-0 z-40" 
-                            onClick={() => setShowPaddingGrid(false)} 
-                          />
-                          <div className="absolute right-0 bottom-full mb-2 p-2 bg-black/95 pixel-border border-[#f7d51d] text-[10px] z-50 w-[110px]">
-                            <div className="text-[8px] text-[#f7d51d] mb-1.5 uppercase text-center font-bold tracking-tight">
-                              {isZh ? '对齐方向' : 'ALIGNMENT'}
-                            </div>
-                            <div className="grid grid-cols-3 gap-1.5">
-                              {(['tl', 'tc', 'tr', 'ml', 'mc', 'mr', 'bl', 'bc', 'br'] as const).map((pos) => {
-                                const labels = {
-                                  tl: isZh ? '左上' : 'TL',
-                                  tc: isZh ? '中上' : 'TC',
-                                  tr: isZh ? '右上' : 'TR',
-                                  ml: isZh ? '左中' : 'ML',
-                                  mc: isZh ? '居中' : 'MC',
-                                  mr: isZh ? '右中' : 'MR',
-                                  bl: isZh ? '左下' : 'BL',
-                                  bc: isZh ? '中下' : 'BC',
-                                  br: isZh ? '右下' : 'BR',
-                                };
-                                return (
-                                  <button
-                                    key={pos}
-                                    type="button"
-                                    onClick={() => {
-                                      setPaddingPosition(pos);
-                                      setShowPaddingGrid(false);
-                                    }}
-                                    className={`w-7 h-7 border transition-colors ${
-                                      paddingPosition === pos
-                                        ? 'border-[#f7d51d] bg-[#f7d51d]'
-                                        : 'border-white/30 bg-black/50 hover:border-white hover:bg-white/10'
-                                    }`}
-                                    title={labels[pos]}
-                                  />
-                                );
-                              })}
-                            </div>
-                          </div>
-                        </>
-                      )}
-                    </div>}
-                    {/* Question mark placed to the right of the grid indicator button */}
+                    {/* Padding help */}
                     <div className="group relative inline-block flex items-center">
                       <HelpCircle size={12} className="text-white/40 cursor-help" />
                       <div className="absolute bottom-full right-0 mb-2 hidden group-hover:block w-48 p-2 bg-black/90 text-white text-[10px] pixel-border border-[#5a2d9c] font-sans z-50 normal-case">
@@ -841,8 +776,41 @@ const GenerationPage: React.FC<GenerationPageProps> = ({
                  </label>
                </div>
             </div>
-            {isV2 && usePadding && <PaddingEditorV2 size={v2Size} padding={actualPadding} image={paddingPreviewImage}
-              onChange={value => setV2Padding(constrainPadding(v2Size, value))} lang={lang} disabled={loading} />}
+            {usePadding && (isV2 ? (
+              <PaddingEditorV2 size={v2Size} padding={actualPadding} image={paddingPreviewImage}
+                onChange={value => setV2Padding(constrainPadding(v2Size, value))} lang={lang} disabled={loading} />
+            ) : (
+              <div className="pixel-border border-[#5a2d9c] bg-black/20 p-3 space-y-3" data-testid="v1-padding-editor">
+                <div className="flex items-center justify-between gap-3 text-white/70" style={{ fontSize: zhScale(9) }}>
+                  <span>{isZh ? '选择原图对齐方向' : 'CHOOSE IMAGE ALIGNMENT'}</span>
+                  <span className="text-[#f7d51d]">{paddingPositionLabels[paddingPosition]}</span>
+                </div>
+                <div className="grid grid-cols-3 gap-2 mx-auto w-full max-w-[360px] aspect-square bg-[#080116] p-2 pixel-border border-white/10">
+                  {paddingPositions.map((position) => {
+                    const selected = paddingPosition === position;
+                    return (
+                      <button
+                        key={position}
+                        type="button"
+                        disabled={loading}
+                        aria-label={paddingPositionLabels[position]}
+                        aria-pressed={selected}
+                        onClick={() => setPaddingPosition(position)}
+                        className={`relative flex items-center justify-center border-2 font-bold transition-colors disabled:opacity-40 ${
+                          selected
+                            ? 'border-[#fff1a6] bg-[#f7d51d] text-[#160b2b] shadow-[3px_3px_0_#080116]'
+                            : 'border-[#5a2d9c] bg-[#1b0a38] text-white/55 hover:border-[#a47cfd] hover:text-white'
+                        }`}
+                        style={{ fontSize: zhScale(8) }}
+                      >
+                        {paddingPositionLabels[position]}
+                        {selected && <span className="absolute right-2 top-2 w-2 h-2 bg-[#5a2d9c]" aria-hidden="true" />}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            ))}
           </div>
         </PixelCard>
 
