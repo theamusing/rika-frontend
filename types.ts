@@ -1,13 +1,24 @@
 
 export type MotionType = 'idle' | 'walk' | 'run' | 'jump' | 'attack' | 'hit' | 'defeated';
 export type PixelSize = '32' | '64' | '128' | '256';
+export type AnimationVersion = 'v1' | 'v2';
+export interface PixelDimensions { x: number; y: number; }
+export interface PaddingOffsets { left: number; right: number; top: number; bottom: number; }
+export interface AnimationV2Params {
+  prompt: string;
+  pixel_size: PixelDimensions;
+  padding: PaddingOffsets;
+  ai_expand: boolean;
+  seed: number;
+  output_frames: number;
+  color_count: number;
+}
 
 export interface GenerationParams {
   prompt: string;
   motion_type: MotionType;
   pixel_size: PixelSize;
-  strength_low: number;
-  strength_high: number;
+  noise_strength: number;
   seed: number;
   use_mid_image: boolean;
   use_end_image: boolean;
@@ -27,6 +38,8 @@ export interface Job {
   status: 'queued' | 'running' | 'succeeded' | 'failed';
   job_type?: 'animation' | 'character' | 'item' | 'map';
   input_params: any;
+  animation_version?: number;
+  processing_stage?: 'prompt_optimization' | 'generation_starting' | 'generating';
   created_at: string;
   updated_at?: string;
   input_images?: { url: string; key: string }[];

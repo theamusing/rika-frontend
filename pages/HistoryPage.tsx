@@ -2,7 +2,9 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { apiService } from '../services/apiService.ts';
 import { Job } from '../types.ts';
-import { PixelButton, PixelCard, PixelImage } from '../components/PixelComponents.tsx';
+import { PixelButton, PixelCard } from '../components/PixelComponents.tsx';
+import AspectRatioPreview from '../components/AspectRatioPreview.tsx';
+import { jobFrameAspectRatio } from '../utils/animationDisplay.ts';
 import { Heart, Trash2, AlertTriangle } from 'lucide-react';
 import { getSpriteFromCache } from '../utils/dbUtils.ts';
 
@@ -13,6 +15,8 @@ interface HistoryPageProps {
   lang?: 'en' | 'zh';
   isLoggedIn?: boolean;
   onLoginRequest?: () => void;
+  notice?: string | null;
+  onDismissNotice?: () => void;
 }
 
 const PAGE_SIZE = 20;
@@ -25,7 +29,9 @@ const HistoryPage: React.FC<HistoryPageProps> = ({
   initialPage, 
   lang = 'en',
   isLoggedIn = false,
-  onLoginRequest
+  onLoginRequest,
+  notice,
+  onDismissNotice
 }) => {
   const [jobs, setJobs] = useState<Job[]>([]);
   const [loading, setLoading] = useState(true);
@@ -195,6 +201,15 @@ const HistoryPage: React.FC<HistoryPageProps> = ({
   };
 
   const isZh = lang === 'zh';
+  const localizedNotice = (() => {
+    if (!isZh || !notice) return notice;
+    if (notice.startsWith('Prompt optimization')) return '提示词优化阶段失败或超时，请修改提示词或稍后重试。8 积分已退还。';
+    if (notice.startsWith('Animation generation could not start')) return '动画生成启动阶段失败，请稍后重试。8 积分已退还。';
+    if (notice.startsWith('Animation generation timed out')) return '动画生成阶段超时，请重试。8 积分已退还。';
+    if (notice.startsWith('Animation generation failed')) return '动画生成阶段失败，请重试。8 积分已退还。';
+    if (notice.startsWith('Result processing failed')) return '生成结果处理阶段失败，请重试。8 积分已退还。';
+    return notice;
+  })();
   
   // Helper to apply larger font only if text is Chinese
   const zhScale = (enSize: number) => isZh ? `${enSize + 3}px` : `${enSize}px`;
@@ -274,6 +289,21 @@ const HistoryPage: React.FC<HistoryPageProps> = ({
           </PixelButton>
       </div>
 
+      {localizedNotice && (
+        <div className="flex items-start justify-between gap-4 bg-red-500/10 pixel-border border-red-500 p-4 text-red-300">
+          <div className="flex items-start gap-3">
+            <AlertTriangle size={18} className="shrink-0 mt-0.5" />
+            <div>
+              <p className="font-bold uppercase" style={{ fontSize: zhScale(10) }}>
+                {isZh ? '生成任务已停止' : 'GENERATION STOPPED'}
+              </p>
+              <p className="mt-1 text-white/70 font-sans" style={{ fontSize: zhScale(10) }}>{localizedNotice}</p>
+            </div>
+          </div>
+          <button onClick={onDismissNotice} className="text-white/50 hover:text-white" aria-label={isZh ? '关闭通知' : 'Dismiss notice'}>×</button>
+        </div>
+      )}
+
       {loading ? (
         <div className={`text-center p-20 animate-pulse uppercase text-white/50`} style={{ fontSize: zhScale(10) }}>
           {isZh ? '扫描数据库中...' : 'Scanning Database...'}
@@ -301,7 +331,13 @@ const HistoryPage: React.FC<HistoryPageProps> = ({
 
             return jobs.map((job) => (
               <PixelCard key={job.gen_id} className="group hover:bg-[#5a2d9c]/20 transition-all cursor-pointer" onClick={() => setSelectedJob(job)}>
-                  <div className={`aspect-square mb-4 overflow-hidden pixel-border border-2 border-[#5a2d9c] group-hover:border-white/40 relative ${
+                  <AspectRatioPreview alt="Job preview" fallbackRatio={jobFrameAspectRatio(job)} maxHeight={256}
+                    src={((job.job_type === 'character' || job.job_type === 'item') && cachedSprites[job.gen_id])
+                      ? cachedSprites[job.gen_id]
+                      : ((job.job_type === 'character' || job.job_type === 'item' || job.job_type === 'map')
+                        ? (job.output_images?.[0]?.url || job.input_images?.[0]?.url)
+                        : (job.input_images?.[0]?.url || job.output_images?.[0]?.url))}
+                    className={`mb-4 pixel-border border-2 border-[#5a2d9c] group-hover:border-white/40 ${
                     (job.job_type === 'character' || job.job_type === 'item' || job.job_type === 'map') ? 'bg-[#2a2a2a]' : 'bg-black/40'
                   }`}>
                       <div 
@@ -319,19 +355,6 @@ const HistoryPage: React.FC<HistoryPageProps> = ({
                               {job.job_type === 'character' ? 'CHARACTER' : (job.job_type === 'item' ? 'ITEM' : (job.job_type === 'map' ? 'MAP' : job.input_params.motion_type))}
                           </div>
                       )}
-                      {(job.input_images?.[0] || job.output_images?.[0] || cachedSprites[job.gen_id]) && (
-                          <PixelImage 
-                            src={((job.job_type === 'character' || job.job_type === 'item') && cachedSprites[job.gen_id])
-                              ? cachedSprites[job.gen_id]
-                              : ((job.job_type === 'character' || job.job_type === 'item' || job.job_type === 'map') 
-                                ? (job.output_images?.[0]?.url || job.input_images?.[0]?.url)
-                                : (job.input_images?.[0]?.url || job.output_images?.[0]?.url))
-                            } 
-                            className="w-full h-full object-cover" 
-                            style={{ imageRendering: 'pixelated' }} 
-                            alt="Job preview" 
-                          />
-                      )}
                       {job.status === 'failed' && (
                         <button 
                           onClick={(e) => handleQuickDelete(e, job)}
@@ -341,7 +364,7 @@ const HistoryPage: React.FC<HistoryPageProps> = ({
                           <Trash2 size={14} />
                         </button>
                       )}
-                  </div>
+                  </AspectRatioPreview>
                   <div className="space-y-2">
                       <div className="flex justify-between items-start">
                           <p className={`font-bold truncate pr-4 text-white/90`} style={{ fontSize: isZh && !job.input_params?.prompt ? '14px' : '10px' }}>
@@ -430,25 +453,23 @@ const HistoryPage: React.FC<HistoryPageProps> = ({
                               </p>
                               <div className="grid grid-cols-3 gap-2">
                                   {selectedJob.input_images?.map((img, i) => (
-                                      <div key={i} className={`aspect-square pixel-border border-[#5a2d9c] ${
+                                      <AspectRatioPreview key={i} src={img.url} alt={`Input ${i}`}
+                                        fallbackRatio={jobFrameAspectRatio(selectedJob)} maxHeight={160}
+                                        className={`pixel-border border-[#5a2d9c] ${
                                         (selectedJob.job_type === 'character' || selectedJob.job_type === 'item' || selectedJob.job_type === 'map') ? 'bg-[#2a2a2a]' : 'bg-black/40'
-                                      }`}>
-                                          <PixelImage 
-                                            src={img.url} 
-                                            className="w-full h-full object-contain" 
-                                            style={{ imageRendering: 'pixelated' }} 
-                                            alt={`Input ${i}`} 
-                                          />
-                                      </div>
+                                      }`} />
                                   ))}
                               </div>
                           </div>
-                          {selectedJob.status === 'succeeded' && selectedJob.output_images && (
+                          {selectedJob.status === 'succeeded' && selectedJob.output_images?.[0] && (
                               <div>
                                   <p className={`opacity-50 uppercase mb-2`} style={{ fontSize: zhScale(8) }}>
                                     {isZh ? '生成结果' : 'Generated Output'}
                                   </p>
-                                  <div className={`aspect-square pixel-border border-[#5a2d9c] relative ${
+                                  <AspectRatioPreview alt="Output" fallbackRatio={jobFrameAspectRatio(selectedJob)}
+                                    src={((selectedJob.job_type === 'character' || selectedJob.job_type === 'item') && cachedSprites[selectedJob.gen_id])
+                                      ? cachedSprites[selectedJob.gen_id] : selectedJob.output_images[0].url}
+                                    className={`pixel-border border-[#5a2d9c] ${
                                     (selectedJob.job_type === 'character' || selectedJob.job_type === 'item' || selectedJob.job_type === 'map') ? 'bg-[#2a2a2a]' : 'bg-black/40'
                                   }`}>
                                       <div 
@@ -461,16 +482,7 @@ const HistoryPage: React.FC<HistoryPageProps> = ({
                                           strokeWidth={selectedJob.liked ? 0 : 2}
                                         />
                                       </div>
-                                      <PixelImage 
-                                        src={((selectedJob.job_type === 'character' || selectedJob.job_type === 'item') && cachedSprites[selectedJob.gen_id])
-                                          ? cachedSprites[selectedJob.gen_id]
-                                          : selectedJob.output_images[0].url
-                                        } 
-                                        className="w-full h-full object-contain" 
-                                        style={{ imageRendering: 'pixelated' }} 
-                                        alt="Output" 
-                                      />
-                                  </div>
+                                  </AspectRatioPreview>
                               </div>
                           )}
                       </div>

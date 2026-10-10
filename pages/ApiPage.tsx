@@ -54,8 +54,7 @@ const apiDocs: ApiDocEntry[] = [
     "motion_type": "walk",
     "pixel_size": "128",
     "seed": 123456,
-    "strength_low": 0.8,
-    "strength_high": 0.8,
+    "noise_strength": 0.8,
     "length": 25,
     "use_mid_image": false,
     "use_end_image": false
@@ -67,8 +66,7 @@ const apiDocs: ApiDocEntry[] = [
       { name: 'motion_type', optional: true, type: 'string', values: 'idle | walk | run | jump | attack | hit | defeated', description: { en: 'Motion type (Default: idle)', zh: '动作类型 (默认: idle)' } },
       { name: 'pixel_size', optional: true, type: 'string', values: '32 | 64 | 128 | 256', description: { en: 'Pixel size (Default: 128)', zh: '像素尺寸 (默认: 128)' } },
       { name: 'seed', optional: true, type: 'number', description: { en: 'Random seed', zh: '随机种子' } },
-      { name: 'strength_low', optional: true, type: 'number', values: '0.0 - 1.0', description: { en: 'Noise strength for low level (Default: 0.8)', zh: '低级噪声强度 (默认: 0.8)' } },
-      { name: 'strength_high', optional: true, type: 'number', values: '0.0 - 1.0', description: { en: 'Noise strength for high level (Default: 0.8)', zh: '高级噪声强度 (默认: 0.8)' } },
+      { name: 'noise_strength', optional: true, type: 'number', values: '0.0 - 2.0', description: { en: 'Noise strength applied equally to both model levels (Default: 0.8)', zh: '同时应用于两个模型层级的噪声强度（默认：0.8）' } },
       { name: 'length', optional: true, type: 'number', values: '17 | 21 | 25 | 29 | 33', description: { en: 'Frames calculation: 2*frames+1', zh: '帧数计算参数: 2*frames+1' } },
       { name: 'use_mid_image', optional: true, type: 'boolean', description: { en: 'Use middle reference image', zh: '是否使用中间参考图' } },
       { name: 'use_end_image', optional: true, type: 'boolean', description: { en: 'Use end reference image', zh: '是否使用结尾参考图' } }
@@ -79,6 +77,64 @@ const apiDocs: ApiDocEntry[] = [
     responseParams: [
       { name: 'gen_id', optional: false, type: 'string', description: { en: 'Unique job ID', zh: '唯一的任务 ID' } }
     ]
+  },
+  {
+    method: 'POST',
+    path: '/generate-v2',
+    description: {
+      en: 'Generate a Wan2.2 pixel-animation spritesheet (8 credits, temporary storage)',
+      zh: '生成 Wan2.2 像素动画 spritesheet（8 积分，临时存储）',
+    },
+    request: `{
+  "image_base64": [
+    "data:image/png;base64,FIRST...",
+    "data:image/png;base64,LAST...",
+    "data:image/png;base64,MIDDLE..."
+  ],
+  "params": {
+    "prompt": "fixed side view, the knight thrusts the spear and returns to the starting pose",
+    "pixel_size": { "x": 256, "y": 128 },
+    "padding": { "left": 0, "right": 128, "top": 0, "bottom": 0 },
+    "ai_expand": true,
+    "seed": 123456,
+    "output_frames": 24,
+    "color_count": 64
+  }
+}`,
+    requestParams: [
+      {
+        name: 'image_base64', optional: false, type: 'string[]', values: '1–3 PNG images',
+        description: {
+          en: 'Already-padded images matching pixel_size. Order: first; first,last; or first,last,middle.',
+          zh: '与 pixel_size 一致、已完成 padding 的 PNG。顺序：首帧；首尾帧；或首帧、尾帧、中间帧。',
+        },
+      },
+      { name: 'prompt', optional: false, type: 'string', description: { en: 'Animation action description', zh: '动画动作描述' } },
+      {
+        name: 'pixel_size', optional: false, type: '{ x: number; y: number }', values: '32–256, multiples of 32',
+        description: {
+          en: 'Final logical frame size after frontend/client padding. Both axes must be multiples of 32.',
+          zh: '客户端完成 padding 后的最终单帧像素尺寸；两个轴都必须是 32 的倍数。',
+        },
+      },
+      {
+        name: 'padding', optional: true, type: '{ left; right; top; bottom }', values: 'Non-negative multiples of 32',
+        description: {
+          en: 'Metadata describing padding already present in the images. Defaults to zero on every side.',
+          zh: '描述图片中已经存在的 padding，仅用于元数据；默认四边均为 0。',
+        },
+      },
+      { name: 'ai_expand', optional: true, type: 'boolean', values: 'default: true', description: { en: 'Use the reference images and action text to build an image-aware, timed Wan2.2 prompt and choose the motion LoRA automatically', zh: '结合参考图和动作描述生成分时段 Wan2.2 提示词，并自动选择动作 LoRA' } },
+      { name: 'seed', optional: true, type: 'integer', values: '0–2^63-1', description: { en: 'Random seed; generated server-side when omitted', zh: '随机种子；省略时由服务器生成' } },
+      { name: 'output_frames', optional: true, type: 'integer', values: '1–256, default: 24', description: { en: 'Number of frames in the final spritesheet', zh: '最终 spritesheet 中的帧数' } },
+      { name: 'color_count', optional: true, type: 'integer', values: '2–256, default: 64', description: { en: 'Maximum postprocessing palette size', zh: '后处理调色盘的最大颜色数量' } },
+    ],
+    response: `{
+  "gen_id": "550e8400-e29b-41d4-a716-446655440000"
+}`,
+    responseParams: [
+      { name: 'gen_id', optional: false, type: 'string', description: { en: 'Poll /jobs/{gen_id}; the successful job contains one temporary PNG spritesheet URL', zh: '使用 /jobs/{gen_id} 轮询；成功后返回一个临时 PNG spritesheet 地址' } },
+    ],
   },
   {
     method: 'POST',
@@ -117,6 +173,8 @@ const apiDocs: ApiDocEntry[] = [
   "gen_id": "550e8400-e29b-41d4-a716-446655440000",
   "job_type": "animation",
   "status": "succeeded",
+  "animation_version": 2,
+  "processing_stage": "generating",
   "input_params": {},
   "output_params": {},
   "created_at": "2024-01-01T00:00:00Z",
@@ -125,7 +183,7 @@ const apiDocs: ApiDocEntry[] = [
   "output_images": [
     { "url": "https://cdn.rika-ai.com/...", "key": "..." }
   ],
-  "persist_images": true,
+  "persist_images": false,
   "liked": false,
   "error": null
 }`,
@@ -133,7 +191,9 @@ const apiDocs: ApiDocEntry[] = [
       { name: 'gen_id', optional: false, type: 'string', description: { en: 'Job ID', zh: '任务 ID' } },
       { name: 'job_type', optional: false, type: 'string', description: { en: 'Type of job', zh: '任务类型' } },
       { name: 'status', optional: false, type: 'string', values: 'queued|running|succeeded|failed', description: { en: 'Current status', zh: '当前状态' } },
-      { name: 'input_params', optional: false, type: 'object', description: { en: 'Original input parameters', zh: '原始输入参数' } },
+      { name: 'animation_version', optional: true, type: 'number', values: '1 | 2', description: { en: 'Animation pipeline version', zh: '动画管线版本' } },
+      { name: 'processing_stage', optional: true, type: 'string', values: 'prompt_optimization | generation_starting | generating', description: { en: 'Current V2 processing stage while queued or running', zh: 'V2 排队或运行时的当前处理阶段' } },
+      { name: 'input_params', optional: false, type: 'object', description: { en: 'Public user controls; internal runtime metadata is omitted', zh: '用户可见的输入参数；内部运行元数据不会返回' } },
       { name: 'output_params', optional: true, type: 'object', description: { en: 'Results metadata', zh: '结果元数据' } },
       { name: 'created_at', optional: false, type: 'string', description: { en: 'Creation timestamp', zh: '创建时间戳' } },
       { name: 'updated_at', optional: true, type: 'string', description: { en: 'Last update timestamp', zh: '最后更新时间戳' } },
@@ -472,17 +532,18 @@ end_img = encode_image("end.png")
 payload = {
     "image_base64": [start_img, end_img],
     "params": {
-        "prompt": "pixel character walking animation",
-        "pixel_size": "128",
-        "motion_type": "walk",
-        "length": 25,
-        "use_end_image": True
+        "prompt": "fixed side view, the knight thrusts the spear and returns to the starting pose",
+        "pixel_size": {"x": 128, "y": 128},
+        "padding": {"left": 0, "right": 0, "top": 0, "bottom": 0},
+        "ai_expand": True,
+        "output_frames": 24,
+        "color_count": 64
     }
 }
 
 print("Creating generation job...")
 req = urllib.request.Request(
-    f"{BASE_URL}/generate",
+    f"{BASE_URL}/generate-v2",
     data=json.dumps(payload).encode(),
     headers={
         "Content-Type": "application/json",
@@ -541,16 +602,18 @@ BASE_URL = "https://api.rika-ai.com/v1/api"
 payload = {
     "image_base64": [encode_image("start.png"), encode_image("end.png")],
     "params": {
-        "prompt": "pixel character walking animation",
-        "pixel_size": "128",
-        "motion_type": "walk",
-        "use_end_image": True
+        "prompt": "fixed side view, the knight thrusts the spear and returns to the starting pose",
+        "pixel_size": {"x": 128, "y": 128},
+        "padding": {"left": 0, "right": 0, "top": 0, "bottom": 0},
+        "ai_expand": True,
+        "output_frames": 24,
+        "color_count": 64
     }
 }
 
 print("Creating generation job...")
 req = urllib.request.Request(
-    f"{BASE_URL}/generate",
+    f"{BASE_URL}/generate-v2",
     data=json.dumps(payload).encode(),
     headers={"Content-Type": "application/json", "X-API-Key": API_KEY},
     method="POST"

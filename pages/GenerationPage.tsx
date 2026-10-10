@@ -4,7 +4,9 @@ import { PixelButton, PixelCard, PixelInput, PixelModal, PixelImage } from '../c
 import { processImage, unprocessImage, getPaletteSourceImageData } from '../utils/imageUtils.ts';
 import { apiService } from '../services/apiService.ts';
 import { MOTION_TYPES, PIXEL_SIZES } from '../constants.ts';
-import { GenerationParams, MotionType, PixelSize } from '../types.ts';
+import { AnimationV2Params, AnimationVersion, GenerationParams, MotionType, PaddingOffsets, PixelDimensions, PixelSize } from '../types.ts';
+import PaddingEditorV2 from '../components/PaddingEditorV2.tsx';
+import { constrainPadding, EMPTY_PADDING, paddedDimensions, processImageV2, removePaddingV2, scaleForV2, snapPixelSize } from '../utils/animationV2.ts';
 import { extractCentroids, RGB } from '../utils/editorUtils.ts';
 import { HelpCircle } from 'lucide-react';
 import { HexColorPicker } from 'react-colorful';
@@ -62,6 +64,14 @@ const GenerationPage: React.FC<GenerationPageProps> = ({
   const [forcedScaleFactor, setForcedScaleFactor] = useState<number | null>(null);
   const [colorInputKey, setColorInputKey] = useState(0);
   const [showBgColorPicker, setShowBgColorPicker] = useState(false);
+  const [generationVersion, setGenerationVersion] = useState<AnimationVersion>('v1');
+  const [v2PixelChoice, setV2PixelChoice] = useState<PixelSize | 'custom'>('128');
+  const [v2Size, setV2Size] = useState<PixelDimensions>({ x: 128, y: 128 });
+  const [v2Padding, setV2Padding] = useState<PaddingOffsets>({ ...EMPTY_PADDING });
+  const [v2Length, setV2Length] = useState(24);
+  const [aiExpand, setAiExpand] = useState(true);
+  const [paddingPreviewImage, setPaddingPreviewImage] = useState<string | null>(null);
+  const [imagesProcessing, setImagesProcessing] = useState(false);
 
   const [uiLength, setUiLength] = useState(12);
   const [paletteSource, setPaletteSource] = useState<ImageData | null>(null);
@@ -72,8 +82,7 @@ const GenerationPage: React.FC<GenerationPageProps> = ({
     prompt: DEFAULT_PROMPTS['idle'],
     motion_type: 'idle',
     pixel_size: '128',
-    strength_low: 0.8,
-    strength_high: 0.8,
+    noise_strength: 0.8,
     seed: Math.floor(Math.random() * 1000000),
     use_mid_image: false,
     use_end_image: false,
@@ -96,9 +105,20 @@ const GenerationPage: React.FC<GenerationPageProps> = ({
   const userHasEditedPrompt = useRef(false);
   const isZh = lang === 'zh';
   const zhScale = (enSize: number) => isZh ? `${enSize + 3}px` : `${enSize}px`;
+  const isV2 = generationVersion === 'v2';
+  const creditsCost = isV2 ? 8 : 5;
+  const actualPadding = usePadding ? constrainPadding(v2Size, v2Padding) : EMPTY_PADDING;
+  const v2CanvasSize = paddedDimensions(v2Size, actualPadding);
+  const v2Scale = scaleForV2(v2CanvasSize);
+  const v2ModelSide = Math.max(v2CanvasSize.x, v2CanvasSize.y) * v2Scale;
+
+  const changeV2Size = (size: PixelDimensions) => {
+    setV2Size(size);
+    setV2Padding(current => constrainPadding(size, current));
+  };
 
   useEffect(() => {
-    if (!initialParams) {
+    if (!initialParams && !isV2) {
       const isAttack = params.motion_type === 'attack';
       const isDefeated = params.motion_type === 'defeated';
       const isJump = params.motion_type === 'jump';
@@ -122,36 +142,34 @@ const GenerationPage: React.FC<GenerationPageProps> = ({
             const aType = prev.attack_type || 'melee';
             if (aType === 'ranged') {
               nextParams.prompt = 'side-view, 2D game character points his weapon forward and shoot a powerful bullet.';
-              nextParams.strength_low = 0.3;
-              nextParams.strength_high = 0.3;
+              nextParams.noise_strength = 0.3;
             } else if (aType === 'other') {
               nextParams.prompt = '[describe the attack]';
-              nextParams.strength_low = 0.3;
-              nextParams.strength_high = 0.3;
+              nextParams.noise_strength = 0.3;
             } else {
               nextParams.prompt = DEFAULT_PROMPTS['attack'];
-              nextParams.strength_low = 0.8;
-              nextParams.strength_high = 0.8;
+              nextParams.noise_strength = 0.8;
             }
           } else {
             nextParams.prompt = DEFAULT_PROMPTS[prev.motion_type];
             // Reset strengths to default if not attack
-            nextParams.strength_low = 0.8;
-            nextParams.strength_high = 0.8;
+            nextParams.noise_strength = 0.8;
           }
         }
         return nextParams;
       });
     }
-  }, [params.motion_type, params.attack_type, initialParams]);
+  }, [params.motion_type, params.attack_type, initialParams, isV2]);
 
   useEffect(() => {
-    if (loopAnimation || params.use_mid_image || params.use_end_image) {
+    if (!isV2 && (loopAnimation || params.use_mid_image || params.use_end_image)) {
       setUiLength(16);
     }
-  }, [loopAnimation, params.use_mid_image, params.use_end_image]);
+  }, [loopAnimation, params.use_mid_image, params.use_end_image, isV2]);
 
   useEffect(() => {
+    let cancelled = false;
+    setImagesProcessing(true);
     const reprocessAll = async () => {
       let changed = false;
       let fullChanged = false;
@@ -163,6 +181,18 @@ const GenerationPage: React.FC<GenerationPageProps> = ({
         const source = sourceFiles[i];
         if (source) {
           try {
+            if (isV2) {
+              const result = await processImageV2(source, v2Size,
+                usePadding ? constrainPadding(v2Size, v2Padding) : EMPTY_PADDING,
+                flipStates[i], params.bg_color || '#004040', params.use_quantization,
+                params.quantization_colors, centroids);
+              if (cancelled) return;
+              newImages[i] = result.image;
+              newFullImages[i] = result.image;
+              changed = fullChanged = true;
+              if (i === 0) setPaddingPreviewImage(result.contentImage);
+              continue;
+            }
             // Process for display (downscaled)
             const displayB64 = await processImage(
               source, 
@@ -204,6 +234,8 @@ const GenerationPage: React.FC<GenerationPageProps> = ({
           } catch (err: any) {
             console.error(`[IMAGE PROCESSOR] Error at index ${i}:`, err);
             processingError = err.message || "Asset processing failed.";
+            newImages[i] = newFullImages[i] = null;
+            changed = fullChanged = true;
           }
         } else {
           if (newImages[i] !== null) {
@@ -217,6 +249,8 @@ const GenerationPage: React.FC<GenerationPageProps> = ({
         }
       }
       
+      if (cancelled) return;
+      if (!sourceFiles[0]) setPaddingPreviewImage(null);
       if (changed) setImages(newImages);
       if (fullChanged) setFullProcessedImages(newFullImages);
       if (processingError) {
@@ -224,9 +258,11 @@ const GenerationPage: React.FC<GenerationPageProps> = ({
       } else if (error && (error.includes("Asset") || error.includes("CORS"))) {
         setError('');
       }
+      setImagesProcessing(false);
     };
     reprocessAll();
-  }, [usePadding, paddingPosition, sourceFiles, flipStates, params.pixel_size, params.bg_color, params.use_quantization, params.quantization_colors, centroids, forcedScaleFactor]);
+    return () => { cancelled = true; };
+  }, [usePadding, paddingPosition, sourceFiles, flipStates, params.pixel_size, params.bg_color, params.use_quantization, params.quantization_colors, centroids, forcedScaleFactor, isV2, v2Size, v2Padding]);
 
   // Update palette source when start image changes
   useEffect(() => {
@@ -261,6 +297,7 @@ const GenerationPage: React.FC<GenerationPageProps> = ({
       
       // Handle 'animate' action from character/item job
       if (initialParams.action === 'animate' && (initialParams.job_type === 'character' || initialParams.job_type === 'item')) {
+        setGenerationVersion('v1');
         const job = initialParams;
         const jobParams = job.input_params;
         const outputImgs = job.output_images || [];
@@ -306,6 +343,43 @@ const GenerationPage: React.FC<GenerationPageProps> = ({
       const job = initialParams;
       const jobParams = job.input_params;
       const inputImgs = job.input_images || [];
+      if (job.animation_version === 2 || jobParams.animation_version === 2) {
+        const canvas = jobParams.pixel_size;
+        const storedPadding = { ...EMPTY_PADDING, ...jobParams.padding };
+        const content = jobParams.content_pixel_size || {
+          x: canvas.x - storedPadding.left - storedPadding.right,
+          y: canvas.y - storedPadding.top - storedPadding.bottom,
+        };
+        const size = { x: snapPixelSize(content.x), y: snapPixelSize(content.y) };
+        const padding = constrainPadding(size, storedPadding);
+        setGenerationVersion('v2');
+        setV2Size(size);
+        setV2Padding(padding);
+        setV2PixelChoice(size.x === size.y && PIXEL_SIZES.includes(String(size.x)) ? String(size.x) as PixelSize : 'custom');
+        setV2Length(jobParams.output_frames || 24);
+        setAiExpand(jobParams.ai_expand !== false);
+        setUsePadding(jobParams.use_padding === true || Object.values(padding).some(value => value > 0));
+        setParams(prev => ({ ...prev, prompt: jobParams.prompt || '', seed: jobParams.seed ?? prev.seed,
+          fix_seed: jobParams.fix_seed || false, bg_color: jobParams.bg_color || prev.bg_color,
+          use_mid_image: jobParams.use_mid_image ?? inputImgs.length === 3,
+          use_end_image: jobParams.use_end_image ?? inputImgs.length >= 2, use_quantization: false }));
+        const files: (File | string | null)[] = [null, null, null];
+        try {
+          const urls = await Promise.all(inputImgs.map((entry: { url: string }) => (jobParams.use_padding === true || Object.values(padding).some(value => value > 0))
+            ? removePaddingV2(entry.url, size, padding) : Promise.resolve(entry.url)));
+          files[0] = urls[0] || null;
+          if (urls.length === 3) { files[1] = urls[2]; files[2] = urls[1]; }
+          else if (urls.length === 2) files[2] = urls[1];
+          setSourceFiles(files);
+          setFlipStates([false, false, false]);
+          setExpandImages(urls.length > 1);
+          setLoopAnimation(false);
+        } catch (err: any) { setError(err.message || 'History Load Error'); }
+        userHasEditedPrompt.current = true;
+        onConsumed?.();
+        return;
+      }
+      setGenerationVersion('v1');
       const apiLength = jobParams.length || 25;
       const calculatedUiLength = (apiLength - 1) / 2;
       setUiLength(calculatedUiLength);
@@ -325,6 +399,7 @@ const GenerationPage: React.FC<GenerationPageProps> = ({
       setParams({ 
         ...params, 
         ...jobParams, 
+        noise_strength: jobParams.noise_strength ?? jobParams.strength_high ?? jobParams.strength_low ?? params.noise_strength,
         pixel_size: loadedPixelSize,
         use_quantization: false,
         quantization_colors: 32
@@ -367,7 +442,7 @@ const GenerationPage: React.FC<GenerationPageProps> = ({
     setSourceFiles(newFiles);
     
     if (index === 1) {
-      setParams(prev => ({ ...prev, use_mid_image: true }));
+      setParams(prev => ({ ...prev, use_mid_image: true, ...(isV2 ? { use_end_image: true } : {}) }));
     } else if (index === 2) {
       setParams(prev => ({ ...prev, use_end_image: true }));
     }
@@ -385,10 +460,36 @@ const GenerationPage: React.FC<GenerationPageProps> = ({
       return;
     }
     if (!fullProcessedImages[0]) { setError("Start Image is required!"); return; }
-    if (credits < 5) { setShowCreditModal(true); setError("INSUFFICIENT CREDITS: 5 credits required."); return; }
+    if (credits < creditsCost) { setShowCreditModal(true); setError(`INSUFFICIENT CREDITS: ${creditsCost} credits required.`); return; }
+    if (imagesProcessing) return;
     setError('');
     setLoading(true);
     try {
+      if (isV2) {
+        if (!params.prompt.trim()) throw new Error(isZh ? '请输入动作提示词。' : 'Enter an action prompt.');
+        const useMid = expandImages && params.use_mid_image;
+        const useEnd = expandImages && params.use_end_image;
+        if (useMid && (!useEnd || !fullProcessedImages[1] || !fullProcessedImages[2])) {
+          throw new Error(isZh ? 'V2 中间参考图需要同时提供结尾图。' : 'V2 middle reference requires both middle and ending images.');
+        }
+        if (useEnd && !fullProcessedImages[2]) throw new Error(isZh ? '请上传结尾图。' : 'Upload the ending image.');
+        // Wan V2 canonical order: first, last, middle.
+        const payloadImages = [fullProcessedImages[0] as string];
+        if (useEnd) payloadImages.push(fullProcessedImages[2] as string);
+        if (useMid) payloadImages.push(fullProcessedImages[1] as string);
+        const finalParams: AnimationV2Params = {
+          prompt: params.prompt, pixel_size: v2CanvasSize,
+          padding: { ...actualPadding },
+          ai_expand: aiExpand,
+          seed: params.fix_seed ? params.seed : Math.floor(Math.random() * 1000000),
+          output_frames: v2Length,
+          color_count: params.use_quantization ? params.quantization_colors || 32 : 64,
+        };
+        const res = await apiService.generateV2(payloadImages, finalParams);
+        refreshCredits();
+        onJobCreated(res.gen_id);
+        return;
+      }
       const payloadImages: string[] = [];
       const finalParams = { ...params };
       if (!finalParams.prompt.trim()) finalParams.prompt = DEFAULT_PROMPTS[params.motion_type];
@@ -449,7 +550,7 @@ const GenerationPage: React.FC<GenerationPageProps> = ({
       >
         <div className="space-y-4 text-center">
           <p className="text-[12px] leading-relaxed text-white">
-            THIS OPERATION REQUIRES <br /> <span className="text-[#f7d51d] font-bold">5 CREDITS</span>.
+            THIS OPERATION REQUIRES <br /> <span className="text-[#f7d51d] font-bold">{creditsCost} CREDITS</span>.
           </p>
           <div className="p-3 bg-black/40 pixel-border border-[#5a2d9c]">
             <p className="text-[10px] opacity-70 mb-1 uppercase text-white/60">CURRENT BALANCE</p>
@@ -475,6 +576,17 @@ const GenerationPage: React.FC<GenerationPageProps> = ({
       </PixelModal>
 
       <div className="lg:col-span-2 space-y-6">
+        <PixelCard title={isZh ? '动画生成版本' : 'ANIMATION VERSION'} titleStyle={{ fontSize: zhScale(10) }}>
+          <label htmlFor="animation-version" className="block text-white/60 mb-2" style={{ fontSize: zhScale(10) }}>
+            {isZh ? '选择版本' : 'SELECT VERSION'}
+          </label>
+          <select id="animation-version" className="w-full bg-[#0d0221] p-3 border-2 border-[#5a2d9c] text-white outline-none focus:border-[#f7d51d]"
+            style={{ fontSize: zhScale(10) }} value={generationVersion} disabled={loading}
+            onChange={event => { setGenerationVersion(event.target.value as AnimationVersion); setShowPaddingGrid(false); setError(''); }}>
+            <option value="v1">V1 · {isZh ? '5 积分' : '5 CREDITS'}</option>
+            <option value="v2">V2 · {isZh ? '8 积分' : '8 CREDITS'}</option>
+          </select>
+        </PixelCard>
         <PixelCard title={isZh ? "参考图" : "REFERENCE IMAGES"} titleStyle={{ fontSize: zhScale(10) }}>
           <div className="flex flex-col gap-4">
             <div className={`grid gap-4 ${expandImages ? 'grid-cols-3' : 'grid-cols-1'}`}>
@@ -546,11 +658,11 @@ const GenerationPage: React.FC<GenerationPageProps> = ({
                  {expandImages && (
                     <div className="flex items-center gap-2 px-3 bg-black/20 border-2 border-[#5a2d9c] text-[8px] text-white/60">
                       <label className="flex items-center gap-1 cursor-pointer">
-                        <input type="checkbox" checked={params.use_mid_image} onChange={e => setParams({...params, use_mid_image: e.target.checked})} />
+                        <input type="checkbox" checked={params.use_mid_image} onChange={e => setParams({...params, use_mid_image: e.target.checked, ...(isV2 && e.target.checked ? { use_end_image: true } : {})})} />
                         {isZh ? '中间图' : 'MID'}
                       </label>
                       <label className="flex items-center gap-1 cursor-pointer">
-                        <input type="checkbox" checked={params.use_end_image} onChange={e => setParams({...params, use_end_image: e.target.checked})} />
+                        <input type="checkbox" checked={params.use_end_image} onChange={e => setParams({...params, use_end_image: e.target.checked, ...(isV2 && !e.target.checked ? { use_mid_image: false } : {})})} />
                         {isZh ? '结尾图' : 'END'}
                       </label>
                     </div>
@@ -565,6 +677,9 @@ const GenerationPage: React.FC<GenerationPageProps> = ({
                         checked={usePadding} 
                         onChange={(e) => {
                           setUsePadding(e.target.checked);
+                          if (isV2 && e.target.checked && Object.values(v2Padding).every(value => value === 0)) {
+                            setV2Padding(constrainPadding(v2Size, { left: 32, right: 32, top: 32, bottom: 32 }));
+                          }
                           setForcedScaleFactor(null); // Reset forced scale factor on manual change
                         }} 
                       />
@@ -572,7 +687,7 @@ const GenerationPage: React.FC<GenerationPageProps> = ({
                     </label>
 
                     {/* 3x3 Grid indicator button */}
-                    <div className="relative flex items-center">
+                    {!isV2 && <div className="relative flex items-center">
                       <button
                         type="button"
                         onClick={() => usePadding && setShowPaddingGrid(!showPaddingGrid)}
@@ -644,8 +759,7 @@ const GenerationPage: React.FC<GenerationPageProps> = ({
                           </div>
                         </>
                       )}
-                    </div>
-
+                    </div>}
                     {/* Question mark placed to the right of the grid indicator button */}
                     <div className="group relative inline-block flex items-center">
                       <HelpCircle size={12} className="text-white/40 cursor-help" />
@@ -677,6 +791,8 @@ const GenerationPage: React.FC<GenerationPageProps> = ({
                  </label>
                </div>
             </div>
+            {isV2 && usePadding && <PaddingEditorV2 size={v2Size} padding={actualPadding} image={paddingPreviewImage}
+              onChange={value => setV2Padding(constrainPadding(v2Size, value))} lang={lang} disabled={loading} />}
           </div>
         </PixelCard>
 
@@ -707,15 +823,15 @@ const GenerationPage: React.FC<GenerationPageProps> = ({
              </div>
 
              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2">
+                {!isV2 && <div className="space-y-2">
                     <label className="text-[10px] block text-white/60 uppercase" style={{ fontSize: zhScale(10) }}>
                       {isZh ? "动作" : "MOTION"}
                     </label>
                     <select className="w-full bg-[#0d0221] p-2 text-[10px] outline-none border-2 border-[#5a2d9c] text-white" value={params.motion_type} onChange={(e) => setParams({...params, motion_type: e.target.value as MotionType})}>
                         {MOTION_TYPES.map(m => <option key={m} value={m}>{m.toUpperCase()}</option>)}
                     </select>
-                </div>
-                {params.motion_type === 'attack' && (
+                </div>}
+                {!isV2 && params.motion_type === 'attack' && (
                   <div className="space-y-2">
                       <label className="text-[10px] block text-white/60 uppercase" style={{ fontSize: zhScale(10) }}>
                         {isZh ? "攻击类型" : "ATTACK TYPE"}
@@ -737,14 +853,39 @@ const GenerationPage: React.FC<GenerationPageProps> = ({
                     </label>
                     <select 
                       className="w-full bg-[#0d0221] p-2 text-[10px] outline-none border-2 border-[#5a2d9c] text-white" 
-                      value={params.pixel_size} 
+                      aria-label={isZh ? '像素尺寸' : 'Pixel size'}
+                      value={isV2 ? v2PixelChoice : params.pixel_size}
                       onChange={(e) => {
+                        if (isV2) {
+                          const choice = e.target.value as PixelSize | 'custom';
+                          setV2PixelChoice(choice);
+                          if (choice !== 'custom') changeV2Size({ x: Number(choice), y: Number(choice) });
+                          return;
+                        }
                         setParams({...params, pixel_size: e.target.value as PixelSize});
                         setForcedScaleFactor(null); // Reset forced scale factor on manual change
                       }}
                     >
                         {PIXEL_SIZES.map(s => <option key={s} value={s}>{s}x{s}</option>)}
+                        {isV2 && <option value="custom">{isZh ? '任意尺寸' : 'CUSTOM SIZE'}</option>}
                     </select>
+                    {isV2 && v2PixelChoice === 'custom' && <div className="space-y-3 p-2 border border-[#5a2d9c] font-mono text-xs text-white/70">
+                      <label className="block space-y-1">
+                        <span className="flex justify-between"><span>{isZh ? '宽度 X' : 'WIDTH X'}</span><span>{v2Size.x}px</span></span>
+                        <input type="range" aria-label={isZh ? '像素宽度' : 'Pixel width'} min={32} max={256} step={32} value={v2Size.x}
+                          className="w-full accent-[#f7d51d]" onChange={event => changeV2Size({ ...v2Size, x: snapPixelSize(Number(event.target.value)) })} />
+                      </label>
+                      <label className="block space-y-1">
+                        <span className="flex justify-between"><span>{isZh ? '高度 Y' : 'HEIGHT Y'}</span><span>{v2Size.y}px</span></span>
+                        <input type="range" aria-label={isZh ? '像素高度' : 'Pixel height'} min={32} max={256} step={32} value={v2Size.y}
+                          className="w-full accent-[#f7d51d]" onChange={event => changeV2Size({ ...v2Size, y: snapPixelSize(Number(event.target.value)) })} />
+                      </label>
+                      <p className="font-sans text-white/40">{isZh ? '32–256，以 32 像素为步进' : '32–256, in 32px steps'}</p>
+                    </div>}
+                    {isV2 && <p className="font-mono text-xs text-white/50 leading-relaxed">
+                      {isZh ? '最终像素' : 'OUTPUT'} {v2CanvasSize.x}×{v2CanvasSize.y}<br />
+                      {isZh ? '模型画布' : 'MODEL'} {v2ModelSide}×{v2ModelSide} (×{v2Scale})
+                    </p>}
                 </div>
                 <div className="space-y-2 relative">
                     <label className="text-[10px] block text-white/60 uppercase" style={{ fontSize: zhScale(10) }}>
@@ -779,8 +920,9 @@ const GenerationPage: React.FC<GenerationPageProps> = ({
                     <label className="text-[10px] block text-white/60 uppercase" style={{ fontSize: zhScale(10) }}>
                       {isZh ? "帧数" : "LENGTH"}
                     </label>
-                    <select className="w-full bg-[#0d0221] p-2 text-[10px] outline-none border-2 border-[#5a2d9c] text-white" value={uiLength} onChange={(e) => setUiLength(parseInt(e.target.value))}>
-                      {[8, 10, 12, 14, 16].map(l => <option key={l} value={l}>{l} FRAMES</option>)}
+                    <select aria-label={isZh ? '帧数' : 'Frame count'} className="w-full bg-[#0d0221] p-2 text-[10px] outline-none border-2 border-[#5a2d9c] text-white"
+                      value={isV2 ? v2Length : uiLength} onChange={(e) => isV2 ? setV2Length(parseInt(e.target.value)) : setUiLength(parseInt(e.target.value))}>
+                      {(isV2 ? Array.from(new Set([8, 10, 12, 14, 16, 20, 24, 32, v2Length])).sort((a, b) => a - b) : [8, 10, 12, 14, 16]).map(l => <option key={l} value={l}>{l} FRAMES</option>)}
                     </select>
                 </div>
              </div>
@@ -844,18 +986,22 @@ const GenerationPage: React.FC<GenerationPageProps> = ({
 
              {showAdvanced && (
                 <div className="space-y-4 border-t-2 border-[#5a2d9c] pt-4 animate-fade-in text-white/60">
+                    {isV2 ? <div className="space-y-2">
+                      <label className="flex items-center gap-2 cursor-pointer" style={{ fontSize: zhScale(10) }}>
+                        <input type="checkbox" checked={aiExpand} onChange={event => setAiExpand(event.target.checked)} />
+                        {isZh ? 'AI 扩写' : 'AI PROMPT EXPANSION'}
+                      </label>
+                      <p className="font-sans text-xs text-white/40 leading-relaxed">
+                        {isZh ? '接口预留，暂未启用。当前仍提交原始提示词。' : 'Reserved for a future update. Your prompt is currently sent unchanged.'}
+                      </p>
+                    </div> : <>
                     <div className="space-y-2">
                         <label className="text-[10px] block flex justify-between" style={{ fontSize: zhScale(10) }}>
-                          {isZh ? "低噪声强度" : "STRENGTH LOW"} <span>{params.strength_low}</span>
+                          {isZh ? "噪声强度" : "NOISE STRENGTH"} <span>{params.noise_strength}</span>
                         </label>
-                        <input type="range" min="0" max="2" step="0.1" className="w-full accent-white" value={params.strength_low} onChange={e => setParams({...params, strength_low: parseFloat(e.target.value)})} />
+                        <input type="range" min="0" max="2" step="0.1" className="w-full accent-white" value={params.noise_strength} onChange={e => setParams({...params, noise_strength: parseFloat(e.target.value)})} />
                     </div>
-                    <div className="space-y-2">
-                        <label className="text-[10px] block flex justify-between" style={{ fontSize: zhScale(10) }}>
-                          {isZh ? "高噪声强度" : "STRENGTH HIGH"} <span>{params.strength_high}</span>
-                        </label>
-                        <input type="range" min="0" max="2" step="0.1" className="w-full accent-white" value={params.strength_high} onChange={e => setParams({...params, strength_high: parseFloat(e.target.value)})} />
-                    </div>
+                    </>}
                     <div className="space-y-2">
                         <div className="flex justify-between">
                             <label className="text-[10px] block" style={{ fontSize: zhScale(10) }}>
@@ -875,13 +1021,13 @@ const GenerationPage: React.FC<GenerationPageProps> = ({
 
         <PixelButton 
           className="w-full h-16 text-lg" 
-          disabled={loading || !images[0]} 
+          disabled={loading || imagesProcessing || !images[0]}
           onClick={handleGenerate} 
           style={{ fontSize: 14 }}
         >
           {loading 
             ? (isZh ? 'PROCESSING...' : 'PROCESSING...') 
-            : 'GENERATE (5 CREDITS)'}
+            : `GENERATE (${creditsCost} CREDITS)`}
         </PixelButton>
       </div>
     </div>

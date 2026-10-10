@@ -35,6 +35,7 @@ const App: React.FC = () => {
   const [showUserDropdown, setShowUserDropdown] = useState(false);
   const [showCreateDropdown, setShowCreateDropdown] = useState(false);
   const [isBackendDown, setIsBackendDown] = useState(false);
+  const [dashboardNotice, setDashboardNotice] = useState<string | null>(null);
   
   const lastFetchTime = useRef<number>(0);
   const dropdownRef = useRef<HTMLDivElement>(null);
@@ -193,13 +194,23 @@ const App: React.FC = () => {
     }
   };
 
+  const handleGenerationFailed = useCallback((message: string) => {
+    setDashboardNotice(message);
+    setSelectedJobId(null);
+    setSelectedJob(null);
+    setNavigationSource(null);
+    setActiveTab('history');
+    fetchCredits();
+    window.setTimeout(fetchCredits, 1500);
+  }, [fetchCredits]);
+
   if (isAuthChecking) {
     return <div className="min-h-screen flex items-center justify-center bg-[#0d0221] text-white uppercase text-xs">Loading Rika AI...</div>;
   }
 
   const isRecovering = loginMode === 'update';
   const showIntro = activeTab === 'intro' && !isRecovering;
-  const showLogin = (isRecovering || (!user && forceLogin)) && !showIntro && activeTab !== 'docs' && activeTab !== 'api';
+  const showLogin = isRecovering || (!user && forceLogin);
 
   return (
     <div className="min-h-screen flex flex-col bg-[#0d0221]">
@@ -387,7 +398,14 @@ const App: React.FC = () => {
       </header>
 
       <main className="flex-1 container mx-auto p-4 max-w-7xl">
-        {showIntro ? (
+        {showLogin ? (
+          <LoginPage
+            onLogin={handleLoginSuccess}
+            onCancel={() => setForceLogin(false)}
+            initialMode={loginMode}
+            lang={lang}
+          />
+        ) : showIntro ? (
           <LandingPage 
             lang={lang} 
             onGetStarted={() => navigateTo('generate')} 
@@ -397,13 +415,6 @@ const App: React.FC = () => {
           />
         ) : activeTab === 'docs' ? (
           <DocumentPage lang={lang} onOpenPricing={() => setIsPricingOpen(true)} />
-        ) : showLogin ? (
-          <LoginPage 
-            onLogin={handleLoginSuccess} 
-            onCancel={() => setForceLogin(false)}
-            initialMode={loginMode} 
-            lang={lang} 
-          />
         ) : (
           <>
             {activeTab === 'character' && (
@@ -481,6 +492,7 @@ const App: React.FC = () => {
                 onJobSelected={(id) => { setSelectedJobId(id); setSelectedJob(null); }}
                 onRegenerate={handleRegenerate}
                 onBack={handleBack}
+                onJobFailed={handleGenerationFailed}
                 lang={lang}
                 isLoggedIn={!!user}
                 onLoginRequest={() => {
@@ -494,6 +506,8 @@ const App: React.FC = () => {
                 onJobSelected={handleJobSelected} 
                 onRegenerate={handleRegenerate}
                 initialPage={navigationSource?.tab === 'history' ? navigationSource.page : undefined}
+                notice={dashboardNotice}
+                onDismissNotice={() => setDashboardNotice(null)}
                 lang={lang}
                 isLoggedIn={!!user}
                 onLoginRequest={() => {

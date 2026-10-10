@@ -521,7 +521,7 @@ export const unprocessImage = async (url: string, pixelSize: string = '128', for
   }
 };
 
-export const sliceSpriteSheet = async (url: string, frameCount?: number, apiLength: number = 25): Promise<string[]> => {
+export const sliceSpriteSheet = async (url: string, frameCount?: number, apiLength: number = 25, columns?: number): Promise<string[]> => {
   try {
     const sourceDataUrl = await fetchAsDataUrl(url);
     const isDataUrl = sourceDataUrl.startsWith('data:');
@@ -533,9 +533,9 @@ export const sliceSpriteSheet = async (url: string, frameCount?: number, apiLeng
       img.onload = () => {
         try {
           const frames: string[] = [];
-        const targetLength = Math.floor(Math.max(1, frameCount !== undefined ? frameCount : (apiLength - 1) / 2));
-        const cols = targetLength < 4 ? targetLength : 4;
-        const rows = Math.ceil(targetLength / cols);
+          const targetLength = Math.floor(Math.max(1, frameCount !== undefined ? frameCount : (apiLength - 1) / 2));
+          const cols = columns === undefined ? (targetLength < 4 ? targetLength : 4) : Math.max(1, Math.min(columns, targetLength));
+          const rows = Math.ceil(targetLength / cols);
           
           const frameWidth = Math.floor(img.width / cols);
           const frameHeight = rows > 0 ? Math.floor(img.height / rows) : 0;

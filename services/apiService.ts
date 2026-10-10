@@ -1,6 +1,6 @@
 
 import { API_BASE, SUPABASE_FUNCTIONS_URL, SUPABASE_PUBLISHABLE_KEY } from '../constants.ts';
-import { Job } from '../types.ts';
+import { AnimationV2Params, Job } from '../types.ts';
 
 class ApiService {
   private token: string | null = null;
@@ -131,6 +131,10 @@ class ApiService {
 
   async generate(image_base64: string[], params: any) {
     return this.request('POST', 'generate', { image_base64, params });
+  }
+
+  async generateV2(image_base64: string[], params: AnimationV2Params) {
+    return this.request('POST', 'generate-v2', { image_base64, params });
   }
 
   async generateCharacter(image_base64: string[] | null, params: any) {
