@@ -125,9 +125,8 @@ const TaskPlayerPage: React.FC<TaskPlayerPageProps> = ({
 
   useEffect(() => {
     if (!currentJob || isSingleFrame) return;
-    const isV2 = currentJob.animation_version === 2 || currentJob.input_params?.animation_version === 2;
-    setFps(isV2 ? 16 : 12);
-  }, [currentJob?.gen_id, currentJob?.animation_version, currentJob?.input_params?.animation_version, isSingleFrame]);
+    setFps(12);
+  }, [currentJob?.gen_id, isSingleFrame]);
 
   const hexToRgb = (hex: string): RGB => {
     const r = parseInt(hex.slice(1, 3), 16) || 0;
