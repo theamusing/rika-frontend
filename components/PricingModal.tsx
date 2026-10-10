@@ -233,7 +233,12 @@ export const PricingModal: React.FC<PricingModalProps> = ({
                 {t.footerNote}
               </p>
             </div>
-            <PixelButton onClick={onClose} variant="outline" className="h-8 px-8" style={{ fontSize: zhScale(8) }}>
+            <PixelButton
+              onClick={onClose}
+              variant="outline"
+              className="h-8 min-w-[96px] px-8 whitespace-nowrap"
+              style={{ fontSize: zhScale(8) }}
+            >
               {t.cancel}
             </PixelButton>
           </div>
