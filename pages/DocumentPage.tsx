@@ -1,6 +1,5 @@
-
 import React from 'react';
-import { PixelCard, PixelButton } from '../components/PixelComponents.tsx';
+import { PixelButton } from '../components/PixelComponents.tsx';
 
 interface DocumentPageProps {
   lang?: 'en' | 'zh';
@@ -9,555 +8,219 @@ interface DocumentPageProps {
 
 const DocumentPage: React.FC<DocumentPageProps> = ({ lang = 'en', onOpenPricing }) => {
   const isZh = lang === 'zh';
-  
-  // Chinese text gets +3px as requested for better readability of the bitmap font
-  const zhScale = (enSize: number) => isZh ? `${enSize + 3}px` : `${enSize}px`;
-  const enOnly = (size: number) => `${size}px`;
+  const zhScale = (enSize: number) => `${isZh ? enSize + 3 : enSize}px`;
+
+  const Section = ({ number, title, children }: { number: string; title: string; children: React.ReactNode }) => (
+    <section className="space-y-6 text-left scroll-mt-32">
+      <div className="flex items-baseline gap-4 border-b-2 border-white/15 pb-3">
+        <span className="text-white/35 font-mono" style={{ fontSize: '11px' }}>{number}</span>
+        <h2 className="font-bold uppercase tracking-wide text-white" style={{ fontSize: zhScale(15) }}>{title}</h2>
+      </div>
+      {children}
+    </section>
+  );
+
+  const tableHead = 'p-3 text-left font-medium text-white/80 border-b-2 border-white/15';
+  const tableCell = 'p-3 align-top text-white/65 border-b border-white/10 leading-relaxed';
 
   return (
-    <div className="py-8 text-white min-h-[80vh] flex flex-col items-center">
-      {/* Main Content Area */}
-      <div className="w-full max-w-4xl space-y-12 pb-24 px-4">
-        <header className="space-y-4 border-b-2 border-[#5a2d9c] pb-8 text-center md:text-left">
-          <h1 className="font-bold text-white uppercase tracking-tighter" style={{ fontSize: zhScale(24) }}>
-            {isZh ? '文档' : 'Documentation'}
+    <div className="ui-page py-6 md:py-8 text-white min-h-[80vh] flex flex-col items-center">
+      <article className="w-full max-w-4xl space-y-16 pb-24 px-4">
+        <header className="space-y-4 border-b-2 border-white/20 pb-8">
+          <h1 className="font-bold uppercase tracking-tight" style={{ fontSize: zhScale(24) }}>
+            {isZh ? 'Rika AI 使用文档' : 'RIKA AI DOCUMENTATION'}
           </h1>
-          <p className="text-white/60 leading-relaxed" style={{ fontSize: zhScale(10) }}>
-            {isZh ? (
-              <>
-                <span style={{ fontSize: enOnly(10) }}>Rika AI</span> 使用手册与快速入门指南
-              </>
-            ) : (
-              'Technical Manual & Quick Start Guide for Rika AI'
-            )}
+          <p className="text-white/60 leading-relaxed max-w-3xl" style={{ fontSize: zhScale(10) }}>
+            {isZh
+              ? '本文档介绍当前版本的图像生成、动画生成、Player 编辑器、导出、积分与 API 使用方式。'
+              : 'This document covers the current image generators, animation pipelines, Player editor, export tools, credits, and API behavior.'}
           </p>
         </header>
 
-        <section className="space-y-16">
-          <div className="space-y-6 text-left">
-            <h2 className="font-bold uppercase tracking-tight flex items-center gap-3 text-white" style={{ fontSize: zhScale(16) }}>
-              <span className="w-2 h-6 bg-white/20"></span>
-              {isZh ? '快速开始' : 'Quick Start'}
-            </h2>
-            <p className="text-white/70 leading-relaxed max-w-2xl" style={{ fontSize: zhScale(10) }}>
-              {isZh ? '遵循以下步骤，将您的静态像素图片转换成动画序列帧。' : 'Follow these steps to transform your static pixel assets into high-fidelity animated sequences.'}
-            </p>
+        <Section number="01" title={isZh ? '产品功能' : 'PRODUCT CAPABILITIES'}>
+          <div className="overflow-x-auto border-2 border-white/10">
+            <table className="w-full border-collapse" style={{ fontSize: zhScale(9) }}>
+              <thead className="bg-white/5">
+                <tr>
+                  <th className={tableHead}>{isZh ? '功能' : 'FEATURE'}</th>
+                  <th className={tableHead}>{isZh ? '说明' : 'DESCRIPTION'}</th>
+                  <th className={tableHead}>{isZh ? '积分' : 'COST'}</th>
+                </tr>
+              </thead>
+              <tbody>
+                {[
+                  [isZh ? '动画 V1' : 'Animation V1', isZh ? '使用预设动作快速生成 8–16 帧动画。' : 'Preset-motion animation with 8–16 output frames.', '5'],
+                  [isZh ? '动画 V2' : 'Animation V2', isZh ? '支持自定义、多阶段动作和 16–32 帧动画。' : 'Custom and multi-stage motion with 16–32 output frames.', '8'],
+                  [isZh ? '角色生成' : 'Character', isZh ? '根据文字和可选参考图生成像素角色。' : 'Generate a pixel character from text and an optional reference.', '1'],
+                  [isZh ? '道具生成' : 'Item', isZh ? '根据文字和可选参考图生成像素道具。' : 'Generate a pixel item from text and an optional reference.', '1'],
+                  [isZh ? '地图生成' : 'Map', isZh ? '根据结构图、场景描述和可选风格图生成横板地图。' : 'Generate a side-scrolling map from structure, text, and an optional style reference.', '2'],
+                  ['Player', isZh ? '播放、逐帧编辑、去背景并导出结果。' : 'Preview, edit, remove backgrounds, and export results.', isZh ? '免费' : 'Free'],
+                ].map(row => (
+                  <tr key={row[0]}>
+                    <td className={`${tableCell} whitespace-nowrap text-white/85`}>{row[0]}</td>
+                    <td className={tableCell}>{row[1]}</td>
+                    <td className={`${tableCell} whitespace-nowrap`}>{row[2]}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
           </div>
+        </Section>
 
-          {/* STEP 1 */}
-          <div id="upload" className="space-y-6 scroll-mt-32 text-left">
-            <div className="flex items-start gap-6">
-              <span className="text-3xl font-bold text-[#5a2d9c]/40">01</span>
-              <div className="space-y-4 flex-1">
-                <h3 className="font-bold uppercase text-white" style={{ fontSize: zhScale(16) }}>
-                  {isZh ? '上传角色' : 'Upload Character'}
-                </h3>
-                <div className="leading-relaxed text-white/80 space-y-4 ml-8" style={{ fontSize: zhScale(10) }}>
-                  <p>
-                    {isZh ? (
-                      <>
-                        准备一个符合以下标准分辨率的像素角色图像：
-                        <span className="text-[#f7d51d] font-bold ml-1" style={{ fontSize: enOnly(10) }}>64x64, 128x128, or 256x256</span>。
-                      </>
-                    ) : (
-                      <>
-                        Prepare a pixel character PNG in one of the following standard resolutions: 
-                        <span className="text-[#f7d51d] font-bold ml-1">64x64, 128x128, or 256x256</span>.
-                      </>
-                    )}
-                  </p>
-                  <p>
-                    {isZh ? (
-                      <>
-                        角色应朝向 <span className="text-white font-bold">右侧</span>。如果您的角色朝向左侧，请使用参考图部分的 <span className="text-[#f7d51d] font-bold">"FLIP"</span> 开关来校正方向。
-                      </>
-                    ) : (
-                      <>
-                        Characters should be oriented facing to the <span className="text-white font-bold">RIGHT</span>. If your character is facing left, please use the <span className="text-[#f7d51d] font-bold">"FLIP"</span> toggle in the reference section to correct the orientation.
-                      </>
-                    )}
-                  </p>
-                  <p>
-                    {isZh ? '图像可以具有透明背景或纯色背景。' : 'Images can have a transparent background or a solid background.'}
-                  </p>
-                  <PixelCard className="bg-[#2d1b4e]/20 border-[#5a2d9c]/30">
-                    <p className="text-white/50 italic leading-relaxed uppercase" style={{ fontSize: zhScale(9) }}>
-                      {isZh ? (
-                        <>
-                          专业提示：您的角色应与图像边缘保持一定距离。如果角色填满了整个画布，请勾选参考图部分的 <span className="text-white font-bold">"PADDING"</span> 框以获得更好的效果。
-                        </>
-                      ) : (
-                        <>
-                          PRO TIP: Your character should have some breathing room from the image edges. 
-                          If the character fills the entire canvas, toggle the <span className="text-white font-bold">"PADDING"</span> 
-                          checkbox in the reference section to get better results.
-                        </>
-                      )}
-                    </p>
-                  </PixelCard>
+        <Section number="02" title={isZh ? '动画生成快速开始' : 'ANIMATION QUICK START'}>
+          <ol className="space-y-7 list-none" style={{ fontSize: zhScale(10) }}>
+            {[
+              {
+                title: isZh ? '准备参考图' : 'Prepare the reference image',
+                text: isZh ? '上传 PNG 图片，可使用透明或纯色背景。选择与原图实际像素画布一致的 32×32、64×64、128×128 或 256×256。角色默认建议面向右侧；必要时使用 FLIP。' : 'Upload a PNG with a transparent or solid background. Select the logical canvas that matches the source: 32×32, 64×64, 128×128, or 256×256. Characters should normally face right; use FLIP when needed.',
+              },
+              {
+                title: isZh ? '选择动画版本' : 'Choose an animation version',
+                text: isZh ? 'V1 适合标准预设动作；V2 适合自由描述、多阶段动作和较长动画。V1 与 V2 之间切换时会继承当前像素尺寸。' : 'Use V1 for standard preset motions and V2 for custom, multi-stage, or longer actions. The selected pixel size is preserved when switching versions.',
+              },
+              {
+                title: isZh ? '填写动作描述' : 'Describe the action',
+                text: isZh ? '写明主体、动作顺序和收势。复杂动作应按时间顺序描述准备、发力、接触和后续动作，避免互相矛盾的要求。' : 'State the subject, action order, and follow-through. For complex motion, describe anticipation, acceleration, contact, and recovery in chronological order and avoid conflicting instructions.',
+              },
+              {
+                title: isZh ? '设置参考帧' : 'Set control frames',
+                text: isZh ? '起始图必需。可只添加结尾图，也可同时添加中间姿态和结尾图。LOOP 会将起始图作为结尾参考，以辅助循环动作。控制帧是姿态参考，不是逐帧锁定。' : 'A start image is required. Add an end image alone, or add both a middle pose and an end image. LOOP reuses the start as the end reference. Control frames guide poses but do not lock every generated frame.',
+              },
+              {
+                title: isZh ? '生成并检查结果' : 'Generate and review',
+                text: isZh ? '任务创建后会进入 Player。等待生成完成后逐帧检查，必要时排序或排除帧、去背景和修正像素，然后导出 PNG spritesheet 或 GIF。' : 'The job opens in Player after submission. When generation completes, review each frame, reorder or exclude frames, clean the background and pixels when needed, then export PNG or GIF.',
+              },
+            ].map((step, index) => (
+              <li key={step.title} className="grid grid-cols-[32px_1fr] gap-4">
+                <span className="text-white/35 font-mono">{String(index + 1).padStart(2, '0')}</span>
+                <div className="space-y-2">
+                  <h3 className="font-medium text-white/90" style={{ fontSize: zhScale(11) }}>{step.title}</h3>
+                  <p className="text-white/65 leading-relaxed">{step.text}</p>
                 </div>
-              </div>
+              </li>
+            ))}
+          </ol>
+        </Section>
+
+        <Section number="03" title={isZh ? '动画 V1 与 V2' : 'ANIMATION V1 AND V2'}>
+          <div className="overflow-x-auto border-2 border-white/10">
+            <table className="w-full border-collapse" style={{ fontSize: zhScale(9) }}>
+              <thead className="bg-white/5">
+                <tr>
+                  <th className={tableHead}>{isZh ? '项目' : 'ITEM'}</th>
+                  <th className={tableHead}>V1</th>
+                  <th className={tableHead}>V2</th>
+                </tr>
+              </thead>
+              <tbody>
+                {[
+                  [isZh ? '适用范围' : 'Use case', isZh ? '待机、行走、奔跑、跳跃、攻击、受击和倒地等预设动作' : 'Preset idle, walk, run, jump, attack, hit, and defeated motion', isZh ? '任意动作、多阶段动作、变形和更长动画' : 'Custom actions, multi-stage motion, transformations, and longer sequences'],
+                  [isZh ? '网页帧数' : 'Web frame options', '8 / 10 / 12 / 14 / 16', '16 / 20 / 24 / 32'],
+                  [isZh ? '动作设置' : 'Motion controls', isZh ? '动作类型；攻击时可选择近战、远程或其他' : 'Motion type; melee, ranged, or other attack subtype', isZh ? '直接填写动作提示词，由系统判断动作配置' : 'Direct action prompt with automatic motion-profile selection'],
+                  [isZh ? '高级设置' : 'Advanced controls', isZh ? '噪声强度和 Seed；网页默认强度为 0.6' : 'Noise strength and seed; web default is 0.6', isZh ? 'AI 扩写和 Seed；AI 扩写默认开启' : 'AI prompt expansion and seed; expansion is enabled by default'],
+                  [isZh ? '画布' : 'Canvas', isZh ? '固定方向 Padding 位置' : 'Preset padding positions', isZh ? '可视化 Padding；非正方形画布在模型内部自动补齐并在输出时还原' : 'Visual padding; non-square canvases are padded internally and restored on output'],
+                  [isZh ? '积分' : 'Credits', '5', '8'],
+                ].map(row => (
+                  <tr key={row[0]}>
+                    <td className={`${tableCell} text-white/85 whitespace-nowrap`}>{row[0]}</td>
+                    <td className={tableCell}>{row[1]}</td>
+                    <td className={tableCell}>{row[2]}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          <div className="border-l-2 border-white/20 pl-4 text-white/60 leading-relaxed" style={{ fontSize: zhScale(9) }}>
+            {isZh
+              ? 'V2 AI 扩写会读取参考图和原始动作描述，补充角色外观、动作时序和连续的肢体运动。Dashboard 与重新生成始终向用户显示原始提示词，优化后的提示词仅供内部生成使用。'
+              : 'V2 prompt expansion reads the references and original action text to add subject details, timing, and continuous body mechanics. Dashboard and Regenerate continue to show the original prompt; the optimized prompt is used only for generation.'}
+          </div>
+        </Section>
+
+        <Section number="04" title={isZh ? '角色、道具与地图生成' : 'CHARACTER, ITEM, AND MAP GENERATION'}>
+          <div className="space-y-7 text-white/65 leading-relaxed" style={{ fontSize: zhScale(10) }}>
+            <div>
+              <h3 className="font-medium text-white/90 mb-2" style={{ fontSize: zhScale(11) }}>{isZh ? '角色生成' : 'Character generation'}</h3>
+              <p>{isZh ? '输入角色描述，可选上传一张形象参考图。支持 64、128 和 256 像素尺寸，可设置现代动画像素或复古像素画风、体型提示与主导色。' : 'Enter a character description and optionally upload one visual reference. Available sizes are 64, 128, and 256, with anime or retro pixel style, body-type guidance, and dominant colors.'}</p>
             </div>
-          </div>
-
-          {/* STEP 2 */}
-          <div id="params" className="space-y-6 scroll-mt-32 text-left">
-            <div className="flex items-start gap-6">
-              <span className="text-3xl font-bold text-[#5a2d9c]/40">02</span>
-              <div className="space-y-4 flex-1">
-                <h3 className="font-bold uppercase text-white" style={{ fontSize: zhScale(16) }}>
-                  {isZh ? '调整参数' : 'Adjust Parameters'}
-                </h3>
-                <div className="leading-relaxed text-white/80 space-y-4 ml-8" style={{ fontSize: zhScale(10) }}>
-                  <p>
-                    {isZh ? '使用侧边栏参数生成上下文：' : 'Configure the generation context using the sidebar controls:'}
-                  </p>
-                  <ul className="list-disc list-inside space-y-3 text-white/70">
-                    <li><span className="text-white font-medium">{isZh ? '动作类型：' : 'Motion Type:'}</span> {isZh ? '选择预期的动作' : 'Select the intended action'}</li>
-                    <li><span className="text-white font-medium">{isZh ? '像素尺寸：' : 'Pixel Size:'}</span> {isZh ? '必须与您的像素格子尺寸匹配' : 'Must match your source pixel grid resolution'}</li>
-                    <li><span className="text-white font-medium">{isZh ? '提示词：' : 'Prompts:'}</span> {isZh ? '使用默认值或自行编写。' : 'Use optimized defaults or write your own.'}</li>
-                  </ul>
-                </div>
-              </div>
+            <div>
+              <h3 className="font-medium text-white/90 mb-2" style={{ fontSize: zhScale(11) }}>{isZh ? '道具生成' : 'Item generation'}</h3>
+              <p>{isZh ? '输入道具的外形、材质和细节，可选上传一张参考图。支持 64、128 和 256 像素尺寸、画风与主导色设置。' : 'Describe the item shape, material, and details, with one optional reference image. Available sizes are 64, 128, and 256, with style and dominant-color controls.'}</p>
             </div>
-          </div>
-
-          {/* STEP 3 */}
-          <div id="control" className="space-y-6 scroll-mt-32 text-left">
-            <div className="flex items-start gap-6">
-              <span className="text-3xl font-bold text-[#5a2d9c]/40">03</span>
-              <div className="space-y-4 flex-1">
-                <h3 className="font-bold uppercase text-white" style={{ fontSize: zhScale(16) }}>
-                  {isZh ? '图像控制' : 'Image Control'}
-                </h3>
-                <div className="leading-relaxed text-white/80 space-y-4 ml-8" style={{ fontSize: zhScale(10) }}>
-                  <p>
-                    {isZh ? '使用高级选项优化动画：' : 'Fine-tune the animation using advanced options:'}
-                  </p>
-                  <ul className="list-disc list-inside space-y-4">
-                    <li>
-                      <span className="text-white font-bold underline">{isZh ? '循环模式：' : 'Loop Mode:'}</span> {isZh ? <>切换 <span className="text-[#f7d51d] font-bold">"LOOP"</span> 以实现无缝循环。</> : <>Toggle <span className="text-[#f7d51d] font-bold">"LOOP"</span> for seamless cycles.</>}
-                    </li>
-                    <li>
-                      <span className="text-white font-bold underline">{isZh ? '高级控制：' : 'Advanced Control:'}</span> {isZh ? <>点击 <span className="text-[#f7d51d] font-bold">"EXPAND"</span> 上传自定义关键帧。</> : <>Click <span className="text-[#f7d51d] font-bold">"EXPAND"</span> to upload custom Keyframes.</>}
-                    </li>
-                  </ul>
-                  <PixelCard className="bg-white/5 border-white/10">
-                    <p className="text-white/50 italic leading-relaxed uppercase" style={{ fontSize: zhScale(9) }}>
-                      {isZh ? (
-                        <>
-                          注意：建议在使用自定义 <span className="text-white font-medium">MID IMAGE</span> 时配合 <span className="text-[#f7d51d] font-bold" style={{ fontSize: enOnly(9) }}>16 FRAMES</span> 设置，以获得更平滑的过渡。
-                        </>
-                      ) : (
-                        <>
-                          NOTICE: Using a custom <span className="text-white font-medium">MID IMAGE</span> is recommended with <span className="text-[#f7d51d] font-bold">16 FRAMES</span> for smoother transitions.
-                        </>
-                      )}
-                    </p>
-                  </PixelCard>
-                </div>
-              </div>
+            <div>
+              <h3 className="font-medium text-white/90 mb-2" style={{ fontSize: zhScale(11) }}>{isZh ? '地图生成' : 'Map generation'}</h3>
+              <p>{isZh ? '地图必须提供结构参考，可上传结构图或使用网格编辑器创建。还可提供一张风格参考图，并设置现代/复古像素画风、视差/扁平/无背景和主导色。' : 'A map requires a structure reference, either uploaded or created with the grid editor. You may also add one style reference and choose anime/retro pixel style, parallax/flat/no background, and dominant colors.'}</p>
             </div>
           </div>
+        </Section>
 
-          {/* STEP 4 */}
-          <div id="generate" className="space-y-6 scroll-mt-32 text-left">
-            <div className="flex items-start gap-6">
-              <span className="text-3xl font-bold text-[#5a2d9c]/40">04</span>
-              <div className="space-y-4 flex-1">
-                <h3 className="font-bold uppercase text-white" style={{ fontSize: zhScale(16) }}>
-                  {isZh ? '启动生成' : 'Generation'}
-                </h3>
-                <div className="leading-relaxed text-white/80 space-y-4 ml-8" style={{ fontSize: zhScale(10) }}>
-                  <p>
-                    {isZh ? (
-                      <>
-                        每次生成操作消耗 <span className="text-[#f7d51d] font-bold">5 个积分</span>。请通过积分商店充值。
-                      </>
-                    ) : (
-                      <>
-                        Each generation operation costs <span className="text-[#f7d51d] font-bold">5 CREDITS</span>. 
-                        Recharge via the Credit Store.
-                      </>
-                    )}
-                  </p>
-                  <p>
-                    {isZh ? (
-                      <>
-                        在 <span className="text-white font-bold underline">DASHBOARD</span> 中监控任务。点击重新生成可重新加载之前的参数。
-                      </>
-                    ) : (
-                      <>
-                        Monitor tasks in the <span className="text-white font-bold underline">DASHBOARD</span>. 
-                        Click <span className="text-white font-bold">"RE-GENERATE"</span> to reload previous parameters.
-                      </>
-                    )}
-                  </p>
-                  <PixelCard className="bg-[#2d1b4e]/20 border-[#5a2d9c]/30">
-                    <p className="text-white/50 italic leading-relaxed uppercase" style={{ fontSize: zhScale(9) }}>
-                      {isZh ? (
-                        <>
-                          耗时：完整的生成通常需要 <span className="text-white font-bold">1-5 分钟</span>，具体取决于复杂程度和排队情况。
-                        </>
-                      ) : (
-                        <>
-                          TIMING: A complete generation typically takes between <span className="text-white font-bold">1-5 minutes</span> depending on the complexity and queue.
-                        </>
-                      )}
-                    </p>
-                  </PixelCard>
-                </div>
-              </div>
+        <Section number="05" title={isZh ? 'Player 与编辑器' : 'PLAYER AND EDITOR'}>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-8" style={{ fontSize: zhScale(9) }}>
+            <div>
+              <h3 className="font-medium text-white/90 mb-3" style={{ fontSize: zhScale(11) }}>{isZh ? '帧与播放' : 'Frames and playback'}</h3>
+              <ul className="list-disc pl-5 space-y-2 text-white/65 leading-relaxed">
+                <li>{isZh ? '播放、暂停、逐帧查看并调整 FPS；V2 默认以 16 FPS 预览。' : 'Play, pause, step through frames, and adjust FPS. V2 previews at 16 FPS by default.'}</li>
+                <li>{isZh ? '拖拽重新排序，或排除不需要的帧。' : 'Drag to reorder or exclude unwanted frames.'}</li>
+                <li>{isZh ? '使用画笔、橡皮、移动、取色和魔棒工具修改像素。' : 'Edit pixels with brush, eraser, move, picker, and wand tools.'}</li>
+                <li>{isZh ? '支持撤销、重做与恢复初始结果。' : 'Undo, redo, and restore the original result.'}</li>
+              </ul>
+            </div>
+            <div>
+              <h3 className="font-medium text-white/90 mb-3" style={{ fontSize: zhScale(11) }}>{isZh ? '清理与导出' : 'Cleanup and export'}</h3>
+              <ul className="list-disc pl-5 space-y-2 text-white/65 leading-relaxed">
+                <li>{isZh ? '默认去背景只删除从四角连通的相近颜色区域。' : 'Default background removal clears similar-color regions connected to the four corners.'}</li>
+                <li>{isZh ? '全局匹配会删除所有帧中接近指定背景色的像素，包括不与边缘相连的区域。' : 'Global Match removes every pixel close to the selected background color, including regions not connected to an edge.'}</li>
+                <li>{isZh ? '去杂色工具可合并相近颜色，减少零散颜色点。' : 'De-noise merges nearby colors to reduce isolated color specks.'}</li>
+                <li>{isZh ? '动画可导出 PNG spritesheet 或 GIF；单图可导出原尺寸或 4× PNG。' : 'Animations export as PNG sprite sheets or GIFs; single images export at native size or 4× PNG.'}</li>
+              </ul>
             </div>
           </div>
-
-          {/* STEP 5 */}
-          <div id="export" className="space-y-6 scroll-mt-32 text-left">
-            <div className="flex items-start gap-6">
-              <span className="text-3xl font-bold text-[#5a2d9c]/40">05</span>
-              <div className="space-y-4 flex-1">
-                <h3 className="font-bold uppercase text-white" style={{ fontSize: zhScale(16) }}>
-                  {isZh ? '浏览与导出' : 'Browsing & Export'}
-                </h3>
-                <div className="leading-relaxed text-white/80 space-y-4 ml-8" style={{ fontSize: zhScale(10) }}>
-                  <p>
-                    {isZh ? (
-                      <>
-                        <span className="text-white font-bold underline">PLAYER</span> 提供了完整的预览和编辑工具：
-                      </>
-                    ) : (
-                      <>
-                        The <span className="text-white font-bold underline">PLAYER</span> provides full preview and editing tools:
-                      </>
-                    )}
-                  </p>
-                  <ul className="list-disc list-inside space-y-3 text-white/70">
-                    <li><span className="text-white font-medium">{isZh ? '查看：' : 'Review:'}</span> {isZh ? '以自定义 FPS 播放序列。' : 'Play sequences at custom FPS.'}</li>
-                    <li><span className="text-white font-medium">{isZh ? '编辑：' : 'Edit:'}</span> {isZh ? '移除帧或修改像素。' : 'Remove frames or modify pixels.'}</li>
-                    <li><span className="text-white font-medium">{isZh ? '导出：' : 'Export:'}</span> {isZh ? '导出为序列帧或动图。' : 'Export as sprite sheet (PNG) or GIF.'}</li>
-                  </ul>
-                  <div className="p-4 bg-white/5 border-2 border-white/20 text-center">
-                    <p className="text-white/80 font-bold uppercase" style={{ fontSize: zhScale(9) }}>
-                      {isZh ? (
-                        <>
-                          编辑器和导出工具 <span className="text-[#f7d51d]">不会</span> 消耗任何积分。
-                        </>
-                      ) : (
-                        <>
-                          EDITOR AND EXPORT TOOLS <span className="text-[#f7d51d]">DO NOT</span> CONSUME ANY CREDITS.
-                        </>
-                      )}
-                    </p>
-                  </div>
-                </div>
-              </div>
-            </div>
+          <div className="overflow-x-auto border-2 border-white/10">
+            <table className="w-full border-collapse" style={{ fontSize: zhScale(9) }}>
+              <tbody>
+                {[
+                  ['CTRL + S', isZh ? '保存到本地浏览器缓存' : 'Save to local browser cache'],
+                  ['CTRL + Z / Y', isZh ? '撤销 / 重做' : 'Undo / Redo'],
+                  ['CTRL + DRAG', isZh ? '移动画布' : 'Pan the canvas'],
+                  ['SCROLL', isZh ? '缩放画布' : 'Zoom the canvas'],
+                  ['Q + CLICK', isZh ? '快速取色' : 'Quick color picker'],
+                ].map(row => (
+                  <tr key={row[0]}>
+                    <td className={`${tableCell} w-40 font-mono text-white/80`}>{row[0]}</td>
+                    <td className={tableCell}>{row[1]}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
           </div>
+        </Section>
 
-          <hr className="border-[#5a2d9c]/20" />
-
-          {/* COMMERCIAL USE */}
-          <div id="licensing" className="space-y-6 scroll-mt-32 text-left">
-            <div className="space-y-6">
-              <h2 className="font-bold uppercase tracking-tight flex items-center gap-3 text-white" style={{ fontSize: zhScale(16) }}>
-                <span className="w-2 h-6 bg-[#f7d51d]"></span>
-                {isZh ? '商用许可' : 'Commercial Use'}
-              </h2>
-              <div className="leading-relaxed text-white/80 space-y-4 ml-8 border-l border-[#f7d51d]/40 pl-6" style={{ fontSize: zhScale(10) }}>
-                <p>
-                  {isZh ? (
-                    <>
-                      生成的像素动画结果 <span className="text-white font-bold">可以商用</span>，并作为游戏素材或数字资产使用。
-                    </>
-                  ) : (
-                    <>
-                      Generated pixel animation results <span className="text-white font-bold">can be used for commercial purposes</span> and as game assets or digital resources.
-                    </>
-                  )}
-                </p>
-                <div className="p-4 bg-black/20 border border-[#f7d51d]/30">
-                  <p className="text-[#f7d51d] font-bold uppercase mb-2" style={{ fontSize: zhScale(9) }}>
-                    {isZh ? '注意事项：' : 'REQUIREMENT:'}
-                  </p>
-                  <p className="text-white/70 italic">
-                    {isZh ? (
-                      <>
-                        如果您直接将生成结果进行<span className="text-white">二次售卖</span>（例如作为独立的素材包出售），您必须在显著位置标明出处（例如：使用 <span className="font-bold">Rika AI</span> 生成）。
-                      </>
-                    ) : (
-                      <>
-                        If you directly <span className="text-white">resell</span> the generated results as standalone assets, you must clearly credit the source (e.g., <span className="font-bold">"Generated using Rika AI"</span>).
-                      </>
-                    )}
-                  </p>
-                </div>
-              </div>
-            </div>
+        <Section number="06" title={isZh ? '任务、积分与存储' : 'JOBS, CREDITS, AND STORAGE'}>
+          <div className="space-y-4 text-white/65 leading-relaxed" style={{ fontSize: zhScale(10) }}>
+            <p>{isZh ? '网页生成任务可在 Dashboard 中查看、收藏、删除和重新生成。重新生成会恢复原始用户参数。' : 'Web generation jobs can be viewed, liked, deleted, and regenerated from Dashboard. Regenerate restores the original user controls.'}</p>
+            <p>{isZh ? '任务失败或超时时，系统会自动返还本次生成消耗的积分。排队与生成耗时会随帧数、分辨率和计算资源状态变化。' : 'Credits are automatically refunded when a generation fails or times out. Queue and render time vary with frame count, resolution, and compute availability.'}</p>
+            <p>{isZh ? '使用 API Key 调用时，输入与输出不长期存储。任务成功后应及时下载 output_images 中的文件。' : 'API-key requests do not store inputs or outputs permanently. Download files from output_images promptly after a job succeeds.'}</p>
           </div>
+        </Section>
 
-          {/* ADVANCED CONTROL */}
-          <div id="advanced" className="space-y-12 scroll-mt-32 text-left">
-            <div className="space-y-6">
-              <h2 className="font-bold uppercase tracking-tight flex items-center gap-3 text-white" style={{ fontSize: zhScale(16) }}>
-                <span className="w-2 h-6 bg-[#f7d51d]"></span>
-                {isZh ? '高级控制' : 'Advanced Control'}
-              </h2>
-              <p className="text-white/70 leading-relaxed max-w-2xl" style={{ fontSize: zhScale(10) }}>
-                {isZh ? '使用高级参数更好地控制动画细节。' : 'Use advanced parameters to better control animation details.'}
-              </p>
-            </div>
-
-            <div className="space-y-12">
-              {/* 1. Parameters */}
-              <div className="space-y-6">
-                <h3 className="font-bold uppercase text-white" style={{ fontSize: zhScale(12) }}>
-                  {isZh ? '1. 高级参数' : '1. Advanced Parameters'}
-                </h3>
-                <div className="leading-relaxed text-white/80 space-y-4 ml-8 border-l border-white/10 pl-6" style={{ fontSize: zhScale(10) }}>
-                  <p>
-                    {isZh ? (
-                      <>
-                        <span style={{ fontSize: enOnly(10) }}>Rika AI</span> 采用自有的自定义训练视频模型进行动画生成。为了获得更好的生成效果，特别是对于 <span className="text-white font-bold">"ATTACK"</span> 和 <span className="text-white font-bold">"DEFEATED"</span> 等复杂动画，需要特定的参数调整。
-                      </>
-                    ) : (
-                      <>
-                        Rika AI adopts its own custom-trained video model for animation generation. To achieve better generation results, especially for complex animations such as <span className="text-white font-bold">"ATTACK"</span> and <span className="text-white font-bold">"DEFEATED"</span>, specific parameter adjustments are required.
-                      </>
-                    )}
-                  </p>
-                  <p>
-                    {isZh ? (
-                      <>
-                        点击 <span style={{ fontSize: enOnly(10) }}>Create</span> 界面中的 <span className="text-[#f7d51d] font-bold">"SHOW ADVANCED"</span> 可展开高级菜单，其中包括模型强度（Strength）、帧数和种子（Seed）。
-                      </>
-                    ) : (
-                      <>
-                        Clicking <span className="text-[#f7d51d] font-bold">"SHOW ADVANCED"</span> in the Create interface expands the advanced menu, which includes Model Strength, Frame Count, and Seed.
-                      </>
-                    )}
-                  </p>
-                  <ul className="space-y-4 list-none">
-                    <li className="flex gap-4">
-                      <span className="text-[#f7d51d] font-bold shrink-0">{isZh ? '模型强度：' : 'STRENGTH:'}</span>
-                      <span>
-                        {isZh ? (
-                          <>
-                            对于大多数动画，将强度设置为 <span className="text-white font-bold" style={{ fontSize: enOnly(10) }}>0.8</span> 是理想的选择。强度值 <span className="text-white font-bold">越高</span>，动画风格越统一和一致；相反，强度值 <span className="text-white font-bold">越低</span>，动画越倾向于遵循提示词，尽管质量可能会变得不稳定。
-                          </>
-                        ) : (
-                          <>
-                            For most animations, setting the strength to <span className="text-white font-bold">0.8</span> is an ideal choice. 
-                            A <span className="text-white font-bold">higher strength</span> value results in a more unified and consistent animation style. 
-                            Conversely, a <span className="text-white font-bold">lower strength</span> value makes the animation adhere more closely to the prompt, though the quality may become more unstable.
-                          </>
-                        )}
-                      </span>
-                    </li>
-                    <li className="flex gap-4">
-                      <span className="text-[#f7d51d] font-bold shrink-0">{isZh ? '种子：' : 'SEED:'}</span>
-                      <span>
-                        {isZh ? (
-                          <>
-                            用于生成的随机数种子。您可以勾选 <span className="text-white font-bold">"FIX"</span> 来固定种子，确保每次生成都使用相同的随机值。如果您对某次生成的动作非常满意，可以使用该种子进行后续生成，以保持连贯性。
-                          </>
-                        ) : (
-                          <>
-                            The random number seed used for generation. You can choose to fix the seed by selecting <span className="text-white font-bold">"FIX"</span> to ensure the same random value is used for every generation. If you are very satisfied with the motion in a particular generation, you can use its seed for subsequent generation tasks to maintain consistency.
-                          </>
-                        )}
-                      </span>
-                    </li>
-                    <li className="flex gap-4">
-                      <span className="text-red-400 font-bold shrink-0">{isZh ? '注意：' : 'NOTICE:'}</span>
-                      <span>
-                        {isZh ? (
-                          <>
-                            <span className="text-white font-bold">"ATTACK"</span> 动作默认是近战武器挥砍。如果您希望生成其他类型的攻击（如射击），请尝试将强度调低至 <span className="text-white font-bold" style={{ fontSize: enOnly(10) }}>0.3</span>。
-                          </>
-                        ) : (
-                          <>
-                            The <span className="text-white font-bold">"ATTACK"</span> motion defaults to a melee weapon slashing action. If you wish to generate other types of attack motions (e.g., shooting a gun), try adjusting the strength to <span className="text-white font-bold">0.3</span>.
-                          </>
-                        )}
-                      </span>
-                    </li>
-                  </ul>
-                </div>
-              </div>
-
-              {/* 2. Prompt Writing */}
-              <div className="space-y-6">
-                <h3 className="font-bold uppercase text-white" style={{ fontSize: zhScale(12) }}>
-                  {isZh ? '2. 提示词编写' : '2. Prompt Writing'}
-                </h3>
-                <div className="leading-relaxed text-white/80 space-y-4 ml-8 border-l border-white/10 pl-6" style={{ fontSize: zhScale(10) }}>
-                  <p>
-                    {isZh ? (
-                      <>
-                        虽然 <span style={{ fontSize: enOnly(10) }}>Rika AI</span> 提供的默认提示词足以应对大多数情况，但精确的提示词编写可以显著提升动画的效果。以下以攻击动画为例子：
-                      </>
-                    ) : (
-                      <>
-                        While the default prompts provided by Rika AI are sufficient for most cases, precise prompt writing can significantly enhance the final result for animations. Take attack animation as an example:
-                      </>
-                    )}
-                  </p>
-                  <p>{isZh ? '高质量提示词应遵循以下蓝图：' : 'A high-quality prompt should follow this blueprint:'}</p>
-                  
-                  <PixelCard className="bg-black/40 border-[#5a2d9c]/40 py-8">
-                    <code className="text-[#f7d51d] uppercase tracking-wider block text-center leading-relaxed font-bold" style={{ fontSize: enOnly(18) }}>
-                      a [character description] uses [his/her/its] [weapon description] to perform a [attack description].
-                    </code>
-                  </PixelCard>
-
-                  <div className="space-y-4">
-                    <p>{isZh ? '示例：' : 'Examples:'}</p>
-                    <ul className="space-y-4 text-white/60 italic border-l-2 border-[#5a2d9c]/40 pl-4">
-                      <li style={{ fontSize: enOnly(10) }}>"A female knight raises her sword to perform a powerful slash attack forward."</li>
-                      <li style={{ fontSize: enOnly(10) }}>"A warrior points her pistol forward to shoot a bullet." {isZh ? '(应将模型强度调至 0.3)' : '(You should adjust the model strength to 0.3 for this).'}</li>
-                    </ul>
-                  </div>
-
-                  <p>
-                    {isZh ? '详细的武器描述有助于在整个动画中保持武器的一致性。' : 'Detailed weapon descriptions help maintain the consistency of the weapon throughout the animation.'}
-                  </p>
-
-                  <PixelCard className="bg-[#2d1b4e]/20 border-[#5a2d9c]/30">
-                    <p className="text-white/50 italic leading-relaxed uppercase" style={{ fontSize: zhScale(9) }}>
-                      {isZh ? (
-                        <>
-                          限制：攻击动画默认设置为 <span className="text-white font-bold" style={{ fontSize: enOnly(9) }}>16 FRAMES</span>。您应避免描述过于复杂、无法在规定帧数内完成的动作。
-                        </>
-                      ) : (
-                        <>
-                          LIMITATION: Attack animations are set to <span className="text-white font-bold">16 FRAMES</span> by default. You should avoid describing actions that are too complex to be completed within this frame count.
-                        </>
-                      )}
-                    </p>
-                  </PixelCard>
-                </div>
-              </div>
-            </div>
+        <Section number="07" title={isZh ? '商用与许可' : 'COMMERCIAL USE'}>
+          <div className="space-y-4 text-white/65 leading-relaxed" style={{ fontSize: zhScale(10) }}>
+            <p>{isZh ? '生成结果可用于游戏项目及其他商业作品。' : 'Generated results may be used in games and other commercial projects.'}</p>
+            <p>{isZh ? '如果将生成结果作为独立素材直接二次销售，应在显著位置注明由 Rika AI 生成。所有使用仍须遵守网站使用条款。' : 'If generated results are directly resold as standalone assets, clearly credit Rika AI. All use remains subject to the site Terms of Use.'}</p>
           </div>
+        </Section>
 
-          <hr className="border-[#5a2d9c]/20" />
-
-          {/* EDITOR SECTION */}
-          <div id="player" className="space-y-12 scroll-mt-32 text-left">
-            <div className="space-y-6">
-              <h2 className="font-bold uppercase tracking-tight flex items-center gap-3 text-white" style={{ fontSize: zhScale(16) }}>
-                <span className="w-2 h-6 bg-[#5a2d9c]"></span>
-                {isZh ? '编辑器' : 'Player'}
-              </h2>
-              <p className="text-white/70 leading-relaxed max-w-2xl" style={{ fontSize: zhScale(10) }}>
-                {isZh ? '生成完成后，在 Dashboard 中点击 "预览" 即可进入编辑器对动画进行微调。' : 'Once generation is complete, click "View in Player" in the Dashboard to enter the editor and fine-tune your animation.'}
-              </p>
-            </div>
-
-            <div className="space-y-12">
-              {/* 1. Editor Functionalities */}
-              <div className="space-y-6">
-                <h3 className="font-bold uppercase text-white" style={{ fontSize: zhScale(12) }}>
-                  {isZh ? '1. 编辑器功能' : '1. Editor Functionalities'}
-                </h3>
-                <div className="leading-relaxed text-white/80 space-y-4 ml-8 border-l border-white/10 pl-6" style={{ fontSize: zhScale(10) }}>
-                  <ul className="space-y-6 list-none">
-                    <li className="space-y-1">
-                      <span className="text-[#f7d51d] font-bold block">{isZh ? '背景去除：' : 'BACKGROUND REMOVAL:'}</span>
-                      <span>{isZh ? '一键识别并清除背景颜色。' : 'Built-in smart algorithm to identify and clear background colors with one click.'}</span>
-                    </li>
-                    <li className="space-y-1">
-                      <span className="text-[#f7d51d] font-bold block">{isZh ? '画笔与橡皮擦：' : 'BRUSH & ERASER:'}</span>
-                      <span>{isZh ? '支持逐像素精准编辑，您可以修改角色的细节或修正生成瑕疵。' : 'Supports precise pixel-by-pixel editing, allowing you to modify character details or fix generation artifacts.'}</span>
-                    </li>
-                    <li className="space-y-1">
-                      <span className="text-[#f7d51d] font-bold block">{isZh ? '魔棒工具：' : 'WAND TOOL:'}</span>
-                      <span>{isZh ? '允许快速选中相似颜色区域并一键删除，高效清理残留像素。' : 'Allows quick selection of similar color regions for deletion, efficiently cleaning up stray pixels.'}</span>
-                    </li>
-                    <li className="space-y-1">
-                      <span className="text-[#f7d51d] font-bold block">{isZh ? '背景亮暗切换：' : 'BACKGROUND TOGGLE:'}</span>
-                      <span>{isZh ? '切换编辑区的明暗背景模式，方便观察动画在不同背景下的表现情况。' : 'Toggle between dark and light background modes to check animation visibility in different environments.'}</span>
-                    </li>
-                    <li className="space-y-1">
-                      <span className="text-[#f7d51d] font-bold block">{isZh ? '帧选择工具：' : 'FRAME SELECTOR:'}</span>
-                      <span>{isZh ? '通过序列面板勾选剔除不理想的单帧，从而优化整体动画的流畅度。' : 'Use the sequence panel to exclude specific undesirable frames, optimizing the overall motion flow.'}</span>
-                    </li>
-                    <li className="space-y-1">
-                      <span className="text-[#f7d51d] font-bold block">{isZh ? '导出工具：' : 'EXPORT TOOLS:'}</span>
-                      <span>{isZh ? '支持将结果导出为动图或具有透明通道的序列帧。' : 'Supports exporting results as animated GIFs or transparent PNG Sprite Sheets.'}</span>
-                    </li>
-                  </ul>
-                </div>
-              </div>
-
-              {/* 2. Shortcuts */}
-              <div className="space-y-6">
-                <h3 className="font-bold uppercase text-white" style={{ fontSize: zhScale(12) }}>
-                  {isZh ? '2. 编辑器快捷键' : '2. Editor Shortcuts'}
-                </h3>
-                <div className="leading-relaxed text-white/80 space-y-4 ml-8 border-l border-white/10 pl-6" style={{ fontSize: zhScale(10) }}>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div className="p-3 bg-black/30 border border-white/10">
-                      <span className="text-[#f7d51d] font-bold mr-2" style={{ fontSize: enOnly(10) }}>CTRL + S</span>
-                      <span className="opacity-80">{isZh ? '保存进度至本地浏览器缓存' : 'Save progress to local browser cache'}</span>
-                    </div>
-                    <div className="p-3 bg-black/30 border border-white/10">
-                      <span className="text-[#f7d51d] font-bold mr-2" style={{ fontSize: enOnly(10) }}>CTRL + Z / Y</span>
-                      <span className="opacity-80">{isZh ? '撤销 / 重做上一步操作' : 'Undo / Redo previous action'}</span>
-                    </div>
-                    <div className="p-3 bg-black/30 border border-white/10">
-                      <span className="text-[#f7d51d] font-bold mr-2" style={{ fontSize: enOnly(10) }}>CTRL + DRAG</span>
-                      <span className="opacity-80">{isZh ? '按住 Ctrl 拖拽鼠标以移动画布' : 'Hold Ctrl and drag to pan the canvas'}</span>
-                    </div>
-                    <div className="p-3 bg-black/30 border border-white/10">
-                      <span className="text-[#f7d51d] font-bold mr-2" style={{ fontSize: enOnly(10) }}>SCROLL</span>
-                      <span className="opacity-80">{isZh ? '使用鼠标滚轮缩放画布' : 'Scroll wheel to zoom in/out'}</span>
-                    </div>
-                    <div className="p-3 bg-black/30 border border-white/10">
-                      <span className="text-[#f7d51d] font-bold mr-2" style={{ fontSize: enOnly(10) }}>Q + CLICK</span>
-                      <span className="opacity-80">{isZh ? '按住 Q 使用鼠标左键快速取色' : 'Hold Q and left click to pick color'}</span>
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              {/* 3. Limitations */}
-              <div className="space-y-6">
-                <h3 className="font-bold uppercase text-white" style={{ fontSize: zhScale(12) }}>
-                  {isZh ? '3. 限制说明' : '3. Limitations'}
-                </h3>
-                <div className="leading-relaxed text-white/80 space-y-4 ml-8 border-l border-white/10 pl-6" style={{ fontSize: zhScale(10) }}>
-                  <PixelCard className="bg-red-900/10 border-red-500/30">
-                    <p className="text-white/80 leading-relaxed uppercase" style={{ fontSize: zhScale(10) }}>
-                      {isZh ? (
-                        <>
-                          此编辑器被设计为对动画的 <span className="text-white font-bold">初步编辑</span>。对于更加复杂的重绘或特效需求，请在导出序列帧后使用 Aseprite 或 Photoshop 等专业像素软件。
-                        </>
-                      ) : (
-                        <>
-                          This editor is designed for <span className="text-white font-bold">PRELIMINARY EDITING</span>. For more complex repainting or special effects, please use professional software after exporting.
-                        </>
-                      )}
-                    </p>
-                  </PixelCard>
-                </div>
-              </div>
-            </div>
-          </div>
-        </section>
-
-        <footer className="pt-16 border-t border-[#5a2d9c]/20">
-          <p className="text-white/20 uppercase tracking-[0.3em] text-center" style={{ fontSize: zhScale(8) }}>
-            {isZh ? '文档结束 • Rika AI' : 'End of Document • Rika AI'}
+        <footer className="pt-8 border-t-2 border-white/15 flex flex-col sm:flex-row items-center justify-between gap-5">
+          <p className="text-white/45 leading-relaxed" style={{ fontSize: zhScale(9) }}>
+            {isZh ? '开发者可前往 API 页面创建密钥并查看完整请求参数。' : 'Developers can create keys and review complete request parameters on the API page.'}
           </p>
+          {onOpenPricing && (
+            <PixelButton variant="secondary" onClick={onOpenPricing} style={{ fontSize: zhScale(9) }}>
+              {isZh ? '查看定价' : 'VIEW PRICING'}
+            </PixelButton>
+          )}
         </footer>
-      </div>
-
-      <style dangerouslySetInnerHTML={{ __html: `
-        .scroll-mt-32 {
-          scroll-margin-top: 8rem;
-        }
-      `}} />
+      </article>
     </div>
   );
 };

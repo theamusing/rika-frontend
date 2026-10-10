@@ -34,8 +34,8 @@ const PaddingEditorV2: React.FC<Props> = ({ size, padding, image, onChange, lang
     onChange({ ...padding, [side]: Math.max(0, Math.min(limit(side), Math.round(value / 32) * 32)) });
   };
   return (
-    <div className="border-2 border-[#5a2d9c] bg-black/20 p-3 space-y-3" data-testid="v2-padding-editor">
-      <div className="flex justify-between gap-2 text-white/70 font-mono text-xs">
+    <div className="pixel-border border-[#5a2d9c] bg-black/20 p-3 space-y-3" data-testid="v2-padding-editor">
+      <div className="flex justify-between gap-2 text-white/70 text-[9px]">
         <span>{zh ? '拖动四边调整留白' : 'DRAG EDGES TO PAD'}</span>
         <span className="text-[#f7d51d]">{total.x}×{total.y}</span>
       </div>
@@ -52,14 +52,14 @@ const PaddingEditorV2: React.FC<Props> = ({ size, padding, image, onChange, lang
           left: `${x / 256 * 100}%`, top: `${y / 256 * 100}%`, width: `${size.x / 256 * 100}%`, height: `${size.y / 256 * 100}%`,
         }}>
           {image ? <img src={image} alt={zh ? '原图内容' : 'Image content'} className="w-full h-full" style={{ imageRendering: 'pixelated' }} draggable={false} />
-            : <span className="font-mono text-xs text-white/50">{size.x}×{size.y}</span>}
+            : <span className="text-[9px] text-white/50">{size.x}×{size.y}</span>}
         </div>
         {(Object.keys(padding) as (keyof PaddingOffsets)[]).map(side => (
           <button key={side} type="button" role="slider" aria-label={labels[side]}
             aria-valuemin={0} aria-valuemax={limit(side)} aria-valuenow={padding[side]}
             aria-orientation={side === 'left' || side === 'right' ? 'horizontal' : 'vertical'}
             title={`${labels[side]}: ${padding[side]}px`} disabled={disabled || limit(side) === 0}
-            className="absolute z-10 w-7 h-7 -translate-x-1/2 -translate-y-1/2 bg-[#f7d51d] text-[#2d1b4e] border-2 border-[#0d0221] font-mono text-lg leading-none disabled:opacity-40 focus:outline-2 focus:outline-white"
+            className="absolute z-10 w-7 h-7 -translate-x-1/2 -translate-y-1/2 bg-[#f7d51d] text-[#2d1b4e] border-2 border-[#0d0221] text-base leading-none disabled:opacity-40 focus:outline-2 focus:outline-white shadow-[2px_2px_0_#080116]"
             style={{ left: `${position[side].left / 256 * 100}%`, top: `${position[side].top / 256 * 100}%`,
               cursor: side === 'left' || side === 'right' ? 'ew-resize' : 'ns-resize', touchAction: 'none' }}
             onPointerDown={event => {
@@ -96,14 +96,6 @@ const PaddingEditorV2: React.FC<Props> = ({ size, padding, image, onChange, lang
           </button>
         ))}
       </div>
-      <div className="grid grid-cols-4 gap-2 text-center font-mono text-xs text-white/60">
-        {(Object.keys(padding) as (keyof PaddingOffsets)[]).map(side => <span key={side}>
-          {zh ? { left: '左', right: '右', top: '上', bottom: '下' }[side] : side.toUpperCase()}<br />{padding[side]}px
-        </span>)}
-      </div>
-      <p className="text-white/40 font-sans text-xs leading-relaxed">
-        {zh ? '每次调整 32 像素，含留白的宽高最多 256。也可选中拖柄使用方向键。' : '32px steps. Total width and height stay ≤256. Arrow keys also work.'}
-      </p>
     </div>
   );
 };

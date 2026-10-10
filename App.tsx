@@ -26,12 +26,17 @@ const App: React.FC = () => {
   const [selectedJob, setSelectedJob] = useState<Job | null>(null);
   const [navigationSource, setNavigationSource] = useState<{ tab: string, page?: number } | null>(null);
   const [initialParams, setInitialParams] = useState<any>(null);
+  const [generationEntryVersion, setGenerationEntryVersion] = useState<'v1' | 'v2'>('v1');
   const [isAuthChecking, setIsAuthChecking] = useState(true);
   const [isPricingOpen, setIsPricingOpen] = useState(false);
   const [isPaymentSuccessOpen, setIsPaymentSuccessOpen] = useState(false);
   const [loginMode, setLoginMode] = useState<'login' | 'forgot' | 'update'>('login');
   const [forceLogin, setForceLogin] = useState(false);
-  const [lang, setLang] = useState<'en' | 'zh'>('en');
+  const [lang, setLang] = useState<'en' | 'zh'>(() => {
+    const saved = localStorage.getItem('rika-ui-language');
+    if (saved === 'en' || saved === 'zh') return saved;
+    return navigator.language.toLowerCase().startsWith('zh') ? 'zh' : 'en';
+  });
   const [showUserDropdown, setShowUserDropdown] = useState(false);
   const [showCreateDropdown, setShowCreateDropdown] = useState(false);
   const [isBackendDown, setIsBackendDown] = useState(false);
@@ -42,7 +47,12 @@ const App: React.FC = () => {
   const createDropdownRef = useRef<HTMLDivElement>(null);
 
   const isZh = lang === 'zh';
-  const zhScale = (enSize: number) => isZh ? `${enSize + 3}px` : `${enSize}px`;
+  const zhScale = (enSize: number) => `${isZh ? enSize + 3 : enSize}px`;
+
+  useEffect(() => {
+    document.documentElement.lang = isZh ? 'zh-CN' : 'en';
+    localStorage.setItem('rika-ui-language', lang);
+  }, [isZh, lang]);
 
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
@@ -205,7 +215,7 @@ const App: React.FC = () => {
   }, [fetchCredits]);
 
   if (isAuthChecking) {
-    return <div className="min-h-screen flex items-center justify-center bg-[#0d0221] text-white uppercase text-xs">Loading Rika AI...</div>;
+    return <div className="min-h-screen flex items-center justify-center bg-[#0d0221] text-white uppercase text-xs loading-shimmer">Loading Rika AI...</div>;
   }
 
   const isRecovering = loginMode === 'update';
@@ -213,35 +223,36 @@ const App: React.FC = () => {
   const showLogin = isRecovering || (!user && forceLogin);
 
   return (
-    <div className="min-h-screen flex flex-col bg-[#0d0221]">
+    <div lang={isZh ? 'zh-CN' : 'en'} className={`ui-shell min-h-screen flex flex-col bg-[#0d0221] ${isZh ? 'lang-zh' : 'lang-en'}`}>
       {isBackendDown && (
-        <div className="bg-red-600 text-white text-center py-2 px-4 text-[10px] font-bold uppercase animate-pulse z-[100]">
+        <div className="ui-status-strip bg-red-700 text-white text-center py-2 px-4 text-[10px] font-bold uppercase z-[100]">
           {isZh 
             ? '网站服务器维护中，暂时无法使用，请谅解。您的积分不会丢失，只是暂时无法显示。' 
             : 'Server maintenance in progress. The site is temporarily unavailable. Your credits are safe but cannot be displayed at the moment.'}
         </div>
       )}
-      <header className="sticky top-0 z-50 bg-[#2d1b4e] border-b-4 border-[#5a2d9c] p-4 flex flex-wrap items-center justify-between gap-4">
-        <div className="flex items-center gap-6">
+      <header className="app-header sticky top-0 z-50 px-3 py-3 md:px-5">
+        <div className="app-header-inner flex w-full max-w-none flex-wrap items-center justify-between gap-4">
+        <div className="header-primary flex min-w-0 flex-1 items-center gap-4 lg:gap-6">
           <img 
             src="https://cdn.rika-ai.com/assets/frontpage/icons/icon1.png" 
-            className="h-10 w-auto cursor-pointer" 
+            className="brand-mark h-9 w-auto cursor-pointer md:h-10"
             style={{ imageRendering: 'pixelated' }}
             onClick={() => navigateTo('intro')}
             alt="RIKA AI"
           />
-          <nav className="flex gap-2">
+          <nav className="top-nav">
             <div className="relative" ref={createDropdownRef}>
               <button 
                 onClick={() => setShowCreateDropdown(!showCreateDropdown)}
-                className={`px-4 py-2 text-[10px] font-bold uppercase transition-all flex items-center gap-1 ${activeTab === 'character' || activeTab === 'item' || activeTab === 'generate' || activeTab === 'map' ? 'text-white border-b-2 border-white' : 'text-white/40 hover:text-white'}`}
+                className={`nav-button flex items-center gap-1 ${activeTab === 'character' || activeTab === 'item' || activeTab === 'generate' || activeTab === 'map' ? 'is-active' : ''}`}
               >
-                CREATE
+                {isZh ? '创作' : 'CREATE'}
                 <span className={`transition-transform duration-200 ${showCreateDropdown ? 'rotate-180' : ''}`}>▼</span>
               </button>
               
               {showCreateDropdown && (
-                <div className="absolute left-0 mt-2 w-32 bg-[#2d1b4e] pixel-border border-[#5a2d9c] z-[100] shadow-xl">
+                <div className="pixel-dropdown absolute left-0 z-[100] mt-2 w-36">
                   <button 
                     onClick={() => { navigateTo('character'); setShowCreateDropdown(false); }}
                     className={`w-full px-4 py-3 text-[10px] font-bold uppercase text-left transition-all ${activeTab === 'character' ? 'bg-[#f7d51d] text-[#2d1b4e]' : 'text-white/60 hover:bg-white/10 hover:text-white'}`}
@@ -271,49 +282,48 @@ const App: React.FC = () => {
             </div>
             <button 
               onClick={() => navigateTo('player')}
-              className={`px-4 py-2 text-[10px] font-bold uppercase transition-all ${activeTab === 'player' ? 'text-white border-b-2 border-white' : 'text-white/40 hover:text-white'}`}
+              className={`nav-button ${activeTab === 'player' ? 'is-active' : ''}`}
             >
-              PLAYER
+              {isZh ? '编辑器' : 'PLAYER'}
             </button>
             <button 
               onClick={() => navigateTo('history')}
-              className={`px-4 py-2 text-[10px] font-bold uppercase transition-all ${activeTab === 'history' ? 'text-white border-b-2 border-white' : 'text-white/40 hover:text-white'}`}
+              className={`nav-button ${activeTab === 'history' ? 'is-active' : ''}`}
             >
-              DASHBOARD
+              {isZh ? '仪表盘' : 'DASHBOARD'}
             </button>
             <button 
               onClick={() => navigateTo('api')}
-              className={`px-4 py-2 text-[10px] font-bold uppercase transition-all ${activeTab === 'api' ? 'text-white border-b-2 border-white' : 'text-white/40 hover:text-white'}`}
+              className={`nav-button ${activeTab === 'api' ? 'is-active' : ''}`}
             >
               API
             </button>
             <button 
               onClick={() => navigateTo('docs')}
-              className={`px-4 py-2 text-[10px] font-bold uppercase transition-all ${activeTab === 'docs' ? 'text-white border-b-2 border-white' : 'text-white/40 hover:text-white'}`}
+              className={`nav-button ${activeTab === 'docs' ? 'is-active' : ''}`}
             >
-              DOCS
+              {isZh ? '文档' : 'DOCS'}
             </button>
             <button 
               onClick={() => setIsPricingOpen(true)}
-              className="px-4 py-2 text-[10px] font-bold uppercase transition-all text-white/40 hover:text-[#f7d51d]"
+              className="nav-button hover:!text-[#f7d51d]"
             >
-              PRICING
+              {isZh ? '定价' : 'PRICING'}
             </button>
           </nav>
         </div>
 
-        <div className="flex items-center gap-4">
-          <div className="flex bg-black/40 p-1 pixel-border border-[#5a2d9c] h-8 items-center">
+        <div className="header-actions flex items-center gap-3 md:gap-4">
+          <div className="language-switch">
             <button 
               onClick={() => setLang('en')}
-              className={`px-2 h-full text-[8px] font-bold transition-all ${lang === 'en' ? 'bg-[#f7d51d] text-[#2d1b4e]' : 'text-white/40 hover:text-white'}`}
+              className={lang === 'en' ? 'is-active' : ''}
             >
               EN
             </button>
             <button 
               onClick={() => setLang('zh')}
-              className={`px-2 h-full font-bold transition-all ${lang === 'zh' ? 'bg-[#f7d51d] text-[#2d1b4e]' : 'text-white/40 hover:text-white'}`}
-              style={{ fontSize: '10px' }}
+              className={lang === 'zh' ? 'is-active' : ''}
             >
               中文
             </button>
@@ -331,7 +341,9 @@ const App: React.FC = () => {
                 }}
                 title={isBackendDown ? (isZh ? "服务器维护中" : "Server Maintenance") : (isZh ? "点击刷新积分/购买更多" : "Click to refresh credits / buy more")}
               >
-                <span className="text-[8px] opacity-40 text-white group-hover:text-[#f7d51d]">CREDITS</span>
+                <span className="text-[8px] opacity-40 text-white group-hover:text-[#f7d51d]" style={{ fontSize: zhScale(8) }}>
+                  {isZh ? '积分' : 'CREDITS'}
+                </span>
                 <span className="text-sm font-bold text-[#f7d51d] group-hover:scale-105 transition-transform">
                   {isBackendDown ? '???' : credits}
                 </span>
@@ -340,14 +352,14 @@ const App: React.FC = () => {
               <div className="relative">
                 <button 
                   onClick={() => setShowUserDropdown(!showUserDropdown)}
-                  className="text-[10px] font-bold text-white/60 hover:text-white flex items-center gap-1 uppercase"
+                  className="nav-button flex max-w-[180px] items-center gap-1 overflow-hidden"
                 >
                   {user.email.split('@')[0]}
                   <span className={`transition-transform duration-200 ${showUserDropdown ? 'rotate-180' : ''}`}>▼</span>
                 </button>
                 
                 {showUserDropdown && (
-                  <div className="absolute right-0 mt-2 w-48 bg-[#2d1b4e] pixel-border border-[#5a2d9c] z-[100] shadow-xl">
+                  <div className="pixel-dropdown absolute right-0 z-[100] mt-2 w-52">
                     <div className="p-2 border-b-2 border-[#5a2d9c] bg-black/20">
                       <p className="opacity-40 uppercase mb-1" style={{ fontSize: zhScale(8) }}>
                         {isZh ? '当前登录' : 'Signed in as'}
@@ -358,8 +370,11 @@ const App: React.FC = () => {
                     </div>
                     <button 
                       onClick={async () => {
+                        const returnTab = activeTab === 'intro' || activeTab === 'docs' ? 'generate' : activeTab;
                         await handleLogout();
-                        navigateTo('generate');
+                        setPendingTab(returnTab as Exclude<typeof pendingTab, null>);
+                        setLoginMode('login');
+                        setForceLogin(true);
                         setShowUserDropdown(false);
                       }}
                       className="w-full text-left px-4 py-3 font-bold text-white/60 hover:text-[#f7d51d] hover:bg-white/5 transition-colors uppercase"
@@ -389,15 +404,16 @@ const App: React.FC = () => {
                 setPendingTab(target as any);
                 setForceLogin(true);
               }} 
-              className="text-[10px] h-8"
+              className="min-h-9 px-4 py-1"
             >
               {isZh ? '登录' : 'LOGIN'}
             </PixelButton>
           )}
         </div>
+        </div>
       </header>
 
-      <main className="flex-1 container mx-auto p-4 max-w-7xl">
+      <main className="app-main flex-1 container mx-auto max-w-7xl">
         {showLogin ? (
           <LoginPage
             onLogin={handleLoginSuccess}
@@ -408,7 +424,14 @@ const App: React.FC = () => {
         ) : showIntro ? (
           <LandingPage 
             lang={lang} 
-            onGetStarted={() => navigateTo('generate')} 
+            onGetStarted={() => {
+              setGenerationEntryVersion('v1');
+              navigateTo('generate');
+            }}
+            onTryV2={() => {
+              setGenerationEntryVersion('v2');
+              navigateTo('generate');
+            }}
             onGenerateCharacter={() => navigateTo('character')}
             onGenerateMap={() => navigateTo('map')}
             onViewDocs={() => navigateTo('docs')} 
@@ -471,6 +494,8 @@ const App: React.FC = () => {
             {activeTab === 'generate' && (
               <GenerationPage 
                 onJobCreated={(id) => { setSelectedJobId(id); setActiveTab('player'); }} 
+                initialVersion={generationEntryVersion}
+                onGenerateImage={() => navigateTo('character')}
                 initialParams={initialParams}
                 onConsumed={() => setInitialParams(null)}
                 refreshCredits={fetchCredits}

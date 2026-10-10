@@ -46,7 +46,7 @@ export const PricingModal: React.FC<PricingModalProps> = ({
   const [loading, setLoading] = useState(false);
 
   const isZh = lang === 'zh';
-  const zhScale = (enSize: number) => isZh ? `${enSize + 3}px` : `${enSize}px`;
+  const zhScale = (enSize: number) => `${isZh ? enSize + 3 : enSize}px`;
 
   const t = {
     title: isZh ? '积分商店' : 'Credit Store',
@@ -136,14 +136,16 @@ export const PricingModal: React.FC<PricingModalProps> = ({
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4 max-w-2xl mx-auto">
             {/* Starter Pack */}
-            <PixelCard className="flex flex-col items-center text-center border-[#5a2d9c] bg-[#5a2d9c]/10 transition-all py-8 px-4 h-full">
+            <PixelCard className="pricing-tier pricing-tier--starter flex flex-col items-center text-center py-8 px-4 h-full">
               <div className="h-16 flex flex-col justify-start space-y-2 mb-4">
                 <h3 className="text-[10px] font-bold uppercase tracking-wide text-white">Starter</h3>
                 <p className="text-white/60 uppercase leading-tight px-2" style={{ fontSize: zhScale(7) }}>{t.starterSub}</p>
               </div>
               <div className="h-20 flex flex-col justify-center mb-4">
                 <span className="text-2xl font-bold text-[#f7d51d]">40</span>
-                <p className="text-[7px] opacity-60 uppercase tracking-widest text-white">CREDITS</p>
+                <p className="text-[7px] opacity-60 uppercase tracking-widest text-white" style={{ fontSize: zhScale(7) }}>
+                  {isZh ? '积分' : 'CREDITS'}
+                </p>
               </div>
               <div className="h-12 flex items-center justify-center mb-6">
                 <span className="text-lg font-bold text-white">
@@ -162,14 +164,16 @@ export const PricingModal: React.FC<PricingModalProps> = ({
             </PixelCard>
 
             {/* Pro Pack */}
-            <PixelCard className="flex flex-col items-center text-center border-white bg-white/5 relative py-8 px-4 h-full">
+            <PixelCard className="pricing-tier pricing-tier--pro flex flex-col items-center text-center relative py-8 px-4 h-full">
               <div className="h-16 flex flex-col justify-start space-y-2 mb-4">
                 <h3 className="text-[10px] font-bold uppercase tracking-wide text-white">Pro Pack</h3>
                 <p className="text-white/70 uppercase leading-tight px-2" style={{ fontSize: zhScale(7) }}>{t.proSub}</p>
               </div>
               <div className="h-20 flex flex-col justify-center mb-4">
                 <span className="text-2xl font-bold text-[#f7d51d]">250</span>
-                <p className="text-[7px] opacity-60 uppercase tracking-widest text-white">CREDITS</p>
+                <p className="text-[7px] opacity-60 uppercase tracking-widest text-white" style={{ fontSize: zhScale(7) }}>
+                  {isZh ? '积分' : 'CREDITS'}
+                </p>
               </div>
               <div className="h-12 flex items-center justify-center mb-6">
                 <span className="text-lg font-bold text-white">
@@ -188,14 +192,16 @@ export const PricingModal: React.FC<PricingModalProps> = ({
             </PixelCard>
 
             {/* Ultimate Pack */}
-            <PixelCard className="flex flex-col items-center text-center border-[#f7d51d] bg-[#f7d51d]/5 py-8 px-4 h-full shadow-[0_0_25px_rgba(247,213,29,0.15)]">
+            <PixelCard className="pricing-tier pricing-tier--ultimate flex flex-col items-center text-center py-8 px-4 h-full">
               <div className="h-16 flex flex-col justify-start space-y-2 mb-4">
                 <h3 className="text-[10px] font-bold uppercase tracking-wide text-[#f7d51d]">Ultimate</h3>
                 <p className="text-[#f7d51d]/50 uppercase leading-tight px-2" style={{ fontSize: zhScale(7) }}>{t.ultimateSub}</p>
               </div>
               <div className="h-20 flex flex-col justify-center mb-4">
                 <span className="text-2xl font-bold text-[#f7d51d]">1000</span>
-                <p className="text-[7px] opacity-80 uppercase tracking-widest text-[#f7d51d]">CREDITS</p>
+                <p className="text-[7px] opacity-80 uppercase tracking-widest text-[#f7d51d]" style={{ fontSize: zhScale(7) }}>
+                  {isZh ? '积分' : 'CREDITS'}
+                </p>
               </div>
               <div className="h-12 flex items-center justify-center mb-6">
                 <span className="text-lg font-bold text-[#f7d51d]">

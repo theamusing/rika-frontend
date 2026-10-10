@@ -22,6 +22,7 @@ interface HistoryPageProps {
 const PAGE_SIZE = 20;
 const SHOW_LIKED_ONLY_KEY = 'rika_show_liked_only';
 const JOB_TYPE_KEY = 'rika_history_job_type';
+const isV2Animation = (job: Job) => Number(job.animation_version ?? job.input_params?.animation_version) === 2;
 
 const HistoryPage: React.FC<HistoryPageProps> = ({ 
   onJobSelected, 
@@ -212,13 +213,13 @@ const HistoryPage: React.FC<HistoryPageProps> = ({
   })();
   
   // Helper to apply larger font only if text is Chinese
-  const zhScale = (enSize: number) => isZh ? `${enSize + 3}px` : `${enSize}px`;
+  const zhScale = (enSize: number) => `${isZh ? enSize + 3 : enSize}px`;
 
   if (!isLoggedIn) {
     return (
-      <div className="space-y-8 text-white">
-        <div className="flex justify-between items-center">
-            <h2 className={`font-bold uppercase text-white/80 ${isZh ? 'text-[24px]' : 'text-xl'}`}>
+      <div className="ui-page space-y-8 text-white">
+        <div className="flex flex-wrap justify-between items-center gap-4">
+            <h2 className="ui-page-title font-bold uppercase">
               {isZh ? '历史记录' : 'GENERATION ARCHIVE'}
             </h2>
         </div>
@@ -238,13 +239,13 @@ const HistoryPage: React.FC<HistoryPageProps> = ({
   }
 
   return (
-    <div className="space-y-8 text-white">
-      <div className="flex justify-between items-center">
-          <div className="flex items-center gap-4">
-            <h2 className={`font-bold uppercase text-white/80 ${isZh ? 'text-[24px]' : 'text-xl'}`}>
+    <div className="ui-page space-y-8 text-white">
+      <div className="flex flex-wrap justify-between items-center gap-4">
+          <div className="flex flex-wrap items-center gap-3">
+            <h2 className="ui-page-title font-bold uppercase">
               {isZh ? '历史记录' : 'GENERATION ARCHIVE'}
             </h2>
-            <div className="flex items-center gap-2">
+            <div className="flex flex-wrap items-center gap-2">
               <div className={`px-3 py-1 bg-[#5a2d9c]/40 pixel-border border-[#5a2d9c] text-white/60 text-[10px]`}>
                 PAGE {String(currentPage + 1).padStart(2, '0')} / {String(totalPages || 1).padStart(2, '0')}
               </div>
@@ -350,9 +351,9 @@ const HistoryPage: React.FC<HistoryPageProps> = ({
                           strokeWidth={job.liked ? 0 : 2}
                         />
                       </div>
-                      {(job.job_type === 'character' || job.job_type === 'item' || job.job_type === 'map' || job.input_params?.motion_type) && (
+                      {(job.job_type === 'character' || job.job_type === 'item' || job.job_type === 'map' || job.input_params?.motion_type || isV2Animation(job)) && (
                           <div className="absolute top-1 right-1 z-20 px-1.5 py-0.5 bg-[#f7d51d] text-[#2d1b4e] text-[8px] font-bold uppercase">
-                              {job.job_type === 'character' ? 'CHARACTER' : (job.job_type === 'item' ? 'ITEM' : (job.job_type === 'map' ? 'MAP' : job.input_params.motion_type))}
+                              {isV2Animation(job) ? 'V2' : (job.job_type === 'character' ? 'CHARACTER' : (job.job_type === 'item' ? 'ITEM' : (job.job_type === 'map' ? 'MAP' : job.input_params.motion_type)))}
                           </div>
                       )}
                       {job.status === 'failed' && (

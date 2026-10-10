@@ -1,6 +1,6 @@
 import { PaddingOffsets, PixelDimensions } from '../types.ts';
 import { applyCentroids, quantizeImageData, RGB } from './editorUtils.ts';
-import { fetchAsDataUrl } from './imageUtils.ts';
+import { fetchAsDataUrl, processImage } from './imageUtils.ts';
 
 export const EMPTY_PADDING: PaddingOffsets = { left: 0, right: 0, top: 0, bottom: 0 };
 export const snapPixelSize = (value: number) => Math.max(32, Math.min(256, Math.round((Number.isFinite(value) ? value : 128) / 32) * 32));
@@ -47,22 +47,31 @@ const loadImage = async (source: File | string): Promise<HTMLImageElement> => {
 export const processImageV2 = async (
   source: File | string, size: PixelDimensions, padding: PaddingOffsets, flip: boolean,
   bgColor: string, useQuantization = false, colorCount = 32, centroids: RGB[] = [],
-): Promise<{ image: string; contentImage: string }> => {
-  const image = await loadImage(source);
+): Promise<{ image: string; contentImage: string; previewImage: string }> => {
+  // Square V2 inputs use the exact same sampling path as V1: render on V1's
+  // model-sized canvas first, then downsample once to the requested pixel grid.
+  // Keeping the native grid for upload avoids an unnecessary backend resample.
+  const usesV1Sampling = size.x === size.y;
+  const preparedSource = usesV1Sampling
+    ? await processImage(source, false, flip, String(size.x), bgColor,
+      useQuantization, colorCount, centroids, true)
+    : source;
+  const image = await loadImage(preparedSource);
   const content = document.createElement('canvas');
   content.width = size.x;
   content.height = size.y;
   const ctx = content.getContext('2d', { willReadFrequently: true });
   if (!ctx) throw new Error('Asset processing failed: canvas unavailable');
   ctx.imageSmoothingEnabled = false;
-  const fit = Math.min(size.x / image.width, size.y / image.height);
-  const drawWidth = Math.max(1, Math.round(image.width * fit));
-  const drawHeight = Math.max(1, Math.round(image.height * fit));
+  const fit = usesV1Sampling ? 1 : Math.min(size.x / image.width, size.y / image.height);
+  const drawWidth = usesV1Sampling ? size.x : Math.max(1, Math.round(image.width * fit));
+  const drawHeight = usesV1Sampling ? size.y : Math.max(1, Math.round(image.height * fit));
   const drawX = Math.floor((size.x - drawWidth) / 2);
   const drawY = Math.floor((size.y - drawHeight) / 2);
   ctx.save();
   // Flip content only; the chosen padding remains on its intended sides.
-  if (flip) { ctx.translate(size.x, 0); ctx.scale(-1, 1); }
+  // V1 sampling already applied the flip before reducing to the native grid.
+  if (flip && !usesV1Sampling) { ctx.translate(size.x, 0); ctx.scale(-1, 1); }
   ctx.drawImage(image, drawX, drawY, drawWidth, drawHeight);
   ctx.restore();
   const contentData = ctx.getImageData(0, 0, size.x, size.y);
@@ -80,7 +89,7 @@ export const processImageV2 = async (
   ctx.fillStyle = color;
   ctx.fillRect(0, 0, size.x, size.y);
   ctx.globalCompositeOperation = 'source-over';
-  if (useQuantization) {
+  if (useQuantization && !usesV1Sampling) {
     const data = ctx.getImageData(0, 0, size.x, size.y);
     if (centroids.length) applyCentroids(data, centroids, background);
     else quantizeImageData(data, colorCount, background);
@@ -97,7 +106,23 @@ export const processImageV2 = async (
   paddedCtx.fillStyle = color;
   paddedCtx.fillRect(0, 0, canvas.width, canvas.height);
   paddedCtx.drawImage(content, constrained.left, constrained.top);
-  return { image: canvas.toDataURL('image/png'), contentImage: content.toDataURL('image/png') };
+
+  // Use an integer nearest-neighbour preview scale so the upload card renders
+  // the same crisp grid as V1, while `image` remains the native upload asset.
+  const previewTarget = Math.max(size.x, size.y) <= 64 ? 512 : 768;
+  const previewScale = Math.max(1, Math.floor(previewTarget / Math.max(canvas.width, canvas.height)));
+  const preview = document.createElement('canvas');
+  preview.width = canvas.width * previewScale;
+  preview.height = canvas.height * previewScale;
+  const previewCtx = preview.getContext('2d');
+  if (!previewCtx) throw new Error('Asset processing failed: canvas unavailable');
+  previewCtx.imageSmoothingEnabled = false;
+  previewCtx.drawImage(canvas, 0, 0, preview.width, preview.height);
+  return {
+    image: canvas.toDataURL('image/png'),
+    contentImage: content.toDataURL('image/png'),
+    previewImage: preview.toDataURL('image/png'),
+  };
 };
 
 export const removePaddingV2 = async (url: string, size: PixelDimensions, padding: PaddingOffsets): Promise<string> => {

@@ -14,7 +14,7 @@ export const PaymentSuccessModal: React.FC<PaymentSuccessModalProps> = ({ isOpen
   const canvasRef = useRef<HTMLCanvasElement>(null);
 
   const isZh = lang === 'zh';
-  const zhScale = (enSize: number) => isZh ? `${enSize + 3}px` : `${enSize}px`;
+  const zhScale = (enSize: number) => `${isZh ? enSize + 3 : enSize}px`;
 
   const t = {
     success: isZh ? '购买成功' : 'Purchase Successful',

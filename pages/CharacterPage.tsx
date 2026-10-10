@@ -131,7 +131,7 @@ const CharacterPage: React.FC<CharacterPageProps> = ({
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const isZh = lang === 'zh';
-  const zhScale = (enSize: number) => isZh ? `${enSize + 3}px` : `${enSize}px`;
+  const zhScale = (enSize: number) => `${isZh ? enSize + 3 : enSize}px`;
 
   const currentExample = React.useMemo(() => {
     const lookupKey = pixelSize === '256' ? '128' : (pixelSize === '128' ? '64' : '32');
@@ -256,7 +256,7 @@ const CharacterPage: React.FC<CharacterPageProps> = ({
   };
 
   return (
-    <div className="max-w-6xl mx-auto py-8 px-4">
+    <div className="ui-page max-w-6xl mx-auto py-6 md:py-8 px-1 md:px-4">
       <div className="flex flex-col md:flex-row gap-6">
         {/* Left Column */}
         <div className="flex-1 space-y-6">
@@ -292,7 +292,7 @@ const CharacterPage: React.FC<CharacterPageProps> = ({
                       alt="Example"
                     />
                   </div>
-                  <p className={`text-white/60 leading-tight ${isZh ? 'text-[10px]' : 'text-[8px] uppercase'}`}>
+                  <p className="text-white/60 leading-relaxed text-[9px] uppercase">
                     {isZh ? currentExample.zh : currentExample.en}
                   </p>
                 </div>
@@ -437,7 +437,7 @@ const CharacterPage: React.FC<CharacterPageProps> = ({
                     {activeColorIndex !== null && (
                       <>
                         <div className="fixed inset-0 z-40" onClick={() => setActiveColorIndex(null)} />
-                        <div className="absolute left-0 top-12 z-50 bg-[#1e1e1e] border-2 border-[#5a2d9c] p-2 pixel-border flex flex-col gap-2 w-52 shadow-2xl">
+                        <div className="absolute left-0 top-12 z-50 bg-[#1b0a38] border-2 border-[#5a2d9c] p-2 pixel-border flex flex-col gap-2 w-52 shadow-2xl">
                           <HexColorPicker color={domainColors[activeColorIndex]} onChange={(color) => handleColorChange(activeColorIndex, color)} />
                           <div className="flex justify-between items-center text-xs font-mono text-white/80">
                             <span>{domainColors[activeColorIndex].toUpperCase()}</span>
@@ -482,7 +482,7 @@ const CharacterPage: React.FC<CharacterPageProps> = ({
               className="w-full h-14"
               onClick={handleGenerate}
               disabled={loading || isBackendDown}
-              style={{ fontSize: 14 }}
+              style={{ fontSize: zhScale(14) }}
             >
               {loading ? (
                 <div className="flex items-center gap-2">

@@ -7,7 +7,7 @@ import { sliceSpriteSheet, reconstructSpriteSheet, processImage, fetchAsDataUrl,
 import { floodFill, RGB, colorDistance, colorMatchRemoval, simplifyColors } from '../utils/editorUtils.ts';
 import { saveSpriteToCache, getSpriteFromCache, CachedSprite } from '../utils/dbUtils.ts';
 import { fitImageDimensions } from '../utils/animationDisplay.ts';
-import { Heart, ArrowLeft, Move, Pipette } from 'lucide-react';
+import { Heart, ArrowLeft, Move, Pipette, HelpCircle } from 'lucide-react';
 // @ts-ignore
 import gifshot from 'gifshot';
 import { HexColorPicker } from 'react-colorful';
@@ -121,7 +121,13 @@ const TaskPlayerPage: React.FC<TaskPlayerPageProps> = ({
   const thumbnailDimensions = fitImageDimensions(frameDimensions, 64, 64);
   const effectiveTool: Tool = isPickingRemovalColor ? 'picker' : (isCtrlPressed ? 'move' : isQPressed ? 'picker' : activeTool);
 
-  const zhScale = (enSize: number) => isZh ? `${enSize + 3}px` : `${enSize}px`;
+  const zhScale = (enSize: number) => `${isZh ? enSize + 3 : enSize}px`;
+
+  useEffect(() => {
+    if (!currentJob || isSingleFrame) return;
+    const isV2 = currentJob.animation_version === 2 || currentJob.input_params?.animation_version === 2;
+    setFps(isV2 ? 16 : 12);
+  }, [currentJob?.gen_id, currentJob?.animation_version, currentJob?.input_params?.animation_version, isSingleFrame]);
 
   const hexToRgb = (hex: string): RGB => {
     const r = parseInt(hex.slice(1, 3), 16) || 0;
@@ -969,7 +975,7 @@ const TaskPlayerPage: React.FC<TaskPlayerPageProps> = ({
         {menuOpenFor === id && (
           <div 
             onMouseDown={(e) => e.stopPropagation()}
-            className="absolute left-14 top-0 z-[100] bg-[#1e1e1e] pixel-border p-4 w-48 shadow-2xl animate-fade-in border-[#5a2d9c]"
+            className="absolute left-14 top-0 z-[100] bg-[#1b0a38] pixel-border p-4 w-48 shadow-2xl animate-fade-in border-[#5a2d9c]"
           >
             <div className="flex justify-between items-center mb-3">
               <span className="font-bold text-white/80 uppercase" style={{ fontSize: zhScale(10) }}>
@@ -1064,13 +1070,14 @@ const TaskPlayerPage: React.FC<TaskPlayerPageProps> = ({
   const lightChecker = `linear-gradient(45deg, #e1e1bc 25%, transparent 25%), linear-gradient(-45deg, #e1e1bc 25%, transparent 25%), linear-gradient(45deg, transparent 75%, #e1e1bc 75%), linear-gradient(-45deg, transparent 75%, #e1e1bc 75%)`;
 
   return (
-    <div className="flex flex-col gap-6 w-full overflow-hidden text-white select-none">
+    <div className="ui-page flex flex-col gap-6 w-full overflow-hidden text-white select-none">
       <PixelModal 
         isOpen={showUploadModal} 
         onClose={() => setShowUploadModal(false)} 
         title={isZh ? "上传序列帧" : "UPLOAD SPRITE SHEET"}
         titleStyle={{ fontSize: zhScale(10) }}
         closeButtonStyle={{ fontSize: zhScale(12) }}
+        closeLabel={isZh ? '关闭' : 'CLOSE'}
       >
         <div className="space-y-4">
           <div className="relative aspect-video pixel-border border-[#5a2d9c] bg-black/20 flex items-center justify-center overflow-hidden">
@@ -1108,8 +1115,8 @@ const TaskPlayerPage: React.FC<TaskPlayerPageProps> = ({
         </div>
       </PixelModal>
 
-      <div className="flex justify-between items-center bg-[#121212]/80 p-3 pixel-border border-[#5a2d9c] w-full">
-        <div className="flex items-center gap-4">
+      <div className="flex flex-col md:flex-row md:justify-between md:items-center gap-3 bg-[#1b0a38]/90 p-3 pixel-border border-[#5a2d9c] w-full">
+        <div className="flex min-w-0 items-center gap-4">
           {onBack && (
             <button 
               onClick={onBack}
@@ -1119,7 +1126,7 @@ const TaskPlayerPage: React.FC<TaskPlayerPageProps> = ({
               <ArrowLeft size={16} className="text-white/60 group-hover:text-white" />
             </button>
           )}
-          <div className="flex gap-4 text-[10px] text-white/60 uppercase">
+          <div className="flex flex-wrap gap-x-4 gap-y-2 text-[9px] text-white/60 uppercase">
             <span>JOB: <span className="text-white">{isCustomMode ? 'NONE' : (selectedJobId?.slice(0,8) || 'NONE')}</span></span>
             <span>MODE: <span className="text-white">{isCustomMode ? 'CUSTOM' : (currentJob?.input_params?.motion_type || 'MANUAL')}</span></span>
             <span>STATUS: <span className={
@@ -1129,7 +1136,7 @@ const TaskPlayerPage: React.FC<TaskPlayerPageProps> = ({
             }>{currentJob?.status || 'READY'}</span></span>
           </div>
         </div>
-        <div className="flex items-center gap-4 text-[10px] uppercase text-white/60">
+        <div className="flex flex-wrap items-center justify-between md:justify-end gap-3 text-[9px] uppercase text-white/60">
           <PixelButton 
             variant="secondary" 
             className="h-8 px-3 text-[8px]" 
@@ -1159,7 +1166,7 @@ const TaskPlayerPage: React.FC<TaskPlayerPageProps> = ({
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-[auto_1fr_auto] gap-6 w-full items-start">
-        <div className={`flex flex-col items-center gap-4 p-2 bg-[#1e1e1e]/60 pixel-border border-[#5a2d9c] w-14 shrink-0 ${isJobRunning ? 'opacity-30 pointer-events-none' : ''}`}>
+        <div className={`mx-auto lg:mx-0 flex flex-col items-center gap-4 p-2 bg-[#1b0a38]/80 pixel-border border-[#5a2d9c] w-14 shrink-0 ${isJobRunning ? 'opacity-30 pointer-events-none' : ''}`}>
            {renderToolButton("brush", <img src={`${ICON_BASE}brush.png`} style={{ imageRendering: 'auto' }} className="w-full h-full object-contain" alt="Brush" />, true)}
            {renderToolButton("eraser", <img src={`${ICON_BASE}eraser.png`} style={{ imageRendering: 'auto' }} className="w-full h-full object-contain" alt="Eraser" />, true)}
            {renderToolButton("wand", <img src={`${ICON_BASE}wand.png`} style={{ imageRendering: 'auto' }} className="w-full h-full object-contain" alt="Wand" />, true)}
@@ -1178,7 +1185,7 @@ const TaskPlayerPage: React.FC<TaskPlayerPageProps> = ({
               {showBrushPicker && (
                 <>
                   <div className="fixed inset-0 z-40" onClick={() => setShowBrushPicker(false)} />
-                  <div className="absolute left-14 bottom-0 z-50 bg-[#1e1e1e] border-2 border-[#5a2d9c] p-2 pixel-border flex flex-col gap-2 w-52 shadow-2xl">
+                  <div className="absolute left-14 bottom-0 z-50 bg-[#1b0a38] border-2 border-[#5a2d9c] p-2 pixel-border flex flex-col gap-2 w-52 shadow-2xl">
                     <HexColorPicker color={brushColor} onChange={(color) => { setBrushColor(color); setIsPlaying(false); }} />
                     <div className="flex justify-between items-center text-xs font-mono text-white/80">
                       <span>{brushColor.toUpperCase()}</span>
@@ -1199,7 +1206,7 @@ const TaskPlayerPage: React.FC<TaskPlayerPageProps> = ({
         </div>
 
         <div className="flex flex-col gap-4 min-w-0 w-full overflow-hidden">
-          <PixelCard className={`p-0 overflow-hidden ${isLightBg ? 'bg-[#f5f5dc]' : 'bg-[#121212]'}`}>
+          <PixelCard className={`editor-canvas-shell p-0 overflow-hidden ${isLightBg ? 'is-light' : 'is-dark'}`}>
             <div ref={viewportRef} className="relative w-full h-[512px] flex items-center justify-center overflow-hidden">
             {currentJob && (
               <div 
@@ -1301,7 +1308,7 @@ const TaskPlayerPage: React.FC<TaskPlayerPageProps> = ({
             </div>
           </PixelCard>
           <div 
-            className={`bg-[#1e1e1e]/60 p-4 pixel-border border-[#5a2d9c] w-full overflow-x-auto ${isJobRunning ? 'opacity-30 pointer-events-none' : ''}`}
+            className={`bg-[#1b0a38]/80 p-4 pixel-border border-[#5a2d9c] w-full overflow-x-auto ${isJobRunning ? 'opacity-30 pointer-events-none' : ''}`}
             onClick={() => setContextMenu(null)}
           >
              <div className="flex items-center gap-3 min-w-max min-h-[64px] pb-2">
@@ -1334,7 +1341,7 @@ const TaskPlayerPage: React.FC<TaskPlayerPageProps> = ({
 
         {contextMenu && (
           <div 
-            className="fixed z-[1000] bg-[#1e1e1e] pixel-border border-[#5a2d9c] shadow-2xl py-1 min-w-[100px]"
+            className="fixed z-[1000] bg-[#1b0a38] pixel-border border-[#5a2d9c] shadow-2xl py-1 min-w-[100px]"
             style={{ left: contextMenu.x, top: contextMenu.y }}
             onMouseLeave={() => setContextMenu(null)}
           >
@@ -1356,24 +1363,34 @@ const TaskPlayerPage: React.FC<TaskPlayerPageProps> = ({
           </div>
         )}
 
-        <div className="flex flex-col gap-6 w-64 shrink-0">
+        <div className="flex flex-col gap-6 w-full lg:w-64 shrink-0">
            <PixelCard title={isZh ? '智能工具' : 'SMART ACTIONS'}>
               <div className={`space-y-4 pt-2 ${isJobRunning ? 'opacity-30 pointer-events-none' : ''}`}>
                  <div className="space-y-3">
                    <PixelButton variant="secondary" className="w-full" onClick={removeBackground} style={{ fontSize: zhScale(9) }}>
                       {isZh ? '背景去除' : 'BG REMOVE'}
                    </PixelButton>
-                   <div className="flex items-center gap-2">
-                       <input 
-                         type="checkbox" 
-                         id="useGlobalColorMatch"
-                         checked={useGlobalColorMatch}
-                         onChange={e => setUseGlobalColorMatch(e.target.checked)}
-                         className="accent-white"
-                       />
-                       <label htmlFor="useGlobalColorMatch" className="text-[9px] text-white/60 uppercase cursor-pointer">
-                         {isZh ? '全局匹配' : 'Global match'}
-                       </label>
+                   <div className="flex items-center justify-between gap-2">
+                       <div className="flex items-center gap-2">
+                         <input
+                           type="checkbox"
+                           id="useGlobalColorMatch"
+                           checked={useGlobalColorMatch}
+                           onChange={e => setUseGlobalColorMatch(e.target.checked)}
+                           className="accent-white"
+                         />
+                         <label htmlFor="useGlobalColorMatch" className="text-[9px] text-white/60 uppercase cursor-pointer">
+                           {isZh ? '全局匹配' : 'Global match'}
+                         </label>
+                       </div>
+                       <div className="group relative inline-flex items-center">
+                         <HelpCircle size={12} className="text-white/40 cursor-help" />
+                         <div className="absolute bottom-full right-0 mb-2 hidden group-hover:block w-56 p-2 bg-black/90 text-white text-[10px] pixel-border border-[#5a2d9c] font-sans z-50 normal-case leading-relaxed">
+                           {isZh
+                             ? '开启后，会移除所有帧中与所选背景色接近的全部像素，包括不与画面边缘相连的区域；关闭时只移除从四角连通的背景。'
+                             : 'When enabled, removes every pixel close to the selected background color across all frames, including areas not connected to an edge. When disabled, only background connected to the four corners is removed.'}
+                         </div>
+                       </div>
                    </div>
                    
                    {useGlobalColorMatch && (
@@ -1401,7 +1418,7 @@ const TaskPlayerPage: React.FC<TaskPlayerPageProps> = ({
                        {showRemovalPicker && (
                          <>
                            <div className="fixed inset-0 z-40" onClick={() => setShowRemovalPicker(false)} />
-                           <div className="absolute right-0 bottom-6 z-50 bg-[#1e1e1e] border-2 border-[#5a2d9c] p-2 pixel-border flex flex-col gap-2 w-52 shadow-2xl">
+                           <div className="absolute right-0 bottom-6 z-50 bg-[#1b0a38] border-2 border-[#5a2d9c] p-2 pixel-border flex flex-col gap-2 w-52 shadow-2xl">
                              <HexColorPicker color={removalBgColor} onChange={setRemovalBgColor} />
                              <button 
                                type="button"

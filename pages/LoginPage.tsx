@@ -20,7 +20,7 @@ const LoginPage: React.FC<{
   const [showForgotLink, setShowForgotLink] = useState(false);
 
   const isZh = lang === 'zh';
-  const zhScale = (enSize: number) => isZh ? `${enSize + 3}px` : `${enSize}px`;
+  const zhScale = (enSize: number) => `${isZh ? enSize + 3 : enSize}px`;
 
   const t = {
     login: isZh ? '登录' : 'LOGIN',
@@ -325,7 +325,7 @@ const LoginPage: React.FC<{
   };
 
   return (
-    <div className="min-h-[70vh] flex items-center justify-center p-4 bg-[#0d0221]">
+    <div className="ui-page min-h-[70vh] flex items-center justify-center p-4">
       <PixelCard className="max-w-md w-full relative" title="RIKA AI ACCESS">
         {onCancel && (
           <button 

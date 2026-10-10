@@ -210,7 +210,7 @@ export const StructureEditorModal: React.FC<StructureEditorModalProps> = ({
   lang = 'zh',
 }) => {
   const isZh = lang === 'zh';
-  const zhScale = (enSize: number) => (isZh ? `${enSize + 2}px` : `${enSize}px`);
+  const zhScale = (enSize: number) => `${isZh ? enSize + 3 : enSize}px`;
 
   const [cols, setCols] = useState<number>(initialCols);
   const [rows, setRows] = useState<number>(initialRows);

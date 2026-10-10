@@ -10,21 +10,23 @@ export const PixelButton: React.FC<{
   disabled?: boolean;
   title?: string;
   style?: React.CSSProperties;
-}> = ({ onClick, children, variant = 'primary', className = '', disabled, title, style }) => {
+  type?: 'button' | 'submit' | 'reset';
+}> = ({ onClick, children, variant = 'primary', className = '', disabled, title, style, type }) => {
   const variantStyles = {
-    primary: 'bg-[#f7d51d] text-[#2d1b4e] border-[#f7d51d]',
-    secondary: 'bg-[#5a2d9c] text-white border-[#5a2d9c]',
-    outline: 'bg-transparent text-[#f7d51d] border-[#f7d51d]',
-    danger: 'bg-red-900 text-white border-red-500'
+    primary: 'bg-[#f7d51d] text-[#160b2b] border-[#fff1a6]',
+    secondary: 'bg-[#5a2d9c] text-[#fff9e8] border-[#a47cfd]',
+    outline: 'bg-[#0d0221] text-[#f7d51d] border-[#f7d51d]',
+    danger: 'bg-[#8f2639] text-white border-[#ff8792]'
   };
 
   return (
     <button
       onClick={onClick}
+      type={type}
       disabled={disabled}
       title={title}
-      className={`pixel-btn px-4 py-2 pixel-border font-bold uppercase transition-all flex items-center justify-center gap-2 ${variantStyles[variant]} ${disabled ? 'opacity-50 grayscale' : ''} ${className}`}
-      style={{ fontSize: '12px', ...style }}
+      className={`pixel-btn px-4 py-2 font-bold uppercase flex items-center justify-center gap-2 text-[10px] ${variantStyles[variant]} ${className}`}
+      style={style}
     >
       {children}
     </button>
@@ -39,12 +41,12 @@ export const PixelCard: React.FC<{
   titleStyle?: React.CSSProperties;
 }> = ({ children, className = '', title, onClick, titleStyle }) => (
   <div 
-    className={`pixel-border bg-[#2d1b4e]/50 p-4 relative ${className}`}
+    className={`pixel-card pixel-border border-[#5a2d9c] p-4 relative ${className}`}
     onClick={onClick}
   >
     {title && (
       <div 
-        className="absolute -top-4 left-4 bg-[#0d0221] px-2 text-[10px] text-white/70 uppercase"
+        className="pixel-card-title absolute left-4 text-[10px] uppercase z-10"
         style={titleStyle}
       >
         {title}
@@ -67,7 +69,7 @@ export const PixelInput: React.FC<{
     value={value}
     onChange={onChange}
     placeholder={placeholder}
-    className={`bg-[#0d0221] pixel-border border-[#5a2d9c] p-2 text-white text-[10px] outline-none focus:border-[#f7d51d] placeholder-[#5a2d9c] ${className}`}
+    className={`pixel-input bg-[#0d0221] border-2 border-[#5a2d9c] p-2 text-white text-[10px] outline-none placeholder-[#79649a] ${className}`}
     {...rest}
   />
 );
@@ -79,18 +81,19 @@ export const PixelModal: React.FC<{
   children: React.ReactNode;
   titleStyle?: React.CSSProperties;
   closeButtonStyle?: React.CSSProperties;
-}> = ({ isOpen, onClose, title, children, titleStyle, closeButtonStyle }) => {
+  closeLabel?: string;
+}> = ({ isOpen, onClose, title, children, titleStyle, closeButtonStyle, closeLabel = 'CLOSE' }) => {
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-fade-in">
+    <div className="pixel-modal-backdrop fixed inset-0 z-[100] flex items-center justify-center p-4 bg-[#080116]/90 animate-fade-in">
       <div className="max-w-md w-full relative">
         <PixelCard title={title} titleStyle={titleStyle} className="bg-[#0d0221] shadow-2xl">
           <div className="pt-2">
             {children}
             <div className="mt-6 flex justify-center">
               <PixelButton onClick={onClose} variant="primary" className="w-full" style={closeButtonStyle}>
-                CLOSE
+                {closeLabel}
               </PixelButton>
             </div>
           </div>
