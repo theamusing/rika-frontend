@@ -32,6 +32,7 @@ const FALLBACK_IMAGE = `${GIF_BASE}1.gif`;
 const TRANSLATIONS = {
   en: {
     v2Launch: "Animation V2 is live — create complex actions with longer animation sequences.",
+    v2LaunchPromo: "LIMITED-TIME ANIMATION DISCOUNT — 30% OFF",
     v2LaunchCta: "TRY V2",
     heroSub: "make your pixel art to live",
     heroDesc: "The ultimate ai animation toolkit for 2D game developers. Transform static pixel-style character into frame sequences.",
@@ -81,7 +82,7 @@ const TRANSLATIONS = {
       },
       {
         q: "How many credits does generation cost?",
-        a: "V1 animation costs 5 credits, V2 animation costs 8, character and item generation cost 1 each, and map generation costs 2. Failed or timed-out generation jobs are refunded automatically."
+        a: "V1 animation costs 4 credits, V2 animation costs 6, character and item generation cost 1 each, and map generation costs 2. Failed or timed-out generation jobs are refunded automatically."
       },
       {
         q: "Can I edit, export, and use the results in a game?",
@@ -91,6 +92,7 @@ const TRANSLATIONS = {
   },
   zh: {
     v2Launch: "动画生成 V2 已上线，支持复杂动画和更长动画生成。",
+    v2LaunchPromo: "动画生成限时折扣 -30%",
     v2LaunchCta: "体验 V2",
     heroSub: "让像素动起来",
     heroDesc: "专业级像素游戏动画工具，将静态像素角色转换为动作帧序列。",
@@ -140,7 +142,7 @@ const TRANSLATIONS = {
       },
       {
         q: "各种生成功能需要多少积分？",
-        a: "V1 动画每次 5 积分，V2 动画 8 积分，角色和道具各 1 积分，地图 2 积分。生成失败或超时会自动返还本次任务的积分。"
+        a: "V1 动画每次 4 积分，V2 动画 6 积分，角色和道具各 1 积分，地图 2 积分。生成失败或超时会自动返还本次任务的积分。"
       },
       {
         q: "可以编辑、导出并用于游戏项目吗？",
@@ -268,8 +270,10 @@ const LandingPage: React.FC<LandingPageProps> = ({ onGetStarted, onTryV2, onGene
     <div className="ui-page text-white overflow-hidden">
       <div className="v2-launch-banner-wrap px-3 sm:px-6 lg:px-24 pt-5">
         <button type="button" className="v2-launch-banner" onClick={onTryV2}>
-          <span className="v2-launch-badge">NEW</span>
-          <span className="v2-launch-copy">{t.v2Launch}</span>
+          <span className="v2-launch-copy">
+            <span>{t.v2Launch}</span>
+            <span className="v2-launch-promo">{t.v2LaunchPromo}</span>
+          </span>
           <span className="v2-launch-arrow">{t.v2LaunchCta} ››</span>
         </button>
       </div>

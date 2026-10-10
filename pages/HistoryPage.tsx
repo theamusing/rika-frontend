@@ -204,11 +204,11 @@ const HistoryPage: React.FC<HistoryPageProps> = ({
   const isZh = lang === 'zh';
   const localizedNotice = (() => {
     if (!isZh || !notice) return notice;
-    if (notice.startsWith('Prompt optimization')) return '提示词优化阶段失败或超时，请修改提示词或稍后重试。8 积分已退还。';
-    if (notice.startsWith('Animation generation could not start')) return '动画生成启动阶段失败，请稍后重试。8 积分已退还。';
-    if (notice.startsWith('Animation generation timed out')) return '动画生成阶段超时，请重试。8 积分已退还。';
-    if (notice.startsWith('Animation generation failed')) return '动画生成阶段失败，请重试。8 积分已退还。';
-    if (notice.startsWith('Result processing failed')) return '生成结果处理阶段失败，请重试。8 积分已退还。';
+    if (notice.startsWith('Prompt optimization')) return '提示词优化阶段失败或超时，请修改提示词或稍后重试。6 积分已退还。';
+    if (notice.startsWith('Animation generation could not start')) return '动画生成启动阶段失败，请稍后重试。6 积分已退还。';
+    if (notice.startsWith('Animation generation timed out')) return '动画生成阶段超时，请重试。6 积分已退还。';
+    if (notice.startsWith('Animation generation failed')) return '动画生成阶段失败，请重试。6 积分已退还。';
+    if (notice.startsWith('Result processing failed')) return '生成结果处理阶段失败，请重试。6 积分已退还。';
     return notice;
   })();
   

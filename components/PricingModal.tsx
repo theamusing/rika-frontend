@@ -56,7 +56,7 @@ export const PricingModal: React.FC<PricingModalProps> = ({
     select: isZh ? '选择' : 'SELECT',
     purchase: isZh ? '购买' : 'PURCHASE',
     power: isZh ? '获取力量' : 'GAIN POWER',
-    footerNote: isZh ? '每次生成角色消耗 1 个积分，动画消耗 5 个积分。积分永不过期。' : 'EACH CHARACTER GENERATION CONSUMES 1 CREDIT, ANIMATION CONSUMES 5 CREDITS. NO EXPIRATION ON ACQUIRED CREDITS.',
+    footerNote: isZh ? '每次生成角色消耗 1 个积分，V1 动画消耗 4 个积分，V2 动画消耗 6 个积分。积分永不过期。' : 'CHARACTER GENERATION COSTS 1 CREDIT, V1 ANIMATION COSTS 4, AND V2 ANIMATION COSTS 6. ACQUIRED CREDITS NEVER EXPIRE.',
     cancel: isZh ? '取消' : 'CANCEL',
     errorLogin: isZh ? '请先登录以进行购买。' : 'Please log in to make a purchase.',
     errorGateway: isZh ? '支付网关连接失败，请稍后重试。' : 'Payment gateway connection failed. Please try again later.',

@@ -116,7 +116,8 @@ const GenerationPage: React.FC<GenerationPageProps> = ({
   const isZh = lang === 'zh';
   const zhScale = (enSize: number) => `${isZh ? enSize + 3 : enSize}px`;
   const isV2 = generationVersion === 'v2';
-  const creditsCost = isV2 ? 8 : 5;
+  const originalCreditsCost = isV2 ? 8 : 5;
+  const creditsCost = isV2 ? 6 : 4;
   const actualPadding = usePadding ? constrainPadding(v2Size, v2Padding) : EMPTY_PADDING;
   const v2CanvasSize = paddedDimensions(v2Size, actualPadding);
 
@@ -1062,7 +1063,17 @@ const GenerationPage: React.FC<GenerationPageProps> = ({
         >
           {loading 
             ? (isZh ? '生成中...' : 'PROCESSING...')
-            : (isZh ? `开始生成（${creditsCost} 积分）` : `GENERATE (${creditsCost} CREDITS)`)}
+            : (
+              <>
+                <span>{isZh ? '开始生成' : 'GENERATE'}</span>
+                <span className="flex items-center gap-2 whitespace-nowrap">
+                  <span className="line-through opacity-50">
+                    {originalCreditsCost} {isZh ? '积分' : 'CREDITS'}
+                  </span>
+                  <span>{creditsCost} {isZh ? '积分' : 'CREDITS'}</span>
+                </span>
+              </>
+            )}
         </PixelButton>
       </div>
     </div>

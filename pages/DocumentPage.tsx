@@ -119,7 +119,7 @@ const DocumentPage: React.FC<DocumentPageProps> = ({ lang = 'en', onOpenPricing 
                   [isZh ? '动作设置' : 'Motion controls', isZh ? '动作类型；攻击时可选择近战、远程或其他' : 'Motion type; melee, ranged, or other attack subtype', isZh ? '直接填写动作提示词，由系统判断动作配置' : 'Direct action prompt with automatic motion-profile selection'],
                   [isZh ? '高级设置' : 'Advanced controls', isZh ? '噪声强度和 Seed；网页默认强度为 0.6' : 'Noise strength and seed; web default is 0.6', isZh ? 'AI 扩写和 Seed；AI 扩写默认开启' : 'AI prompt expansion and seed; expansion is enabled by default'],
                   [isZh ? '画布' : 'Canvas', isZh ? '固定方向 Padding 位置' : 'Preset padding positions', isZh ? '可视化 Padding；非正方形画布在模型内部自动补齐并在输出时还原' : 'Visual padding; non-square canvases are padded internally and restored on output'],
-                  [isZh ? '积分' : 'Credits', '5', '8'],
+                  [isZh ? '积分' : 'Credits', '4', '6'],
                 ].map(row => (
                   <tr key={row[0]}>
                     <td className={`${tableCell} text-white/85 whitespace-nowrap`}>{row[0]}</td>

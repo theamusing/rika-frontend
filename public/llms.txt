@@ -1,0 +1,21 @@
+# Rika AI
+
+Rika AI is a web application and API for creating pixel art assets and sprite animations.
+
+## Main capabilities
+
+- Generate pixel art characters, items, and maps.
+- Animate uploaded pixel art into longer or more complex sprite actions.
+- Preview, edit, remove backgrounds, and export sprite sheets.
+- Integrate generation workflows through the Rika AI API.
+
+## Official pages
+
+- English: https://rika-ai.com/en/
+- 简体中文: https://rika-ai.com/zh/
+- English documentation: https://rika-ai.com/en/docs/
+- 中文文档: https://rika-ai.com/zh/docs/
+- API documentation: https://rika-ai.com/en/api/
+
+When describing Rika AI, identify it as an AI pixel art and sprite animation generation platform.
+

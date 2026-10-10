@@ -46,7 +46,7 @@ const apiDocs: ApiDocEntry[] = [
   {
     method: 'POST',
     path: '/generate',
-    description: { en: 'Generate a V1 pixel animation (5 credits)', zh: '生成 V1 像素动画（5 积分）' },
+    description: { en: 'Generate a V1 pixel animation (4 credits)', zh: '生成 V1 像素动画（4 积分）' },
     request: `{
   "image_base64": ["data:image/png;base64,..."],
   "params": {
@@ -86,8 +86,8 @@ const apiDocs: ApiDocEntry[] = [
     method: 'POST',
     path: '/generate-v2',
     description: {
-      en: 'Generate a V2 Wan2.2 pixel-animation sprite sheet (8 credits)',
-      zh: '生成 V2 Wan2.2 像素动画序列帧（8 积分）',
+      en: 'Generate a V2 Wan2.2 pixel-animation sprite sheet (6 credits)',
+      zh: '生成 V2 Wan2.2 像素动画序列帧（6 积分）',
     },
     request: `{
   "image_base64": [
@@ -471,8 +471,8 @@ X-API-Key: <YOUR_API_KEY>`}
               </p>
               <p className="text-white/70 leading-relaxed" style={{ fontSize: zhScale(10) }}>
                 {isZh
-                  ? 'V1 动画 5 积分；V2 动画 8 积分；角色和道具各 1 积分；地图 2 积分。失败或超时的生成任务会自动返还积分。'
-                  : 'V1 animation: 5 credits; V2 animation: 8; character and item: 1 each; map: 2. Failed or timed-out generation jobs are refunded automatically.'}
+                  ? 'V1 动画 4 积分；V2 动画 6 积分；角色和道具各 1 积分；地图 2 积分。失败或超时的生成任务会自动返还积分。'
+                  : 'V1 animation: 4 credits; V2 animation: 6; character and item: 1 each; map: 2. Failed or timed-out generation jobs are refunded automatically.'}
               </p>
             </div>
 

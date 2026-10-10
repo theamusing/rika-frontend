@@ -16,12 +16,21 @@ import ApiPage from './pages/ApiPage.tsx';
 import { PixelButton } from './components/PixelComponents.tsx';
 import { PricingModal } from './components/PricingModal.tsx';
 import { PaymentSuccessModal } from './components/PaymentSuccessModal.tsx';
+import {
+  AppLanguage,
+  AppTab,
+  applySeoMetadata,
+  readAppRoute,
+  writeAppRoute,
+} from './utils/appRoutes.ts';
+
+const initialRoute = readAppRoute();
 
 const App: React.FC = () => {
   const [user, setUser] = useState<AuthUser | null>(null);
   const [credits, setCredits] = useState<number>(0);
-  const [activeTab, setActiveTab] = useState<'intro' | 'character' | 'item' | 'generate' | 'map' | 'player' | 'history' | 'api' | 'docs'>('intro');
-  const [pendingTab, setPendingTab] = useState<'character' | 'item' | 'generate' | 'map' | 'player' | 'history' | 'api' | 'docs' | null>(null);
+  const [activeTab, setActiveTab] = useState<AppTab>(initialRoute.tab);
+  const [pendingTab, setPendingTab] = useState<Exclude<AppTab, 'intro'> | null>(null);
   const [selectedJobId, setSelectedJobId] = useState<string | null>(null);
   const [selectedJob, setSelectedJob] = useState<Job | null>(null);
   const [navigationSource, setNavigationSource] = useState<{ tab: string, page?: number } | null>(null);
@@ -32,11 +41,7 @@ const App: React.FC = () => {
   const [isPaymentSuccessOpen, setIsPaymentSuccessOpen] = useState(false);
   const [loginMode, setLoginMode] = useState<'login' | 'forgot' | 'update'>('login');
   const [forceLogin, setForceLogin] = useState(false);
-  const [lang, setLang] = useState<'en' | 'zh'>(() => {
-    const saved = localStorage.getItem('rika-ui-language');
-    if (saved === 'en' || saved === 'zh') return saved;
-    return navigator.language.toLowerCase().startsWith('zh') ? 'zh' : 'en';
-  });
+  const [lang, setLang] = useState<AppLanguage>(initialRoute.lang);
   const [showUserDropdown, setShowUserDropdown] = useState(false);
   const [showCreateDropdown, setShowCreateDropdown] = useState(false);
   const [isBackendDown, setIsBackendDown] = useState(false);
@@ -45,14 +50,49 @@ const App: React.FC = () => {
   const lastFetchTime = useRef<number>(0);
   const dropdownRef = useRef<HTMLDivElement>(null);
   const createDropdownRef = useRef<HTMLDivElement>(null);
+  const basePathRef = useRef(initialRoute.basePath);
+  const langRef = useRef<AppLanguage>(initialRoute.lang);
 
   const isZh = lang === 'zh';
   const zhScale = (enSize: number) => `${isZh ? enSize + 3 : enSize}px`;
 
+  const setTabWithRoute = useCallback((tab: AppTab, mode: 'push' | 'replace' = 'push') => {
+    setActiveTab(tab);
+    writeAppRoute(basePathRef.current, langRef.current, tab, mode);
+  }, []);
+
+  const changeLanguage = useCallback((nextLanguage: AppLanguage) => {
+    langRef.current = nextLanguage;
+    setLang(nextLanguage);
+    writeAppRoute(basePathRef.current, nextLanguage, activeTab, 'push');
+  }, [activeTab]);
+
   useEffect(() => {
     document.documentElement.lang = isZh ? 'zh-CN' : 'en';
+    langRef.current = lang;
     localStorage.setItem('rika-ui-language', lang);
-  }, [isZh, lang]);
+    applySeoMetadata(basePathRef.current, lang, activeTab);
+  }, [activeTab, isZh, lang]);
+
+  useEffect(() => {
+    if (!initialRoute.hasLanguagePrefix) {
+      writeAppRoute(basePathRef.current, initialRoute.lang, initialRoute.tab, 'replace');
+    }
+
+    const handlePopState = () => {
+      const route = readAppRoute();
+      basePathRef.current = route.basePath;
+      langRef.current = route.lang;
+      setLang(route.lang);
+      setActiveTab(route.tab);
+      setIsPricingOpen(false);
+      setShowCreateDropdown(false);
+      setShowUserDropdown(false);
+    };
+
+    window.addEventListener('popstate', handlePopState);
+    return () => window.removeEventListener('popstate', handlePopState);
+  }, []);
 
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
@@ -121,7 +161,7 @@ const App: React.FC = () => {
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
       if (event === 'PASSWORD_RECOVERY') {
         setLoginMode('update');
-        setActiveTab('generate');
+        setTabWithRoute('generate', 'replace');
         return;
       }
 
@@ -137,21 +177,21 @@ const App: React.FC = () => {
     });
 
     return () => subscription.unsubscribe();
-  }, [fetchCredits]);
+  }, [fetchCredits, setTabWithRoute]);
 
   const handleLogout = async () => {
     await supabase.auth.signOut();
     setUser(null);
-    setActiveTab('intro');
+    setTabWithRoute('intro');
     setPendingTab(null);
     setLoginMode('login');
   };
 
-  const navigateTo = (tab: 'intro' | 'character' | 'item' | 'generate' | 'map' | 'player' | 'history' | 'api' | 'docs') => {
+  const navigateTo = (tab: AppTab) => {
     setIsPricingOpen(false);
     
     if (tab === 'intro' || tab === 'docs') {
-      setActiveTab(tab);
+      setTabWithRoute(tab);
       setPendingTab(null);
       return;
     }
@@ -160,13 +200,13 @@ const App: React.FC = () => {
       setNavigationSource({ tab: activeTab });
     }
     
-    setActiveTab(tab);
+    setTabWithRoute(tab);
     setPendingTab(null);
   };
 
   const handleLoginSuccess = () => {
     const target = pendingTab || activeTab || 'generate';
-    setActiveTab(target as any);
+    setTabWithRoute(target);
     setPendingTab(null);
     setForceLogin(false);
     setLoginMode('login');
@@ -176,31 +216,31 @@ const App: React.FC = () => {
     setSelectedJobId(job.gen_id);
     setSelectedJob(job);
     setNavigationSource({ tab: 'history', page });
-    setActiveTab('player');
+    setTabWithRoute('player');
   };
 
   const handleBack = () => {
     if (navigationSource) {
-      setActiveTab(navigationSource.tab as any);
+      setTabWithRoute(navigationSource.tab as AppTab);
       // If we need to pass page back to history, we might need more complex state, 
       // but for now history keeps its own page state if not unmounted.
     } else {
-      setActiveTab('generate');
+      setTabWithRoute('generate');
     }
   };
 
   const handleRegenerate = (params: any) => {
     setInitialParams(params);
     if (params.action === 'animate') {
-      setActiveTab('generate');
+      setTabWithRoute('generate');
     } else if (params.job_type === 'character') {
-      setActiveTab('character');
+      setTabWithRoute('character');
     } else if (params.job_type === 'item') {
-      setActiveTab('item');
+      setTabWithRoute('item');
     } else if (params.job_type === 'map') {
-      setActiveTab('map');
+      setTabWithRoute('map');
     } else {
-      setActiveTab('generate');
+      setTabWithRoute('generate');
     }
   };
 
@@ -209,10 +249,10 @@ const App: React.FC = () => {
     setSelectedJobId(null);
     setSelectedJob(null);
     setNavigationSource(null);
-    setActiveTab('history');
+    setTabWithRoute('history');
     fetchCredits();
     window.setTimeout(fetchCredits, 1500);
-  }, [fetchCredits]);
+  }, [fetchCredits, setTabWithRoute]);
 
   if (isAuthChecking) {
     return <div className="min-h-screen flex items-center justify-center bg-[#0d0221] text-white uppercase text-xs loading-shimmer">Loading Rika AI...</div>;
@@ -316,13 +356,13 @@ const App: React.FC = () => {
         <div className="header-actions flex items-center gap-3 md:gap-4">
           <div className="language-switch">
             <button 
-              onClick={() => setLang('en')}
+              onClick={() => changeLanguage('en')}
               className={lang === 'en' ? 'is-active' : ''}
             >
               EN
             </button>
             <button 
-              onClick={() => setLang('zh')}
+              onClick={() => changeLanguage('zh')}
               className={lang === 'zh' ? 'is-active' : ''}
             >
               中文
@@ -442,7 +482,7 @@ const App: React.FC = () => {
           <>
             {activeTab === 'character' && (
               <CharacterPage
-                onJobCreated={(id) => { setSelectedJobId(id); setActiveTab('player'); }}
+                onJobCreated={(id) => { setSelectedJobId(id); setTabWithRoute('player'); }}
                 lang={lang}
                 credits={credits}
                 onOpenPricing={() => setIsPricingOpen(true)}
@@ -459,7 +499,7 @@ const App: React.FC = () => {
             )}
             {activeTab === 'item' && (
               <ItemPage
-                onJobCreated={(id) => { setSelectedJobId(id); setActiveTab('player'); }}
+                onJobCreated={(id) => { setSelectedJobId(id); setTabWithRoute('player'); }}
                 lang={lang}
                 credits={credits}
                 onOpenPricing={() => setIsPricingOpen(true)}
@@ -476,7 +516,7 @@ const App: React.FC = () => {
             )}
             {activeTab === 'map' && (
               <MapPage
-                onJobCreated={(id) => { setSelectedJobId(id); setActiveTab('player'); }}
+                onJobCreated={(id) => { setSelectedJobId(id); setTabWithRoute('player'); }}
                 lang={lang}
                 credits={credits}
                 onOpenPricing={() => setIsPricingOpen(true)}
@@ -493,7 +533,7 @@ const App: React.FC = () => {
             )}
             {activeTab === 'generate' && (
               <GenerationPage 
-                onJobCreated={(id) => { setSelectedJobId(id); setActiveTab('player'); }} 
+                onJobCreated={(id) => { setSelectedJobId(id); setTabWithRoute('player'); }}
                 initialVersion={generationEntryVersion}
                 onGenerateImage={() => navigateTo('character')}
                 initialParams={initialParams}
