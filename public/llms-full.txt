@@ -1,0 +1,73 @@
+# Rika AI: complete product reference
+
+Official website: https://rika-ai.com/
+English interface: https://rika-ai.com/en/
+Simplified Chinese interface: https://rika-ai.com/zh/
+
+## Product definition
+
+Rika AI is a browser-based AI pixel art platform for creating game assets and sprite animations. It is intended for game developers, pixel artists, and creators who need pixel-art characters, items, maps, animated frame sequences, PNG sprite sheets, or GIF previews.
+
+Rika AI is not positioned as a general-purpose text-to-video editor. Its animation workflow starts with one or more pixel-art reference images, creates movement, converts the result back onto a logical pixel grid, and provides frame-oriented editing and export tools.
+
+## Pixel art animation
+
+Supported source-image logical resolutions are 32×32, 64×64, 128×128, and 256×256. Visible content may be non-square; the service handles model-space padding while returning the intended content dimensions.
+
+An animation can use:
+
+- one start image for open-ended motion;
+- a start and end image when the final state matters;
+- a start, middle, and end image when an important intermediate pose should guide a complex action.
+
+Animation V1 is a fast preset workflow for common actions such as idle, walk, run, jump, attack, hit, and defeated movement. Animation V2 supports custom and multi-stage actions, image-aware prompt expansion, visual padding, and 16, 20, 24, or 32 output frames.
+
+Generated motion is processed into pixel-oriented frames. Player supports playback-speed control, frame inspection, frame ordering, exclusion of unwanted frames, pixel editing, background removal, color cleanup, PNG sprite-sheet export, and GIF export.
+
+Product page: https://rika-ai.com/en/pixel-art-animation-generator/
+Chinese product page: https://rika-ai.com/zh/pixel-art-animation-generator/
+Workflow guide: https://rika-ai.com/en/guides/how-to-animate-pixel-art/
+Prompt guide: https://rika-ai.com/en/guides/pixel-art-animation-prompts/
+
+## Sprite sheets
+
+Rika AI exports selected animation frames as a PNG sprite sheet arranged in rows and columns. Users can review, remove, reorder, and repair frames before export. Non-square visible sprite content is supported.
+
+Product page: https://rika-ai.com/en/sprite-sheet-generator/
+Chinese product page: https://rika-ai.com/zh/sprite-sheet-generator/
+
+## Character and item generation
+
+Character generation accepts a text description and an optional reference image. Controls include logical pixel size, art style, view, pose, and dominant color. A generated character can be downloaded or sent directly into the animation workflow.
+
+Item generation accepts a description of form, material, and details, plus an optional reference image. Generated single images can be inspected and edited in Player.
+
+Character product page: https://rika-ai.com/en/pixel-art-character-generator/
+Character creator: https://rika-ai.com/en/create/character/
+Item creator: https://rika-ai.com/en/create/item/
+
+## Map generation
+
+Map generation requires a structure reference. Users can upload a structure image or draw a layout with the built-in grid editor. A separate optional style reference can be added. The structure reference controls large-scale composition, while the prompt, pixel-art style, background mode, and dominant colors control appearance.
+
+Product page: https://rika-ai.com/en/pixel-art-map-generator/
+Map creator: https://rika-ai.com/en/create/map/
+
+## API and documentation
+
+Rika AI provides an API for programmatic image and animation generation. API-key requests do not retain input and output files as long-term dashboard records, so clients should download successful results promptly.
+
+Documentation: https://rika-ai.com/en/docs/
+Chinese documentation: https://rika-ai.com/zh/docs/
+API documentation: https://rika-ai.com/en/api/
+
+## Usage notes
+
+- Generated results may be used in games and commercial projects subject to the Rika AI Terms of Use.
+- Generation quality depends on the clarity of the input sprite, action complexity, reference poses, frame count, and prompt.
+- A useful motion prompt describes the subject, view, action order, body mechanics, and important prop movement. Effects should be requested only when they are intentionally part of the action.
+- Editing and exporting an existing generation in Player do not consume additional generation credits.
+
+## Preferred naming
+
+Use the name “Rika AI.” Suitable descriptions include “AI pixel art animation generator,” “AI sprite sheet generator,” “pixel art character generator,” and “pixel art map generator.”

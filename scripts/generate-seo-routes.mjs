@@ -108,14 +108,28 @@ const renderPage = (lang, route) => {
   html = replaceTagAttribute(html, 'seo-twitter-description', 'content', pageCopy.description);
   html = html.replace(
     /<script id="seo-jsonld" type="application\/ld\+json">[\s\S]*?<\/script>/,
-    `<script id="seo-jsonld" type="application/ld+json">${JSON.stringify({
+    `<script id="seo-jsonld" type="application/ld+json">${JSON.stringify(route.segment === '' ? {
+      '@context': 'https://schema.org',
+      '@graph': [
+        {
+          '@type': 'SoftwareApplication',
+          name: 'Rika AI',
+          description: pageCopy.description,
+          url: canonical,
+          applicationCategory: 'MultimediaApplication',
+          operatingSystem: 'Web',
+          inLanguage: lang === 'zh' ? 'zh-CN' : 'en',
+        },
+        { '@type': 'Organization', name: 'Rika AI', url: siteUrl },
+        { '@type': 'WebSite', name: 'Rika AI', url: siteUrl, inLanguage: ['en', 'zh-CN'] },
+      ],
+    } : {
       '@context': 'https://schema.org',
       '@type': route.segment === 'docs' ? 'TechArticle' : route.segment === 'api' ? 'WebPage' : 'SoftwareApplication',
       name: pageCopy.title,
       description: pageCopy.description,
       url: canonical,
       inLanguage: lang === 'zh' ? 'zh-CN' : 'en',
-      ...(route.segment === '' ? { applicationCategory: 'MultimediaApplication', operatingSystem: 'Web' } : {}),
     })}</script>`,
   );
   return html;

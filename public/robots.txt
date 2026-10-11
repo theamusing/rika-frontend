@@ -2,3 +2,4 @@ User-agent: *
 Allow: /
 
 Sitemap: https://rika-ai.com/sitemap.xml
+Sitemap: https://rika-ai.com/sitemap.txt

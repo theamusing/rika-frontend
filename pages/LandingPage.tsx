@@ -729,6 +729,21 @@ const LandingPage: React.FC<LandingPageProps> = ({ onGetStarted, onTryV2, onGene
                 {isZh ? '立即开始' : 'GET STARTED'}
               </PixelButton>
             </div>
+
+            <nav aria-label={isZh ? '产品与指南' : 'Product resources'} className="pt-7 flex flex-wrap justify-center gap-x-6 gap-y-3 text-white/45">
+              <a href={`/${lang}/pixel-art-animation-generator/`} className="hover:text-[#f7d51d] transition-colors" style={{ fontSize: zhScale(8) }}>
+                {isZh ? '像素动画生成器' : 'Animation Generator'}
+              </a>
+              <a href={`/${lang}/sprite-sheet-generator/`} className="hover:text-[#f7d51d] transition-colors" style={{ fontSize: zhScale(8) }}>
+                {isZh ? '序列帧生成器' : 'Sprite Sheet Generator'}
+              </a>
+              <a href={`/${lang}/guides/how-to-animate-pixel-art/`} className="hover:text-[#f7d51d] transition-colors" style={{ fontSize: zhScale(8) }}>
+                {isZh ? '像素动画指南' : 'Animation Guide'}
+              </a>
+              <a href={`/${lang}/guides/pixel-art-animation-prompts/`} className="hover:text-[#f7d51d] transition-colors" style={{ fontSize: zhScale(8) }}>
+                {isZh ? '提示词指南' : 'Prompt Guide'}
+              </a>
+            </nav>
             
             <div className="pt-8 flex gap-8 justify-center">
               <button 

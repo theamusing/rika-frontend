@@ -175,14 +175,28 @@ export const applySeoMetadata = (basePath: string, lang: AppLanguage, tab: AppTa
 
   const structuredData = document.getElementById('seo-jsonld');
   if (structuredData) {
-    structuredData.textContent = JSON.stringify({
+    structuredData.textContent = JSON.stringify(tab === 'intro' ? {
+      '@context': 'https://schema.org',
+      '@graph': [
+        {
+          '@type': 'SoftwareApplication',
+          name: 'Rika AI',
+          description: copy.description,
+          url: canonical,
+          inLanguage: lang === 'zh' ? 'zh-CN' : 'en',
+          applicationCategory: 'MultimediaApplication',
+          operatingSystem: 'Web',
+        },
+        { '@type': 'Organization', name: 'Rika AI', url: window.location.origin },
+        { '@type': 'WebSite', name: 'Rika AI', url: window.location.origin, inLanguage: ['en', 'zh-CN'] },
+      ],
+    } : {
       '@context': 'https://schema.org',
       '@type': tab === 'docs' ? 'TechArticle' : tab === 'api' ? 'WebPage' : 'SoftwareApplication',
       name: copy.title,
       description: copy.description,
       url: canonical,
       inLanguage: lang === 'zh' ? 'zh-CN' : 'en',
-      ...(tab === 'intro' ? { applicationCategory: 'MultimediaApplication', operatingSystem: 'Web' } : {}),
     });
   }
 };

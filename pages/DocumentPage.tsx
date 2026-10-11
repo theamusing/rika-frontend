@@ -159,7 +159,7 @@ const DocumentPage: React.FC<DocumentPageProps> = ({ lang = 'en', onOpenPricing 
             <div>
               <h3 className="font-medium text-white/90 mb-3" style={{ fontSize: zhScale(11) }}>{isZh ? '帧与播放' : 'Frames and playback'}</h3>
               <ul className="list-disc pl-5 space-y-2 text-white/65 leading-relaxed">
-                <li>{isZh ? '播放、暂停、逐帧查看并调整 FPS；V2 默认以 16 FPS 预览。' : 'Play, pause, step through frames, and adjust FPS. V2 previews at 16 FPS by default.'}</li>
+                <li>{isZh ? '播放、暂停、逐帧查看并调整 FPS；V2 默认以 12 FPS 预览。' : 'Play, pause, step through frames, and adjust FPS. V2 previews at 12 FPS by default.'}</li>
                 <li>{isZh ? '拖拽重新排序，或排除不需要的帧。' : 'Drag to reorder or exclude unwanted frames.'}</li>
                 <li>{isZh ? '使用画笔、橡皮、移动、取色和魔棒工具修改像素。' : 'Edit pixels with brush, eraser, move, picker, and wand tools.'}</li>
                 <li>{isZh ? '支持撤销、重做与恢复初始结果。' : 'Undo, redo, and restore the original result.'}</li>
@@ -211,9 +211,14 @@ const DocumentPage: React.FC<DocumentPageProps> = ({ lang = 'en', onOpenPricing 
         </Section>
 
         <footer className="pt-8 border-t-2 border-white/15 flex flex-col sm:flex-row items-center justify-between gap-5">
-          <p className="text-white/45 leading-relaxed" style={{ fontSize: zhScale(9) }}>
-            {isZh ? '开发者可前往 API 页面创建密钥并查看完整请求参数。' : 'Developers can create keys and review complete request parameters on the API page.'}
-          </p>
+          <div className="space-y-3 text-white/45 leading-relaxed" style={{ fontSize: zhScale(9) }}>
+            <p>{isZh ? '开发者可前往 API 页面创建密钥并查看完整请求参数。' : 'Developers can create keys and review complete request parameters on the API page.'}</p>
+            <nav aria-label={isZh ? '相关使用指南' : 'Related guides'} className="flex flex-wrap gap-x-5 gap-y-2">
+              <a href={`/${lang}/guides/how-to-animate-pixel-art/`} className="underline underline-offset-4 hover:text-[#f7d51d]">{isZh ? '如何制作像素动画' : 'How to animate pixel art'}</a>
+              <a href={`/${lang}/guides/pixel-art-animation-prompts/`} className="underline underline-offset-4 hover:text-[#f7d51d]">{isZh ? '动画提示词指南' : 'Animation prompt guide'}</a>
+              <a href={`/${lang}/sprite-sheet-generator/`} className="underline underline-offset-4 hover:text-[#f7d51d]">{isZh ? '序列帧生成器' : 'Sprite sheet generator'}</a>
+            </nav>
+          </div>
           {onOpenPricing && (
             <PixelButton variant="secondary" onClick={onOpenPricing} style={{ fontSize: zhScale(9) }}>
               {isZh ? '查看定价' : 'VIEW PRICING'}

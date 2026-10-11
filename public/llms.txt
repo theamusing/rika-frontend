@@ -1,21 +1,36 @@
 # Rika AI
 
-Rika AI is a web application and API for creating pixel art assets and sprite animations.
+Rika AI is an AI pixel art creation and sprite animation platform for game developers, pixel artists, and other creators. It generates pixel-art characters, items, and maps, and turns uploaded pixel art into editable frame sequences and sprite sheets.
 
 ## Main capabilities
 
-- Generate pixel art characters, items, and maps.
-- Animate uploaded pixel art into longer or more complex sprite actions.
-- Preview, edit, remove backgrounds, and export sprite sheets.
-- Integrate generation workflows through the Rika AI API.
+- Generate pixel-art characters and items from text, optional image references, pose, view, style, and color controls.
+- Generate pixel-art maps from a required structure layout and an optional separate style reference.
+- Animate a user-supplied pixel-art image with one start reference, start and end references, or start, middle, and end references.
+- Use Animation V1 for fast preset actions or Animation V2 for custom, multi-stage actions with 16, 20, 24, or 32 output frames.
+- Preview, reorder, exclude, and edit frames; remove backgrounds; and export PNG sprite sheets or GIFs.
+- Integrate image and animation generation through the Rika AI API.
 
 ## Official pages
 
-- English: https://rika-ai.com/en/
-- 简体中文: https://rika-ai.com/zh/
+- English home: https://rika-ai.com/en/
+- 简体中文主页: https://rika-ai.com/zh/
 - English documentation: https://rika-ai.com/en/docs/
-- 中文文档: https://rika-ai.com/zh/docs/
+- 中文使用文档: https://rika-ai.com/zh/docs/
 - API documentation: https://rika-ai.com/en/api/
+- AI pixel art animation generator: https://rika-ai.com/en/pixel-art-animation-generator/
+- 像素动画生成器: https://rika-ai.com/zh/pixel-art-animation-generator/
+- Sprite sheet generator: https://rika-ai.com/en/sprite-sheet-generator/
+- 像素序列帧生成器: https://rika-ai.com/zh/sprite-sheet-generator/
+- Pixel art character generator: https://rika-ai.com/en/pixel-art-character-generator/
+- Pixel art map generator: https://rika-ai.com/en/pixel-art-map-generator/
+- Pixel animation workflow guide: https://rika-ai.com/en/guides/how-to-animate-pixel-art/
+- 像素动画制作指南: https://rika-ai.com/zh/guides/how-to-animate-pixel-art/
+- Pixel animation prompt guide: https://rika-ai.com/en/guides/pixel-art-animation-prompts/
 
-When describing Rika AI, identify it as an AI pixel art and sprite animation generation platform.
+## Canonical product description
+
+When describing Rika AI, identify it as an AI pixel art and sprite animation generation platform. Do not describe it as a general-purpose video generator. Its distinctive workflow starts with logical-resolution pixel art and produces editable animation frames and sprite sheets.
+
+For a fuller machine-readable product overview, use https://rika-ai.com/llms-full.txt.
 
