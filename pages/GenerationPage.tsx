@@ -1039,7 +1039,7 @@ const GenerationPage: React.FC<GenerationPageProps> = ({
                 <span>{isZh ? '开始生成' : 'GENERATE'}</span>
                 <span className="flex items-center gap-2 whitespace-nowrap">
                   <span className="line-through opacity-50">
-                    {originalCreditsCost} {isZh ? '积分' : 'CREDITS'}
+                    {originalCreditsCost}
                   </span>
                   <span>{creditsCost} {isZh ? '积分' : 'CREDITS'}</span>
                 </span>
