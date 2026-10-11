@@ -1,6 +1,7 @@
 
 import { getAssetFromCache, saveAssetToCache } from './dbUtils.ts';
-import { quantizeImageData, RGB, extractCentroids, applyCentroids } from './editorUtils.ts';
+import { RGB } from './editorUtils.ts';
+import { applyBackendCentroids, quantizeImageDataBackend } from './backendPalette.ts';
 
 /**
  * Checks if a URL points to a user-generated image that should be cached.
@@ -285,9 +286,9 @@ export const processImage = async (
         if (useQuantization) {
           const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
           if (externalCentroids && externalCentroids.length > 0) {
-            applyCentroids(imageData, externalCentroids, bgRGB);
+            applyBackendCentroids(imageData, externalCentroids, bgRGB);
           } else {
-            quantizeImageData(imageData, quantizationColors, bgRGB);
+            quantizeImageDataBackend(imageData, quantizationColors, bgRGB);
           }
           ctx.putImageData(imageData, 0, 0);
         }

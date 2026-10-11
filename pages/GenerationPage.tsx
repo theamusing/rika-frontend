@@ -7,7 +7,8 @@ import { MOTION_TYPES, PIXEL_SIZES } from '../constants.ts';
 import { AnimationV2Params, AnimationVersion, GenerationParams, MotionType, PaddingOffsets, PixelDimensions, PixelSize } from '../types.ts';
 import PaddingEditorV2 from '../components/PaddingEditorV2.tsx';
 import { constrainPadding, EMPTY_PADDING, paddedDimensions, processImageV2, removePaddingV2, snapPixelSize } from '../utils/animationV2.ts';
-import { extractCentroids, RGB } from '../utils/editorUtils.ts';
+import { RGB } from '../utils/editorUtils.ts';
+import { extractCentroidsAsync } from '../utils/paletteWorker.ts';
 import { HelpCircle } from 'lucide-react';
 import { HexColorPicker } from 'react-colorful';
 import { getSpriteFromCache } from '../utils/dbUtils.ts';
@@ -303,12 +304,15 @@ const GenerationPage: React.FC<GenerationPageProps> = ({
 
   // Update centroids when palette source or color count changes
   useEffect(() => {
+    let cancelled = false;
     if (paletteSource && params.use_quantization) {
-      const newCentroids = extractCentroids(paletteSource, params.quantization_colors || 32);
-      setCentroids(newCentroids);
+      extractCentroidsAsync(paletteSource, params.quantization_colors || 32)
+        .then(newCentroids => { if (!cancelled) setCentroids(newCentroids); })
+        .catch(error => console.error('Failed to build palette:', error));
     } else {
       setCentroids([]);
     }
+    return () => { cancelled = true; };
   }, [paletteSource, params.quantization_colors, params.use_quantization]);
 
   useEffect(() => {

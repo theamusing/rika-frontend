@@ -1,5 +1,6 @@
 import { PaddingOffsets, PixelDimensions } from '../types.ts';
-import { applyCentroids, quantizeImageData, RGB } from './editorUtils.ts';
+import { RGB } from './editorUtils.ts';
+import { applyBackendCentroids, quantizeImageDataBackend } from './backendPalette.ts';
 import { fetchAsDataUrl, processImage } from './imageUtils.ts';
 
 export const EMPTY_PADDING: PaddingOffsets = { left: 0, right: 0, top: 0, bottom: 0 };
@@ -91,8 +92,8 @@ export const processImageV2 = async (
   ctx.globalCompositeOperation = 'source-over';
   if (useQuantization && !usesV1Sampling) {
     const data = ctx.getImageData(0, 0, size.x, size.y);
-    if (centroids.length) applyCentroids(data, centroids, background);
-    else quantizeImageData(data, colorCount, background);
+    if (centroids.length) applyBackendCentroids(data, centroids, background);
+    else quantizeImageDataBackend(data, colorCount, background);
     ctx.putImageData(data, 0, 0);
   }
   const constrained = constrainPadding(size, padding);
