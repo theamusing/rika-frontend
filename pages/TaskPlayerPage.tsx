@@ -104,6 +104,7 @@ const TaskPlayerPage: React.FC<TaskPlayerPageProps> = ({
   const viewportRef = useRef<HTMLDivElement>(null);
   const playbackRef = useRef<number | null>(null);
   const isMounted = useRef(true);
+  const customModeRef = useRef(false);
   const lastMousePos = useRef({ x: 0, y: 0 });
   const handledFailureJobId = useRef<string | null>(null);
 
@@ -453,6 +454,7 @@ const TaskPlayerPage: React.FC<TaskPlayerPageProps> = ({
     isMounted.current = true;
     if (selectedJobId) {
       setLoading(true);
+      customModeRef.current = false;
       setIsCustomMode(false);
       const fetchJob = async () => {
         try {
@@ -480,7 +482,7 @@ const TaskPlayerPage: React.FC<TaskPlayerPageProps> = ({
         } catch (e) { setLoading(false); }
       };
       fetchJob();
-    } else {
+    } else if (!customModeRef.current) {
       const blank = document.createElement('canvas');
       blank.width = 128;
       blank.height = 128;
@@ -1041,9 +1043,11 @@ const TaskPlayerPage: React.FC<TaskPlayerPageProps> = ({
           isOriginal: true,
           isExcluded: false
         }));
+        customModeRef.current = true;
         setFrames(mappedFrames);
         setInitialFrames(mappedFrames);
         setCurrentFrameIndex(0);
+        setIsPlaying(mappedFrames.length > 1);
         setIsCustomMode(true);
         setCurrentJob(null);
         setUndoStack([]);
