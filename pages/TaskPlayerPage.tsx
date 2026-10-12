@@ -8,9 +8,9 @@ import { floodFill, RGB, colorDistance, colorMatchRemoval, simplifyColors } from
 import { saveSpriteToCache, getSpriteFromCache, CachedSprite } from '../utils/dbUtils.ts';
 import { fitImageDimensions } from '../utils/animationDisplay.ts';
 import { Heart, ArrowLeft, Move, Pipette, HelpCircle } from 'lucide-react';
+import ColorPickerPopover from '../components/ColorPickerPopover.tsx';
 // @ts-ignore
 import gifshot from 'gifshot';
-import { HexColorPicker } from 'react-colorful';
 
 type Tool = 'brush' | 'eraser' | 'move' | 'wand' | 'nudge' | 'picker';
 type WandMode = 'select' | 'add' | 'remove';
@@ -102,6 +102,8 @@ const TaskPlayerPage: React.FC<TaskPlayerPageProps> = ({
   const overlayRef = useRef<HTMLCanvasElement>(null);
   const editorContainerRef = useRef<HTMLDivElement>(null);
   const viewportRef = useRef<HTMLDivElement>(null);
+  const brushColorAnchorRef = useRef<HTMLDivElement>(null);
+  const removalColorAnchorRef = useRef<HTMLDivElement>(null);
   const playbackRef = useRef<number | null>(null);
   const isMounted = useRef(true);
   const customModeRef = useRef(false);
@@ -1177,7 +1179,7 @@ const TaskPlayerPage: React.FC<TaskPlayerPageProps> = ({
            {renderToolButton("move", <img src={`${ICON_BASE}drag.png`} style={{ imageRendering: 'auto' }} className="w-full h-full object-contain" alt="Drag" />)}
            {renderToolButton("picker", <Pipette size={20} />)}
            <div className="mt-4 border-t-2 border-[#5a2d9c] pt-4 flex flex-col items-center gap-4 w-full">
-              <div 
+              <div ref={brushColorAnchorRef}
                 className="relative w-10 h-10 pixel-border border-2 border-[#5a2d9c] bg-black/40 overflow-hidden shrink-0 cursor-pointer" 
                 title={isZh ? "选择颜色" : "Choose Color"}
                 onClick={() => { setShowBrushPicker(!showBrushPicker); setIsPlaying(false); }}
@@ -1186,18 +1188,9 @@ const TaskPlayerPage: React.FC<TaskPlayerPageProps> = ({
               </div>
 
               {showBrushPicker && (
-                <>
-                  <div className="fixed inset-0 z-40" onClick={() => setShowBrushPicker(false)} />
-                  <div className="absolute left-14 bottom-0 z-50 bg-[#1b0a38] border-2 border-[#5a2d9c] p-2 pixel-border flex flex-col gap-2 w-52 shadow-2xl">
-                    <HexColorPicker color={brushColor} onChange={(color) => { setBrushColor(color); setIsPlaying(false); }} />
-                    <div className="flex justify-between items-center text-xs font-mono text-white/80">
-                      <span>{brushColor.toUpperCase()}</span>
-                      <button className="text-[#a47cfd] font-bold px-1 hover:text-white" onClick={() => setShowBrushPicker(false)}>
-                        {isZh ? '关闭' : 'CLOSE'}
-                      </button>
-                    </div>
-                  </div>
-                </>
+                <ColorPickerPopover anchor={brushColorAnchorRef.current} placement="right" color={brushColor}
+                  onChange={(color) => { setBrushColor(color); setIsPlaying(false); }}
+                  onClose={() => setShowBrushPicker(false)} lang={lang} />
               )}
               <button 
                 onClick={() => { setIsLightBg(!isLightBg); setIsPlaying(false); }} 
@@ -1399,7 +1392,7 @@ const TaskPlayerPage: React.FC<TaskPlayerPageProps> = ({
                    {useGlobalColorMatch && (
                      <div className="flex items-center gap-2 p-1 bg-black/40 border border-white/10 relative">
                        <span className="text-[9px] text-white/40 uppercase">BG:</span>
-                       <div 
+                       <div ref={removalColorAnchorRef}
                          className="flex-1 h-5 relative pixel-border border border-white/20 cursor-pointer" 
                          style={{ backgroundColor: removalBgColor }}
                          onClick={() => setShowRemovalPicker(!showRemovalPicker)}
@@ -1419,29 +1412,16 @@ const TaskPlayerPage: React.FC<TaskPlayerPageProps> = ({
                        </button>
 
                        {showRemovalPicker && (
-                         <>
-                           <div className="fixed inset-0 z-40" onClick={() => setShowRemovalPicker(false)} />
-                           <div className="absolute right-0 bottom-6 z-50 bg-[#1b0a38] border-2 border-[#5a2d9c] p-2 pixel-border flex flex-col gap-2 w-52 shadow-2xl">
-                             <HexColorPicker color={removalBgColor} onChange={setRemovalBgColor} />
-                             <button 
-                               type="button"
-                               className="flex items-center justify-center gap-2 py-1.5 px-3 bg-[#5a2d9c]/20 hover:bg-[#5a2d9c]/40 active:bg-[#5a2d9c]/60 border border-[#5a2d9c]/50 text-white font-mono text-[9px] w-full pixel-border transition-all animate-none"
-                               onClick={() => {
-                                 setIsPickingRemovalColor(true);
-                                 setShowRemovalPicker(false);
-                               }}
-                             >
-                               <Pipette size={12} />
-                               <span>{isZh ? '吸取画布颜色' : 'PICK CANVAS COLOR'}</span>
-                             </button>
-                             <div className="flex justify-between items-center text-xs font-mono text-white/80">
-                               <span>{removalBgColor.toUpperCase()}</span>
-                               <button className="text-[#a47cfd] font-bold px-1 hover:text-white" onClick={() => setShowRemovalPicker(false)}>
-                                 {isZh ? '关闭' : 'CLOSE'}
-                               </button>
-                             </div>
-                           </div>
-                         </>
+                         <ColorPickerPopover anchor={removalColorAnchorRef.current} placement="above" align="end"
+                           color={removalBgColor} onChange={setRemovalBgColor}
+                           onClose={() => setShowRemovalPicker(false)} lang={lang}>
+                           <button type="button"
+                             className="flex items-center justify-center gap-2 py-1.5 px-3 bg-[#5a2d9c]/20 hover:bg-[#5a2d9c]/40 active:bg-[#5a2d9c]/60 border border-[#5a2d9c]/50 text-white font-mono text-[9px] w-full pixel-border transition-all animate-none"
+                             onClick={() => { setIsPickingRemovalColor(true); setShowRemovalPicker(false); }}>
+                             <Pipette size={12} />
+                             <span>{isZh ? '吸取画布颜色' : 'PICK CANVAS COLOR'}</span>
+                           </button>
+                         </ColorPickerPopover>
                        )}
                      </div>
                    )}

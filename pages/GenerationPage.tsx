@@ -10,7 +10,7 @@ import { constrainPadding, EMPTY_PADDING, paddedDimensions, processImageV2, remo
 import { RGB } from '../utils/editorUtils.ts';
 import { extractCentroidsAsync } from '../utils/paletteWorker.ts';
 import { HelpCircle } from 'lucide-react';
-import { HexColorPicker } from 'react-colorful';
+import ColorPickerPopover from '../components/ColorPickerPopover.tsx';
 import { getSpriteFromCache } from '../utils/dbUtils.ts';
 
 interface GenerationPageProps {
@@ -74,6 +74,7 @@ const GenerationPage: React.FC<GenerationPageProps> = ({
   const [forcedScaleFactor, setForcedScaleFactor] = useState<number | null>(null);
   const [colorInputKey, setColorInputKey] = useState(0);
   const [showBgColorPicker, setShowBgColorPicker] = useState(false);
+  const bgColorAnchorRef = useRef<HTMLDivElement>(null);
   const [generationVersion, setGenerationVersion] = useState<AnimationVersion>(initialVersion);
   const [v2PixelChoice, setV2PixelChoice] = useState<PixelSize>('128');
   const [v2Size, setV2Size] = useState<PixelDimensions>({ x: 128, y: 128 });
@@ -903,7 +904,7 @@ const GenerationPage: React.FC<GenerationPageProps> = ({
                       {isZh ? "背景颜色" : "BG COLOR"}
                     </label>
                     <div className="flex gap-2">
-                      <div 
+                      <div ref={bgColorAnchorRef}
                         className="w-full h-9 bg-[#0d0221] border-2 border-[#5a2d9c] cursor-pointer relative flex items-center px-3"
                         onClick={() => setShowBgColorPicker(!showBgColorPicker)}
                       >
@@ -913,18 +914,9 @@ const GenerationPage: React.FC<GenerationPageProps> = ({
                     </div>
 
                     {showBgColorPicker && (
-                      <>
-                        <div className="fixed inset-0 z-40" onClick={() => setShowBgColorPicker(false)} />
-                        <div className="absolute right-0 bottom-12 z-50 bg-[#1b0a38] border-2 border-[#5a2d9c] p-2 pixel-border flex flex-col gap-2 w-52 shadow-2xl">
-                          <HexColorPicker color={params.bg_color || '#004000'} onChange={(color) => setParams({...params, bg_color: color})} />
-                          <div className="flex justify-between items-center text-xs font-mono text-white/80">
-                            <span>{(params.bg_color || '#004000').toUpperCase()}</span>
-                            <button className="text-[#a47cfd] font-bold px-1 hover:text-white" onClick={() => setShowBgColorPicker(false)}>
-                              {isZh ? '关闭' : 'CLOSE'}
-                            </button>
-                          </div>
-                        </div>
-                      </>
+                      <ColorPickerPopover anchor={bgColorAnchorRef.current} placement="above" align="end"
+                        color={params.bg_color || '#004000'} onChange={(color) => setParams({...params, bg_color: color})}
+                        onClose={() => setShowBgColorPicker(false)} lang={lang} />
                     )}
                 </div>
                 <div className="space-y-2">

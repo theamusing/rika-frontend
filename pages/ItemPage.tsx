@@ -3,7 +3,7 @@ import { PixelButton, PixelCard, PixelInput, PixelImage } from '../components/Pi
 import { apiService } from '../services/apiService.ts';
 import { processCharacterImage } from '../utils/imageUtils.ts';
 import { Plus, Shuffle, Loader2, X, HelpCircle } from 'lucide-react';
-import { HexColorPicker } from 'react-colorful';
+import ColorPickerPopover from '../components/ColorPickerPopover.tsx';
 
 interface ItemPageProps {
   onJobCreated: (id: string) => void;
@@ -81,6 +81,7 @@ const ItemPage: React.FC<ItemPageProps> = ({
   const [exampleIndex, setExampleIndex] = useState(0);
   const [colorInputKey, setColorInputKey] = useState(0);
   const [activeColorIndex, setActiveColorIndex] = useState<number | null>(null);
+  const colorSwatchRefs = useRef<(HTMLDivElement | null)[]>([]);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const isZh = lang === 'zh';
@@ -355,24 +356,15 @@ const ItemPage: React.FC<ItemPageProps> = ({
                 <div className={`space-y-4 transition-opacity ${useDomainColor ? 'opacity-100' : 'opacity-30 pointer-events-none'}`}>
                   <div className="flex gap-2 relative">
                     {domainColors.map((color, i) => (
-                      <div key={i} className="relative w-10 h-10 pixel-border border-2 border-[#5a2d9c] bg-black/40 overflow-hidden cursor-pointer" onClick={() => setActiveColorIndex(i)}>
+                      <div key={i} ref={node => { colorSwatchRefs.current[i] = node; }} className="relative w-10 h-10 pixel-border border-2 border-[#5a2d9c] bg-black/40 overflow-hidden cursor-pointer" onClick={() => setActiveColorIndex(i)}>
                         <div className="absolute inset-0" style={{ backgroundColor: color }}></div>
                       </div>
                     ))}
 
                     {activeColorIndex !== null && (
-                      <>
-                        <div className="fixed inset-0 z-40" onClick={() => setActiveColorIndex(null)} />
-                        <div className="absolute left-0 top-12 z-50 bg-[#1b0a38] border-2 border-[#5a2d9c] p-2 pixel-border flex flex-col gap-2 w-52 shadow-2xl">
-                          <HexColorPicker color={domainColors[activeColorIndex]} onChange={(color) => handleColorChange(activeColorIndex, color)} />
-                          <div className="flex justify-between items-center text-xs font-mono text-white/80">
-                            <span>{domainColors[activeColorIndex].toUpperCase()}</span>
-                            <button className="text-[#a47cfd] font-bold px-1 hover:text-white" onClick={() => setActiveColorIndex(null)}>
-                              {isZh ? '关闭' : 'CLOSE'}
-                            </button>
-                          </div>
-                        </div>
-                      </>
+                      <ColorPickerPopover anchor={colorSwatchRefs.current[activeColorIndex]} placement="below"
+                        color={domainColors[activeColorIndex]} onChange={(color) => handleColorChange(activeColorIndex, color)}
+                        onClose={() => setActiveColorIndex(null)} lang={lang} />
                     )}
                   </div>
                   
