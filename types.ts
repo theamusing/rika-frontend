@@ -12,6 +12,8 @@ export interface AnimationV2Params {
   seed: number;
   output_frames: number;
   color_count: number;
+  use_mid_image: boolean;
+  use_end_image: boolean;
 }
 
 export interface GenerationParams {

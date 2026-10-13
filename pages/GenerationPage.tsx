@@ -369,6 +369,8 @@ const GenerationPage: React.FC<GenerationPageProps> = ({
       const jobParams = job.input_params;
       const inputImgs = job.input_images || [];
       if (job.animation_version === 2 || jobParams.animation_version === 2) {
+        const legacyReferenceOrder = jobParams.legacy_reference_order === true ||
+          (inputImgs.length === 3 && jobParams.use_mid_image === undefined && jobParams.use_end_image === undefined);
         const canvas = jobParams.pixel_size;
         const storedPadding = { ...EMPTY_PADDING, ...jobParams.padding };
         const content = jobParams.content_pixel_size || {
@@ -395,8 +397,8 @@ const GenerationPage: React.FC<GenerationPageProps> = ({
           const urls = await Promise.all(inputImgs.map((entry: { url: string }) => (jobParams.use_padding === true || Object.values(padding).some(value => value > 0))
             ? removePaddingV2(entry.url, size, padding) : Promise.resolve(entry.url)));
           files[0] = urls[0] || null;
-          if (urls.length === 3) { files[1] = urls[2]; files[2] = urls[1]; }
-          else if (urls.length === 2) files[2] = urls[1];
+          if (urls.length === 3) { files[1] = urls[legacyReferenceOrder ? 2 : 1]; files[2] = urls[legacyReferenceOrder ? 1 : 2]; }
+          else if (urls.length === 2) files[jobParams.use_mid_image && !jobParams.use_end_image ? 1 : 2] = urls[1];
           setSourceFiles(files);
           setFlipStates([false, false, false]);
           setExpandImages(urls.length > 1);
@@ -469,7 +471,7 @@ const GenerationPage: React.FC<GenerationPageProps> = ({
     setSourceFiles(newFiles);
     
     if (index === 1) {
-      setParams(prev => ({ ...prev, use_mid_image: true, ...(isV2 ? { use_end_image: true } : {}) }));
+      setParams(prev => ({ ...prev, use_mid_image: true }));
     } else if (index === 2) {
       setParams(prev => ({ ...prev, use_end_image: true }));
     }
@@ -496,14 +498,12 @@ const GenerationPage: React.FC<GenerationPageProps> = ({
         if (!params.prompt.trim()) throw new Error(isZh ? '请输入动作提示词。' : 'Enter an action prompt.');
         const useMid = expandImages && params.use_mid_image;
         const useEnd = expandImages && params.use_end_image;
-        if (useMid && (!useEnd || !fullProcessedImages[1] || !fullProcessedImages[2])) {
-          throw new Error(isZh ? 'V2 中间参考图需要同时提供结尾图。' : 'V2 middle reference requires both middle and ending images.');
-        }
+        if (useMid && !fullProcessedImages[1]) throw new Error(isZh ? '请上传中间参考图。' : 'Upload the middle reference image.');
         if (useEnd && !fullProcessedImages[2]) throw new Error(isZh ? '请上传结尾图。' : 'Upload the ending image.');
-        // Wan V2 canonical order: first, last, middle.
+        // V1/V2 request order: first, optional middle, optional end.
         const payloadImages = [fullProcessedImages[0] as string];
-        if (useEnd) payloadImages.push(fullProcessedImages[2] as string);
         if (useMid) payloadImages.push(fullProcessedImages[1] as string);
+        if (useEnd) payloadImages.push(fullProcessedImages[2] as string);
         const finalParams: AnimationV2Params = {
           prompt: params.prompt, pixel_size: v2CanvasSize,
           padding: { ...actualPadding },
@@ -511,6 +511,8 @@ const GenerationPage: React.FC<GenerationPageProps> = ({
           seed: params.fix_seed ? params.seed : Math.floor(Math.random() * 1000000),
           output_frames: v2Length,
           color_count: params.use_quantization ? params.quantization_colors || 32 : 64,
+          use_mid_image: useMid,
+          use_end_image: useEnd,
         };
         const res = await apiService.generateV2(payloadImages, finalParams);
         refreshCredits();
@@ -725,11 +727,11 @@ const GenerationPage: React.FC<GenerationPageProps> = ({
                  {expandImages && (
                     <div className="flex items-center gap-2 px-3 bg-black/20 border-2 border-[#5a2d9c] text-[8px] text-white/60">
                       <label className="flex items-center gap-1 cursor-pointer">
-                        <input type="checkbox" checked={params.use_mid_image} onChange={e => setParams({...params, use_mid_image: e.target.checked, ...(isV2 && e.target.checked ? { use_end_image: true } : {})})} />
+                        <input type="checkbox" checked={params.use_mid_image} onChange={e => setParams({...params, use_mid_image: e.target.checked})} />
                         {isZh ? '中间图' : 'MID'}
                       </label>
                       <label className="flex items-center gap-1 cursor-pointer">
-                        <input type="checkbox" checked={params.use_end_image} onChange={e => setParams({...params, use_end_image: e.target.checked, ...(isV2 && !e.target.checked ? { use_mid_image: false } : {})})} />
+                        <input type="checkbox" checked={params.use_end_image} onChange={e => setParams({...params, use_end_image: e.target.checked})} />
                         {isZh ? '结尾图' : 'END'}
                       </label>
                     </div>

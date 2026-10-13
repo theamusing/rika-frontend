@@ -86,52 +86,48 @@ const apiDocs: ApiDocEntry[] = [
     method: 'POST',
     path: '/generate-v2',
     description: {
-      en: 'Generate a V2 Wan2.2 pixel-animation sprite sheet (6 credits)',
-      zh: '生成 V2 Wan2.2 像素动画序列帧（6 积分）',
+      en: 'Generate a V2 pixel-animation sprite sheet (6 credits)',
+      zh: '生成 V2 像素动画序列帧（6 积分）',
     },
     request: `{
   "image_base64": [
     "data:image/png;base64,FIRST...",
-    "data:image/png;base64,LAST...",
-    "data:image/png;base64,MIDDLE..."
+    "data:image/png;base64,MIDDLE...",
+    "data:image/png;base64,LAST..."
   ],
   "params": {
     "prompt": "fixed side view, the knight thrusts the spear and returns to the starting pose",
     "pixel_size": { "x": 256, "y": 128 },
-    "padding": { "left": 0, "right": 128, "top": 0, "bottom": 0 },
     "ai_expand": true,
     "seed": 123456,
     "output_frames": 24,
-    "color_count": 64
+    "color_count": 64,
+    "use_mid_image": true,
+    "use_end_image": true
   }
 }`,
     requestParams: [
       {
         name: 'image_base64', optional: false, type: 'string[]', values: '1–3 PNG images',
         description: {
-          en: 'Already-padded images matching pixel_size. Order: first; first,last; or first,last,middle.',
-          zh: '与 pixel_size 一致、已完成 padding 的 PNG。顺序：首帧；首尾帧；或首帧、尾帧、中间帧。',
+          en: 'Images supplied at pixel_size, with no API-side padding. V1/V2 order: first, optional middle, optional end. Set both use_mid_image and use_end_image to match.',
+          zh: '直接提供 pixel_size 尺寸的图片；API 不执行扩展画布。顺序与 V1 相同：首帧、可选中间帧、可选尾帧，并设置两个对应标志。',
         },
       },
       { name: 'prompt', optional: false, type: 'string', description: { en: 'Animation action description', zh: '动画动作描述' } },
       {
         name: 'pixel_size', optional: false, type: '{ x: number; y: number }', values: '32–256, multiples of 32',
         description: {
-          en: 'Final logical frame size after frontend/client padding. Both axes must be multiples of 32.',
-          zh: '客户端完成 padding 后的最终单帧像素尺寸；两个轴都必须是 32 的倍数。',
-        },
-      },
-      {
-        name: 'padding', optional: true, type: '{ left; right; top; bottom }', values: 'Non-negative multiples of 32',
-        description: {
-          en: 'Metadata describing padding already present in the images. Defaults to zero on every side.',
-          zh: '描述图片中已经存在的 padding，仅用于元数据；默认四边均为 0。',
+          en: 'Logical size of each supplied frame. Both axes must be multiples of 32.',
+          zh: '每张输入图片的逻辑像素尺寸；两个轴都必须是 32 的倍数。',
         },
       },
       { name: 'ai_expand', optional: true, type: 'boolean', values: 'default: true', description: { en: 'Use the reference images and original action text to build an image-aware timed prompt and choose the motion profile. The original prompt remains the public/history value.', zh: '结合参考图与原始动作描述生成分时段提示词并自动选择动作配置；历史与公开参数仍保留原始提示词。' } },
       { name: 'seed', optional: true, type: 'integer', values: '0–2^63-1', description: { en: 'Random seed; generated server-side when omitted', zh: '随机种子；省略时由服务器生成' } },
       { name: 'output_frames', optional: true, type: 'integer', values: 'API: 1–256, default: 24; web: 16 | 20 | 24 | 32', description: { en: 'Number of frames in the final sprite sheet. The web UI offers the four tested presets.', zh: '最终序列帧数量；网页界面提供四个经过测试的预设。' } },
       { name: 'color_count', optional: true, type: 'integer', values: '2–256, default: 64', description: { en: 'Maximum postprocessing palette size', zh: '后处理调色盘的最大颜色数量' } },
+      { name: 'use_mid_image', optional: true, type: 'boolean', values: 'send explicitly', description: { en: 'Whether the request includes a middle reference, immediately after the first image.', zh: '是否提供中间参考图；有则放在首帧之后。' } },
+      { name: 'use_end_image', optional: true, type: 'boolean', values: 'send explicitly', description: { en: 'Whether the request includes an end reference, after any middle image. Omitting both flags keeps the legacy V2 reference order.', zh: '是否提供结尾参考图；有则放在中间帧之后。两个标志都省略时沿用旧版 V2 的参考图顺序。' } },
     ],
     response: `{
   "gen_id": "550e8400-e29b-41d4-a716-446655440000"
@@ -617,10 +613,11 @@ payload = {
     "params": {
         "prompt": "fixed side view, the knight thrusts the spear and returns to the starting pose",
         "pixel_size": {"x": 128, "y": 128},
-        "padding": {"left": 0, "right": 0, "top": 0, "bottom": 0},
         "ai_expand": True,
         "output_frames": 24,
-        "color_count": 64
+        "color_count": 64,
+        "use_mid_image": False,
+        "use_end_image": True
     }
 }
 
@@ -687,10 +684,11 @@ payload = {
     "params": {
         "prompt": "fixed side view, the knight thrusts the spear and returns to the starting pose",
         "pixel_size": {"x": 128, "y": 128},
-        "padding": {"left": 0, "right": 0, "top": 0, "bottom": 0},
         "ai_expand": True,
         "output_frames": 24,
-        "color_count": 64
+        "color_count": 64,
+        "use_mid_image": False,
+        "use_end_image": True
     }
 }
 
