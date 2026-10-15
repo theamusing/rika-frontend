@@ -510,7 +510,6 @@ const GenerationPage: React.FC<GenerationPageProps> = ({
           ai_expand: aiExpand,
           seed: params.fix_seed ? params.seed : Math.floor(Math.random() * 1000000),
           output_frames: v2Length,
-          color_count: params.use_quantization ? params.quantization_colors || 32 : 64,
           use_mid_image: useMid,
           use_end_image: useEnd,
         };
@@ -935,7 +934,7 @@ const GenerationPage: React.FC<GenerationPageProps> = ({
              <div className="space-y-2 border-t border-[#5a2d9c]/30 pt-4">
                 <div className="flex justify-between items-center">
                     <label className="text-[10px] block uppercase text-white/60" style={{ fontSize: zhScale(10) }}>
-                      {isZh ? "颜色调色盘" : "COLOR PALETTE"}
+                      {isV2 ? (isZh ? "输入图调色盘" : "INPUT IMAGE PALETTE") : (isZh ? "颜色调色盘" : "COLOR PALETTE")}
                     </label>
                     <label className="text-[8px] flex items-center gap-1 cursor-pointer text-white/40 hover:text-white transition-colors">
                         <input 

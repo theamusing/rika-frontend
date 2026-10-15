@@ -11,7 +11,6 @@ export interface AnimationV2Params {
   ai_expand: boolean;
   seed: number;
   output_frames: number;
-  color_count: number;
   use_mid_image: boolean;
   use_end_image: boolean;
 }

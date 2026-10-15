@@ -125,7 +125,7 @@ const apiDocs: ApiDocEntry[] = [
       { name: 'ai_expand', optional: true, type: 'boolean', values: 'default: true', description: { en: 'Use the reference images and original action text to build an image-aware timed prompt and choose the motion profile. The original prompt remains the public/history value.', zh: '结合参考图与原始动作描述生成分时段提示词并自动选择动作配置；历史与公开参数仍保留原始提示词。' } },
       { name: 'seed', optional: true, type: 'integer', values: '0–2^63-1', description: { en: 'Random seed; generated server-side when omitted', zh: '随机种子；省略时由服务器生成' } },
       { name: 'output_frames', optional: true, type: 'integer', values: 'API: 1–256, default: 24; web: 16 | 20 | 24 | 32', description: { en: 'Number of frames in the final sprite sheet. The web UI offers the four tested presets.', zh: '最终序列帧数量；网页界面提供四个经过测试的预设。' } },
-      { name: 'color_count', optional: true, type: 'integer', values: '2–256, default: 64', description: { en: 'Maximum postprocessing palette size', zh: '后处理调色盘的最大颜色数量' } },
+      { name: 'color_count', optional: true, type: 'integer', values: '2–256; default: 128 for 128×128, otherwise 64', description: { en: 'Maximum postprocessing palette size', zh: '后处理调色盘的最大颜色数量' } },
       { name: 'use_mid_image', optional: true, type: 'boolean', values: 'send explicitly', description: { en: 'Whether the request includes a middle reference, immediately after the first image.', zh: '是否提供中间参考图；有则放在首帧之后。' } },
       { name: 'use_end_image', optional: true, type: 'boolean', values: 'send explicitly', description: { en: 'Whether the request includes an end reference, after any middle image. Omitting both flags keeps the legacy V2 reference order.', zh: '是否提供结尾参考图；有则放在中间帧之后。两个标志都省略时沿用旧版 V2 的参考图顺序。' } },
     ],
@@ -615,7 +615,7 @@ payload = {
         "pixel_size": {"x": 128, "y": 128},
         "ai_expand": True,
         "output_frames": 24,
-        "color_count": 64,
+        "color_count": 128,
         "use_mid_image": False,
         "use_end_image": True
     }
@@ -686,7 +686,7 @@ payload = {
         "pixel_size": {"x": 128, "y": 128},
         "ai_expand": True,
         "output_frames": 24,
-        "color_count": 64,
+        "color_count": 128,
         "use_mid_image": False,
         "use_end_image": True
     }
