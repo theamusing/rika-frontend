@@ -8,10 +8,8 @@ import { floodFill, RGB, colorDistance, colorMatchRemoval } from '../utils/edito
 import { applyBackendCentroids } from '../utils/backendPalette.ts';
 import { extractCentroidsAsync } from '../utils/paletteWorker.ts';
 import { saveSpriteToCache, getSpriteFromCache, CachedSprite } from '../utils/dbUtils.ts';
-import { fitImageDimensions, jobFrameAspectRatio } from '../utils/animationDisplay.ts';
+import { fitImageDimensions } from '../utils/animationDisplay.ts';
 import { lassoSelection, PixelPoint, rectangleSelection, selectionOutlinePath } from '../utils/selectionUtils.ts';
-import AnimatedSpritePreview from '../components/AnimatedSpritePreview.tsx';
-import { ensureOriginalSpriteCache } from '../utils/originalSpriteCache.ts';
 import { Heart, ArrowLeft, Move, Pipette, HelpCircle, SquareDashedMousePointer, PaintBucket } from 'lucide-react';
 import ColorPickerPopover from '../components/ColorPickerPopover.tsx';
 // @ts-ignore
@@ -21,7 +19,6 @@ type Tool = 'brush' | 'eraser' | 'move' | 'wand' | 'selection' | 'bucket' | 'nud
 type SelectionMode = 'select' | 'add' | 'remove';
 type SelectionShape = 'rectangle' | 'lasso';
 interface SelectionDrag { shape: SelectionShape; start: PixelPoint; current: PixelPoint; points: PixelPoint[]; }
-interface RemotePreview { url: string; frameCount: number; columns: number; }
 
 interface TaskPlayerPageProps {
   selectedJobId: string | null;
@@ -109,7 +106,7 @@ const TaskPlayerPage: React.FC<TaskPlayerPageProps> = ({
   const [hasUnsavedEdits, setHasUnsavedEdits] = useState(false);
   const [frameDimensions, setFrameDimensions] = useState({ width: 128, height: 128 });
   const [viewportDimensions, setViewportDimensions] = useState({ width: 512, height: 512 });
-  const [remotePreview, setRemotePreview] = useState<RemotePreview | null>(null);
+  const [loadError, setLoadError] = useState<string | null>(null);
 
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const overlayRef = useRef<HTMLCanvasElement>(null);
@@ -399,12 +396,9 @@ const TaskPlayerPage: React.FC<TaskPlayerPageProps> = ({
   const updateFramesFromJob = useCallback(async (job: Job) => {
     const apiLength = job.input_params?.length || 33;
     const isSingleFrame = job.job_type === 'character' || job.job_type === 'item' || job.job_type === 'map';
-    setRemotePreview(null);
-
+    setLoadError(null);
     try {
-      const existing = await getSpriteFromCache(job.gen_id);
-      const cached = existing?.spriteSheet || job.status !== 'succeeded' || isSingleFrame
-        ? existing : await ensureOriginalSpriteCache(job);
+      const cached = await getSpriteFromCache(job.gen_id);
       if (cached) {
         const frameMetadata = (cached.customData as any)?.frameMetadata;
         // For single frame jobs (character/item/map), we expect 1 frame. sliceSpriteSheet handles this if targetLength is 1.
@@ -421,6 +415,7 @@ const TaskPlayerPage: React.FC<TaskPlayerPageProps> = ({
           }));
           setFrames(mappedFrames);
           setInitialFrames(mappedFrames);
+          setLoadError(null);
           setUndoStack([]); setRedoStack([]); setPan({ x: 0, y: 0 }); setSelection(new Set());
           setHasUnsavedEdits(false);
           return;
@@ -455,7 +450,10 @@ const TaskPlayerPage: React.FC<TaskPlayerPageProps> = ({
           const frameCount = isV2 ? Number(job.input_params?.output_frames) : Math.floor((Number(apiLength) - 1) / 2);
           const columns = Math.min(isV2 ? 6 : 4, frameCount);
           const localSheet = await fetchAsDataUrl(outputUrl)
-            .catch(() => apiService.getJobOutputDataUrl(job.gen_id));
+            .catch(error => {
+              console.warn('Direct animation download failed.', error);
+              return apiService.getJobOutputDataUrl(job.gen_id);
+            });
           const sliced = await sliceSpriteSheet(localSheet, frameCount, apiLength, columns);
           if (isMounted.current) {
             const mappedFrames: FrameData[] = sliced.map((url, i) => ({
@@ -465,17 +463,14 @@ const TaskPlayerPage: React.FC<TaskPlayerPageProps> = ({
             }));
             setFrames(mappedFrames); setInitialFrames(mappedFrames); setUndoStack([]); setRedoStack([]); setPan({ x: 0, y: 0 }); setSelection(new Set());
             setHasUnsavedEdits(false);
+            setLoadError(null);
           }
         }
       } catch (err) {
-        console.error('Cloud animation could not be copied into the editor.', err);
-        if (isMounted.current && !isSingleFrame) {
-          const isV2 = job.animation_version === 2 || job.input_params?.animation_version === 2;
-          const frameCount = isV2 ? Number(job.input_params?.output_frames) : Math.floor((Number(apiLength) - 1) / 2);
-          if (Number.isFinite(frameCount) && frameCount > 1) {
-            setFrames([]);
-            setRemotePreview({ url: outputUrl, frameCount, columns: Math.min(isV2 ? 6 : 4, frameCount) });
-          }
+        console.error('Generated animation could not be loaded into the editor.', err);
+        if (isMounted.current) {
+          setFrames([]);
+          setLoadError(err instanceof Error ? err.message : String(err));
         }
       }
     } else if (job.status === 'running' || job.status === 'queued') {
@@ -1270,7 +1265,6 @@ const TaskPlayerPage: React.FC<TaskPlayerPageProps> = ({
         customModeRef.current = true;
         setFrames(mappedFrames);
         setInitialFrames(mappedFrames);
-        setRemotePreview(null);
         setCurrentFrameIndex(0);
         setIsPlaying(mappedFrames.length > 1);
         setIsCustomMode(true);
@@ -1429,16 +1423,10 @@ const TaskPlayerPage: React.FC<TaskPlayerPageProps> = ({
         <div className="flex flex-col gap-4 min-w-0 w-full overflow-hidden">
           <PixelCard className={`editor-canvas-shell p-0 overflow-hidden ${isLightBg ? 'is-light' : 'is-dark'}`}>
             <div ref={viewportRef} className="relative w-full h-[512px] flex items-center justify-center overflow-hidden">
-            {remotePreview && (
-              <div className="absolute inset-0 z-20 flex flex-col items-center justify-center gap-3 bg-[#0d0221] p-4">
-                <AnimatedSpritePreview alt={isZh ? '云端动画预览' : 'Cloud animation preview'}
-                  animationSrc={remotePreview.url} frameCount={remotePreview.frameCount}
-                  columns={remotePreview.columns} fallbackRatio={currentJob ? jobFrameAspectRatio(currentJob) : 1}
-                  src={currentJob?.input_images?.[0]?.url} maxHeight={440}
-                  className="w-full max-w-[512px] pixel-border border-[#5a2d9c]" />
-                <p className="text-white/60 text-center" style={{ fontSize: zhScale(8) }}>
-                  {isZh ? '正在显示云端预览；本地编辑副本暂时无法加载。' : 'Cloud preview is available, but the local editable copy could not be loaded.'}
-                </p>
+            {loadError && (
+              <div className="absolute z-20 max-w-[90%] p-4 text-center bg-[#1b0a38] pixel-border border-red-500 text-white break-all"
+                style={{ fontSize: zhScale(9) }}>
+                {isZh ? '动画加载失败：' : 'Animation load failed: '}{loadError}
               </div>
             )}
             {selection.size > 0 && (
