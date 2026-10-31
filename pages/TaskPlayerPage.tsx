@@ -1,19 +1,27 @@
 
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { apiService } from '../services/apiService.ts';
 import { Job } from '../types.ts';
 import { PixelButton, PixelCard, PixelModal, PixelInput } from '../components/PixelComponents.tsx';
 import { sliceSpriteSheet, reconstructSpriteSheet, processImage, fetchAsDataUrl, sliceCustomSpriteSheet, scaleToSize, processMapImage } from '../utils/imageUtils.ts';
-import { floodFill, RGB, colorDistance, colorMatchRemoval, simplifyColors } from '../utils/editorUtils.ts';
+import { floodFill, RGB, colorDistance, colorMatchRemoval } from '../utils/editorUtils.ts';
+import { applyBackendCentroids } from '../utils/backendPalette.ts';
+import { extractCentroidsAsync } from '../utils/paletteWorker.ts';
 import { saveSpriteToCache, getSpriteFromCache, CachedSprite } from '../utils/dbUtils.ts';
-import { fitImageDimensions } from '../utils/animationDisplay.ts';
-import { Heart, ArrowLeft, Move, Pipette, HelpCircle } from 'lucide-react';
+import { fitImageDimensions, jobFrameAspectRatio } from '../utils/animationDisplay.ts';
+import { lassoSelection, PixelPoint, rectangleSelection, selectionOutlinePath } from '../utils/selectionUtils.ts';
+import AnimatedSpritePreview from '../components/AnimatedSpritePreview.tsx';
+import { ensureOriginalSpriteCache } from '../utils/originalSpriteCache.ts';
+import { Heart, ArrowLeft, Move, Pipette, HelpCircle, SquareDashedMousePointer, PaintBucket } from 'lucide-react';
 import ColorPickerPopover from '../components/ColorPickerPopover.tsx';
 // @ts-ignore
 import gifshot from 'gifshot';
 
-type Tool = 'brush' | 'eraser' | 'move' | 'wand' | 'nudge' | 'picker';
-type WandMode = 'select' | 'add' | 'remove';
+type Tool = 'brush' | 'eraser' | 'move' | 'wand' | 'selection' | 'bucket' | 'nudge' | 'picker';
+type SelectionMode = 'select' | 'add' | 'remove';
+type SelectionShape = 'rectangle' | 'lasso';
+interface SelectionDrag { shape: SelectionShape; start: PixelPoint; current: PixelPoint; points: PixelPoint[]; }
+interface RemotePreview { url: string; frameCount: number; columns: number; }
 
 interface TaskPlayerPageProps {
   selectedJobId: string | null;
@@ -79,6 +87,8 @@ const TaskPlayerPage: React.FC<TaskPlayerPageProps> = ({
   const [isPanning, setIsPanning] = useState(false);
   const [hoverPixel, setHoverPixel] = useState<{ x: number, y: number } | null>(null);
   const [selection, setSelection] = useState<Set<string>>(new Set());
+  const [selectionShape, setSelectionShape] = useState<SelectionShape>('rectangle');
+  const [selectionDrag, setSelectionDrag] = useState<SelectionDrag | null>(null);
   const [isLightBg, setIsLightBg] = useState(false);
   const [isCtrlPressed, setIsCtrlPressed] = useState(false);
   const [isQPressed, setIsQPressed] = useState(false);
@@ -87,21 +97,23 @@ const TaskPlayerPage: React.FC<TaskPlayerPageProps> = ({
   const [eraserSize, setEraserSize] = useState(1);
   const [wandTolerance, setWandTolerance] = useState(30);
   const [bgRemovalTolerance, setBgRemovalTolerance] = useState(30);
-  const [deNoiseThreshold, setDeNoiseThreshold] = useState(10);
+  const [paletteColorCount, setPaletteColorCount] = useState(32);
   const [useGlobalColorMatch, setUseGlobalColorMatch] = useState(false);
   const [removalBgColor, setRemovalBgColor] = useState('#000000');
   const [isPickingRemovalColor, setIsPickingRemovalColor] = useState(false);
   const [colorInputKey, setColorInputKey] = useState(0);
   const [showBrushPicker, setShowBrushPicker] = useState(false);
   const [showRemovalPicker, setShowRemovalPicker] = useState(false);
-  const [wandMode, setWandMode] = useState<WandMode>('select');
+  const [selectionMode, setSelectionMode] = useState<SelectionMode>('select');
   const [menuOpenFor, setMenuOpenFor] = useState<Tool | null>(null);
   const [hasUnsavedEdits, setHasUnsavedEdits] = useState(false);
   const [frameDimensions, setFrameDimensions] = useState({ width: 128, height: 128 });
   const [viewportDimensions, setViewportDimensions] = useState({ width: 512, height: 512 });
+  const [remotePreview, setRemotePreview] = useState<RemotePreview | null>(null);
 
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const overlayRef = useRef<HTMLCanvasElement>(null);
+  const selectionDragRef = useRef<SelectionDrag | null>(null);
   const editorContainerRef = useRef<HTMLDivElement>(null);
   const viewportRef = useRef<HTMLDivElement>(null);
   const brushColorAnchorRef = useRef<HTMLDivElement>(null);
@@ -317,9 +329,21 @@ const TaskPlayerPage: React.FC<TaskPlayerPageProps> = ({
         if (key === 'z') { e.preventDefault(); handleUndo(); }
         else if (key === 'y') { e.preventDefault(); handleRedo(); }
         else if (key === 's') { e.preventDefault(); handleSaveToCache(); }
+        else if (key === 'd' && selection.size > 0) {
+          e.preventDefault();
+          selectionDragRef.current = null;
+          setSelectionDrag(null);
+          setSelection(new Set());
+        }
       }
       if (e.key === 'Delete' || e.key === 'Backspace') { e.preventDefault(); deleteSelection(); }
-      else if (e.key === 'Escape') { setSelection(new Set()); setIsPickingRemovalColor(false); }
+      else if (e.key === 'Escape') {
+        if (selectionDragRef.current) {
+          selectionDragRef.current = null;
+          setSelectionDrag(null);
+        } else setSelection(new Set());
+        setIsPickingRemovalColor(false);
+      }
       else if (activeTool === 'nudge') {
         if (e.key === 'ArrowUp') { e.preventDefault(); nudgeFrame(0, -1); }
         else if (e.key === 'ArrowDown') { e.preventDefault(); nudgeFrame(0, 1); }
@@ -337,7 +361,7 @@ const TaskPlayerPage: React.FC<TaskPlayerPageProps> = ({
       window.removeEventListener('keydown', handleKeyDown);
       window.removeEventListener('keyup', handleKeyUp);
     };
-  }, [deleteSelection, handleUndo, handleRedo, handleSaveToCache, activeTool]);
+  }, [deleteSelection, handleUndo, handleRedo, handleSaveToCache, activeTool, selection.size]);
 
   useEffect(() => {
     const interval = setInterval(() => { if (!isJobRunning && frames.length > 0) handleSaveToCache(); }, 10000);
@@ -356,24 +380,38 @@ const TaskPlayerPage: React.FC<TaskPlayerPageProps> = ({
     const onWheel = (e: WheelEvent) => {
       e.preventDefault();
       const delta = e.deltaY > 0 ? 0.9 : 1.1;
-      setZoom(prev => Math.min(Math.max(prev * delta, 0.1), 8));
+      const nextZoom = Math.min(Math.max(zoom * delta, 0.1), 8);
+      if (nextZoom === zoom) return;
+      const rect = container.getBoundingClientRect();
+      const centerX = rect.left + rect.width / 2;
+      const centerY = rect.top + rect.height / 2;
+      const shift = 1 - nextZoom / zoom;
+      setPan({
+        x: pan.x + (e.clientX - centerX) * shift,
+        y: pan.y + (e.clientY - centerY) * shift,
+      });
+      setZoom(nextZoom);
     };
     container.addEventListener('wheel', onWheel, { passive: false });
     return () => container.removeEventListener('wheel', onWheel);
-  }, []);
+  }, [zoom, pan]);
 
   const updateFramesFromJob = useCallback(async (job: Job) => {
     const apiLength = job.input_params?.length || 33;
     const isSingleFrame = job.job_type === 'character' || job.job_type === 'item' || job.job_type === 'map';
+    setRemotePreview(null);
 
     try {
-      const cached = await getSpriteFromCache(job.gen_id);
+      const existing = await getSpriteFromCache(job.gen_id);
+      const cached = existing?.spriteSheet || job.status !== 'succeeded' || isSingleFrame
+        ? existing : await ensureOriginalSpriteCache(job);
       if (cached) {
         const frameMetadata = (cached.customData as any)?.frameMetadata;
         // For single frame jobs (character/item/map), we expect 1 frame. sliceSpriteSheet handles this if targetLength is 1.
         const targetLength = isSingleFrame ? 1 : (frameMetadata?.length ??
           ((job.animation_version === 2 || job.input_params?.animation_version === 2) ? job.input_params.output_frames : undefined));
-        let sliced = isSingleFrame ? [cached.spriteSheet] : await sliceSpriteSheet(cached.spriteSheet, targetLength, apiLength);
+        const cachedColumns = cached.customData?.columns;
+        let sliced = isSingleFrame ? [cached.spriteSheet] : await sliceSpriteSheet(cached.spriteSheet, targetLength, apiLength, cachedColumns);
         if (isMounted.current) {
           const mappedFrames: FrameData[] = sliced.map((url, i) => ({
             id: frameMetadata?.[i]?.id || `f-${Date.now()}-${i}`,
@@ -388,7 +426,9 @@ const TaskPlayerPage: React.FC<TaskPlayerPageProps> = ({
           return;
         }
       }
-    } catch (err) {}
+    } catch (err) {
+      console.warn('Cached animation could not be opened; loading the cloud result instead.', err);
+    }
 
     const outputUrl = job.output_images?.[0]?.url;
     if (job.status === 'succeeded' && outputUrl) {
@@ -412,8 +452,11 @@ const TaskPlayerPage: React.FC<TaskPlayerPageProps> = ({
           }
         } else {
           const isV2 = job.animation_version === 2 || job.input_params?.animation_version === 2;
-          const sliced = await sliceSpriteSheet(outputUrl, isV2 ? job.input_params.output_frames : undefined,
-            apiLength, isV2 ? Math.min(6, job.input_params.output_frames) : undefined);
+          const frameCount = isV2 ? Number(job.input_params?.output_frames) : Math.floor((Number(apiLength) - 1) / 2);
+          const columns = Math.min(isV2 ? 6 : 4, frameCount);
+          const localSheet = await fetchAsDataUrl(outputUrl)
+            .catch(() => apiService.getJobOutputDataUrl(job.gen_id));
+          const sliced = await sliceSpriteSheet(localSheet, frameCount, apiLength, columns);
           if (isMounted.current) {
             const mappedFrames: FrameData[] = sliced.map((url, i) => ({
               id: `f-${Date.now()}-${i}`,
@@ -424,7 +467,17 @@ const TaskPlayerPage: React.FC<TaskPlayerPageProps> = ({
             setHasUnsavedEdits(false);
           }
         }
-      } catch (err) {}
+      } catch (err) {
+        console.error('Cloud animation could not be copied into the editor.', err);
+        if (isMounted.current && !isSingleFrame) {
+          const isV2 = job.animation_version === 2 || job.input_params?.animation_version === 2;
+          const frameCount = isV2 ? Number(job.input_params?.output_frames) : Math.floor((Number(apiLength) - 1) / 2);
+          if (Number.isFinite(frameCount) && frameCount > 1) {
+            setFrames([]);
+            setRemotePreview({ url: outputUrl, frameCount, columns: Math.min(isV2 ? 6 : 4, frameCount) });
+          }
+        }
+      }
     } else if (job.status === 'running' || job.status === 'queued') {
       if (job.input_images?.[0]?.url) {
         try {
@@ -554,23 +607,60 @@ const TaskPlayerPage: React.FC<TaskPlayerPageProps> = ({
     return () => { cancelled = true; };
   }, [frames, currentFrameIndex, currentJob]);
 
-  useEffect(() => {
-    const canvas = canvasRef.current; const overlay = overlayRef.current;
-    if (!canvas || !overlay) return; const ctx = overlay.getContext('2d'); if (!ctx) return;
-    overlay.width = canvas.width; overlay.height = canvas.height; ctx.clearRect(0, 0, overlay.width, overlay.height); ctx.imageSmoothingEnabled = false;
-    if (selection.size > 0) {
-      ctx.fillStyle = 'rgba(255, 102, 0, 0.4)'; selection.forEach(key => { const [sx, sy] = key.split(',').map(Number); ctx.fillRect(sx, sy, 1, 1); });
-      ctx.strokeStyle = 'rgba(255, 153, 0, 0.9)'; ctx.lineWidth = 0.1; selection.forEach(key => { const [sx, sy] = key.split(',').map(Number); ctx.strokeRect(sx, sy, 1, 1); });
+  const selectionOutline = useMemo(
+    () => selectionOutlinePath(selection, frameDimensions.width, frameDimensions.height),
+    [selection, frameDimensions.width, frameDimensions.height],
+  );
+  const selectionFill = useMemo(() => {
+    const fill = document.createElement('canvas');
+    fill.width = frameDimensions.width;
+    fill.height = frameDimensions.height;
+    const context = fill.getContext('2d');
+    if (context) {
+      context.fillStyle = 'rgba(255, 102, 0, 0.18)';
+      selection.forEach(key => {
+        const [x, y] = key.split(',').map(Number);
+        if (x >= 0 && y >= 0 && x < fill.width && y < fill.height) context.fillRect(x, y, 1, 1);
+      });
     }
-    if (hoverPixel && !isJobRunning) {
+    return fill;
+  }, [selection, frameDimensions.width, frameDimensions.height]);
+  const dragOutline = useMemo(() => {
+    if (!selectionDrag) return '';
+    if (selectionDrag.shape === 'rectangle') {
+      const minX = Math.min(selectionDrag.start.x, selectionDrag.current.x);
+      const minY = Math.min(selectionDrag.start.y, selectionDrag.current.y);
+      const maxX = Math.max(selectionDrag.start.x, selectionDrag.current.x) + 1;
+      const maxY = Math.max(selectionDrag.start.y, selectionDrag.current.y) + 1;
+      return `M${minX} ${minY}H${maxX}V${maxY}H${minX}Z`;
+    }
+    return selectionDrag.points.map((point, index) =>
+      `${index ? 'L' : 'M'}${point.x + 0.5} ${point.y + 0.5}`).join('') +
+      (selectionDrag.points.length > 2 ? 'Z' : '');
+  }, [selectionDrag]);
+
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    const overlay = overlayRef.current;
+    if (!canvas || !overlay) return;
+    const ctx = overlay.getContext('2d');
+    if (!ctx) return;
+    overlay.width = canvas.width;
+    overlay.height = canvas.height;
+    ctx.imageSmoothingEnabled = false;
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    if (selection.size) ctx.drawImage(selectionFill, 0, 0);
+    if (hoverPixel && !isJobRunning && effectiveTool !== 'selection') {
       const defaultColor = isLightBg ? 'rgba(0, 0, 0, 0.3)' : 'rgba(255, 255, 255, 0.4)';
       ctx.fillStyle = (isQPressed || effectiveTool === 'picker') ? 'rgba(0, 255, 255, 0.4)' : defaultColor;
       const size = (isQPressed || effectiveTool === 'picker') ? 1 : (effectiveTool === 'brush' ? brushSize : effectiveTool === 'eraser' ? eraserSize : 1);
-      const offset = Math.floor((size - 1) / 2); ctx.fillRect(hoverPixel.x - offset, hoverPixel.y - offset, size, size);
+      const offset = Math.floor((size - 1) / 2);
+      ctx.fillRect(hoverPixel.x - offset, hoverPixel.y - offset, size, size);
     }
-  }, [selection, hoverPixel, brushSize, eraserSize, effectiveTool, isJobRunning, frames, isQPressed, isLightBg, frameDimensions]);
+  }, [selectionFill, selection.size, hoverPixel, brushSize, eraserSize,
+    effectiveTool, isJobRunning, isQPressed, isLightBg, frameDimensions]);
 
-  const getEventCoords = (e: React.MouseEvent | React.TouchEvent) => {
+  const getEventCoords = (e: React.MouseEvent | React.TouchEvent | React.PointerEvent) => {
     const canvas = canvasRef.current; if (!canvas) return { x: 0, y: 0 };
     const rect = canvas.getBoundingClientRect();
     const clientX = 'touches' in e ? (e as React.TouchEvent).touches[0].clientX : (e as React.MouseEvent).clientX;
@@ -588,6 +678,7 @@ const TaskPlayerPage: React.FC<TaskPlayerPageProps> = ({
 
   const handleCanvasInteraction = (e: React.MouseEvent) => {
     const { x, y } = getEventCoords(e); 
+    if (effectiveTool === 'selection') return;
     setHoverPixel({ x, y });
     if (isJobRunning) return; 
     const canvas = canvasRef.current; 
@@ -619,10 +710,19 @@ const TaskPlayerPage: React.FC<TaskPlayerPageProps> = ({
     }
   };
 
-  const handleWandSelection = (startX: number, startY: number) => {
-    const canvas = canvasRef.current; if (!canvas) return;
-    const ctx = canvas.getContext('2d')!; const imgData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+  const applySelectionPoints = (points: Set<string>) => {
+    if (selectionMode === 'select') setSelection(points);
+    else if (selectionMode === 'add') setSelection(previous => new Set([...previous, ...points]));
+    else setSelection(previous => {
+      const next = new Set(previous);
+      points.forEach(point => next.delete(point));
+      return next;
+    });
+  };
+
+  const getWandRegion = (imgData: ImageData, startX: number, startY: number): Set<string> => {
     const { width, height, data } = imgData;
+    if (startX < 0 || startY < 0 || startX >= width || startY >= height) return new Set();
     const getPixel = (px: number, py: number): RGB => { const i = (py * width + px) * 4; return { r: data[i], g: data[i+1], b: data[i+2], a: data[i+3] }; };
     const startColor = getPixel(startX, startY); const visited = new Uint8Array(width * height);
     const stack: [number, number][] = [[startX, startY]]; const newPoints = new Set<string>();
@@ -632,12 +732,97 @@ const TaskPlayerPage: React.FC<TaskPlayerPageProps> = ({
       const currColor = getPixel(cx, cy);
       if (colorDistance(currColor, startColor) <= wandTolerance) { newPoints.add(`${cx},${cy}`); stack.push([cx + 1, cy], [cx - 1, cy], [cx, cy + 1], [cx, cy - 1]); }
     }
-    if (wandMode === 'select') setSelection(newPoints);
-    else if (wandMode === 'add') setSelection(prev => new Set([...prev, ...newPoints]));
-    else if (wandMode === 'remove') setSelection(prev => { const next = new Set(prev); newPoints.forEach(p => next.delete(p)); return next; });
+    return newPoints;
+  };
+
+  const handleWandSelection = (startX: number, startY: number) => {
+    const canvas = canvasRef.current; if (!canvas) return;
+    const ctx = canvas.getContext('2d')!;
+    applySelectionPoints(getWandRegion(ctx.getImageData(0, 0, canvas.width, canvas.height), startX, startY));
+  };
+
+  const handleBucketFill = (startX: number, startY: number) => {
+    const canvas = canvasRef.current;
+    if (!canvas || !frames[currentFrameIndex]) return;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+    const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+    const points = selection.size > 0 ? selection : getWandRegion(imageData, startX, startY);
+    const color = hexToRgb(brushColor);
+    let changed = false;
+    points.forEach(key => {
+      const [x, y] = key.split(',').map(Number);
+      if (x < 0 || y < 0 || x >= canvas.width || y >= canvas.height) return;
+      const index = (y * canvas.width + x) * 4;
+      const pixels = imageData.data;
+      if (pixels[index] === color.r && pixels[index + 1] === color.g && pixels[index + 2] === color.b && pixels[index + 3] === 255) return;
+      pixels[index] = color.r;
+      pixels[index + 1] = color.g;
+      pixels[index + 2] = color.b;
+      pixels[index + 3] = 255;
+      changed = true;
+    });
+    if (!changed) return;
+    ctx.putImageData(imageData, 0, 0);
+    const newFrames = [...frames];
+    newFrames[currentFrameIndex] = { ...newFrames[currentFrameIndex], url: canvas.toDataURL() };
+    pushToHistory(newFrames);
+  };
+
+  const getSelectionPoint = (event: React.PointerEvent): PixelPoint => {
+    const canvas = canvasRef.current!;
+    const { x, y } = getEventCoords(event);
+    return { x: Math.max(0, Math.min(canvas.width - 1, x)), y: Math.max(0, Math.min(canvas.height - 1, y)) };
+  };
+
+  const handleSelectionPointerDown = (event: React.PointerEvent<HTMLDivElement>) => {
+    if (effectiveTool !== 'selection' || isJobRunning || event.button !== 0 || !canvasRef.current) return;
+    event.preventDefault();
+    setIsPlaying(false);
+    const point = getSelectionPoint(event);
+    const drag: SelectionDrag = { shape: selectionShape, start: point, current: point, points: [point] };
+    selectionDragRef.current = drag;
+    setSelectionDrag(drag);
+    event.currentTarget.setPointerCapture(event.pointerId);
+  };
+
+  const handleSelectionPointerMove = (event: React.PointerEvent<HTMLDivElement>) => {
+    const drag = selectionDragRef.current;
+    if (!drag || !canvasRef.current) return;
+    const point = getSelectionPoint(event);
+    if (point.x === drag.current.x && point.y === drag.current.y) return;
+    const next: SelectionDrag = {
+      ...drag,
+      current: point,
+      points: drag.shape === 'lasso' ? [...drag.points, point] : drag.points,
+    };
+    selectionDragRef.current = next;
+    setSelectionDrag(next);
+  };
+
+  const handleSelectionPointerUp = (event: React.PointerEvent<HTMLDivElement>) => {
+    const drag = selectionDragRef.current;
+    if (!drag || !canvasRef.current) return;
+    const point = getSelectionPoint(event);
+    const canvas = canvasRef.current;
+    const points = drag.shape === 'rectangle'
+      ? rectangleSelection(drag.start, point, canvas.width, canvas.height)
+      : lassoSelection([...drag.points, point], canvas.width, canvas.height);
+    applySelectionPoints(points);
+    selectionDragRef.current = null;
+    setSelectionDrag(null);
+    if (event.currentTarget.hasPointerCapture(event.pointerId)) event.currentTarget.releasePointerCapture(event.pointerId);
+  };
+
+  const handleSelectionPointerCancel = (event: React.PointerEvent<HTMLDivElement>) => {
+    if (!selectionDragRef.current) return;
+    selectionDragRef.current = null;
+    setSelectionDrag(null);
+    if (event.currentTarget.hasPointerCapture(event.pointerId)) event.currentTarget.releasePointerCapture(event.pointerId);
   };
 
   const handleMouseDown = (e: React.MouseEvent) => {
+    if (effectiveTool === 'selection') return;
     if (isJobRunning) return; setIsPlaying(false); lastMousePos.current = { x: e.clientX, y: e.clientY };
     const { x, y } = getEventCoords(e);
     if (isQPressed || effectiveTool === 'picker') {
@@ -656,7 +841,10 @@ const TaskPlayerPage: React.FC<TaskPlayerPageProps> = ({
       if (effectiveTool === 'picker') setIsDrawing(true);
       return;
     }
-    if (effectiveTool === 'move') setIsPanning(true); else if (effectiveTool === 'wand') handleWandSelection(x, y); else { setIsDrawing(true); applyToolAtCoords(x, y); }
+    if (effectiveTool === 'move') setIsPanning(true);
+    else if (effectiveTool === 'wand') handleWandSelection(x, y);
+    else if (effectiveTool === 'bucket') handleBucketFill(x, y);
+    else { setIsDrawing(true); applyToolAtCoords(x, y); }
   };
 
   const handleMouseUp = () => {
@@ -762,34 +950,41 @@ const TaskPlayerPage: React.FC<TaskPlayerPageProps> = ({
     if (isJobRunning || frames.length === 0) return;
     setIsPlaying(false);
     setLoading(true);
-    
+
     try {
-      const colorCounts: number[] = [];
-      const newFrames = await Promise.all(frames.map(async (f) => {
+      const sources = await Promise.all(frames.map(async (frame) => {
         const canvas = document.createElement('canvas');
-        const img = await new Promise<HTMLImageElement>(res => { 
-          const i = new Image(); 
-          i.crossOrigin = "anonymous";
-          i.onload = () => res(i); 
-          i.src = f.url; 
+        const img = await new Promise<HTMLImageElement>((resolve, reject) => {
+          const image = new Image();
+          image.crossOrigin = 'anonymous';
+          image.onload = () => resolve(image);
+          image.onerror = () => reject(new Error('Failed to load a frame for palette reduction'));
+          image.src = frame.url;
         });
-        canvas.width = img.width; 
-        canvas.height = img.height; 
-        const ctx = canvas.getContext('2d')!; 
+        canvas.width = img.width;
+        canvas.height = img.height;
+        const ctx = canvas.getContext('2d');
+        if (!ctx) throw new Error('Canvas is unavailable');
         ctx.drawImage(img, 0, 0);
         const data = ctx.getImageData(0, 0, canvas.width, canvas.height);
-        
-        const count = simplifyColors(data, deNoiseThreshold);
-        colorCounts.push(count);
-        
-        ctx.putImageData(data, 0, 0); 
-        return { ...f, url: canvas.toDataURL() };
+        return { frame, canvas, ctx, data };
       }));
-      
-      console.log('De-noise result (colors per frame):', colorCounts);
+      const totalBytes = sources.reduce((sum, source) => sum + source.data.data.length, 0);
+      const allPixels = new Uint8ClampedArray(totalBytes);
+      let offset = 0;
+      for (const source of sources) {
+        allPixels.set(source.data.data, offset);
+        offset += source.data.data.length;
+      }
+      const palette = await extractCentroidsAsync(allPixels, paletteColorCount);
+      const newFrames = sources.map(({ frame, canvas, ctx, data }) => {
+        applyBackendCentroids(data, palette);
+        ctx.putImageData(data, 0, 0);
+        return { ...frame, url: canvas.toDataURL() };
+      });
       pushToHistory(newFrames);
     } catch (err) {
-      console.error('De-noise failed:', err);
+      console.error('Palette reduction failed:', err);
     } finally {
       setLoading(false);
     }
@@ -956,6 +1151,8 @@ const TaskPlayerPage: React.FC<TaskPlayerPageProps> = ({
         case 'brush': return '笔刷';
         case 'eraser': return '橡皮';
         case 'wand': return '魔棒';
+        case 'selection': return '选区';
+        case 'bucket': return '油漆桶';
         case 'nudge': return '微移';
         case 'move': return '移动';
         case 'picker': return '吸色';
@@ -991,7 +1188,7 @@ const TaskPlayerPage: React.FC<TaskPlayerPageProps> = ({
           >
             <div className="flex justify-between items-center mb-3">
               <span className="font-bold text-white/80 uppercase" style={{ fontSize: zhScale(10) }}>
-                {isZh ? (id === 'brush' ? '笔刷' : id === 'eraser' ? '橡皮' : '魔棒') : id.toUpperCase()}
+                {getToolTitle()}
               </span>
               <button onClick={() => setMenuOpenFor(null)} className="text-[10px] text-white hover:text-red-400">×</button>
             </div>
@@ -1013,24 +1210,40 @@ const TaskPlayerPage: React.FC<TaskPlayerPageProps> = ({
                 <input type="range" min="1" max="8" value={eraserSize} onChange={e => setEraserSize(parseInt(e.target.value))} className="w-full accent-white" />
               </div>
             )}
-            {id === 'wand' && (
-              <div className="space-y-4">
-                <div className="space-y-2">
-                  <div className="flex justify-between text-white/60">
-                    <span style={{ fontSize: zhScale(8) }}>{isZh ? '容差' : 'TOLERANCE'}:</span>
-                    <span style={{ fontSize: '8px' }}>{wandTolerance}</span>
-                  </div>
-                  <input type="range" min="1" max="100" value={wandTolerance} onChange={e => setWandTolerance(parseInt(e.target.value))} className="w-full accent-white" />
+            {(id === 'wand' || id === 'bucket') && (
+              <div className="space-y-2">
+                <div className="flex justify-between text-white/60">
+                  <span style={{ fontSize: zhScale(8) }}>{isZh ? '容差' : 'TOLERANCE'}:</span>
+                  <span style={{ fontSize: '8px' }}>{wandTolerance}</span>
                 </div>
-                <div className="space-y-2">
-                  <p className="opacity-60 uppercase text-white/60" style={{ fontSize: zhScale(8) }}>{isZh ? '模式' : 'MODE'}</p>
-                  <div className="grid grid-cols-1 gap-1">
-                    {(['select', 'add', 'remove'] as WandMode[]).map(mode => (
-                      <button key={mode} onClick={() => setWandMode(mode)} className={`py-1 border ${wandMode === mode ? 'bg-white text-black border-white' : 'bg-black/20 text-white/60 border-[#5a2d9c]'}`} style={{ fontSize: zhScale(8) }}> 
-                        {isZh ? (mode === 'select' ? '选择' : mode === 'add' ? '添加' : '移除') : mode.toUpperCase()} 
-                      </button>
-                    ))}
-                  </div>
+                <input type="range" min="1" max="100" value={wandTolerance} onChange={e => setWandTolerance(parseInt(e.target.value))} className="w-full accent-white" />
+              </div>
+            )}
+            {id === 'selection' && (
+              <div className="space-y-2 mb-4">
+                <p className="opacity-60 uppercase text-white/60" style={{ fontSize: zhScale(8) }}>{isZh ? '形状' : 'SHAPE'}</p>
+                <div className="grid grid-cols-1 gap-1">
+                  {(['rectangle', 'lasso'] as SelectionShape[]).map(shape => (
+                    <button key={shape} onClick={() => setSelectionShape(shape)}
+                      className={`py-1 border ${selectionShape === shape ? 'bg-white text-black border-white' : 'bg-black/20 text-white/60 border-[#5a2d9c]'}`}
+                      style={{ fontSize: zhScale(8) }}>
+                      {isZh ? (shape === 'rectangle' ? '矩形框选' : '自由套索') : (shape === 'rectangle' ? 'RECTANGLE' : 'FREE LASSO')}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+            {(id === 'wand' || id === 'selection') && (
+              <div className="space-y-2 mt-4">
+                <p className="opacity-60 uppercase text-white/60" style={{ fontSize: zhScale(8) }}>{isZh ? '模式' : 'MODE'}</p>
+                <div className="grid grid-cols-1 gap-1">
+                  {(['select', 'add', 'remove'] as SelectionMode[]).map(mode => (
+                    <button key={mode} onClick={() => setSelectionMode(mode)}
+                      className={`py-1 border ${selectionMode === mode ? 'bg-white text-black border-white' : 'bg-black/20 text-white/60 border-[#5a2d9c]'}`}
+                      style={{ fontSize: zhScale(8) }}>
+                      {isZh ? (mode === 'select' ? '选择' : mode === 'add' ? '添加' : '移除') : mode.toUpperCase()}
+                    </button>
+                  ))}
                 </div>
               </div>
             )}
@@ -1057,6 +1270,7 @@ const TaskPlayerPage: React.FC<TaskPlayerPageProps> = ({
         customModeRef.current = true;
         setFrames(mappedFrames);
         setInitialFrames(mappedFrames);
+        setRemotePreview(null);
         setCurrentFrameIndex(0);
         setIsPlaying(mappedFrames.length > 1);
         setIsCustomMode(true);
@@ -1182,8 +1396,10 @@ const TaskPlayerPage: React.FC<TaskPlayerPageProps> = ({
       <div className="grid grid-cols-1 lg:grid-cols-[auto_1fr_auto] gap-6 w-full items-start">
         <div className={`mx-auto lg:mx-0 flex flex-col items-center gap-4 p-2 bg-[#1b0a38]/80 pixel-border border-[#5a2d9c] w-14 shrink-0 ${isJobRunning ? 'opacity-30 pointer-events-none' : ''}`}>
            {renderToolButton("brush", <img src={`${ICON_BASE}brush.png`} style={{ imageRendering: 'auto' }} className="w-full h-full object-contain" alt="Brush" />, true)}
-           {renderToolButton("eraser", <img src={`${ICON_BASE}eraser.png`} style={{ imageRendering: 'auto' }} className="w-full h-full object-contain" alt="Eraser" />, true)}
            {renderToolButton("wand", <img src={`${ICON_BASE}wand.png`} style={{ imageRendering: 'auto' }} className="w-full h-full object-contain" alt="Wand" />, true)}
+           {renderToolButton("selection", <SquareDashedMousePointer size={20} />, true)}
+           {renderToolButton("bucket", <PaintBucket size={20} />, true)}
+           {renderToolButton("eraser", <img src={`${ICON_BASE}eraser.png`} style={{ imageRendering: 'auto' }} className="w-full h-full object-contain" alt="Eraser" />, true)}
            {renderToolButton("nudge", <Move size={20} />)}
            {renderToolButton("move", <img src={`${ICON_BASE}drag.png`} style={{ imageRendering: 'auto' }} className="w-full h-full object-contain" alt="Drag" />)}
            {renderToolButton("picker", <Pipette size={20} />)}
@@ -1213,6 +1429,24 @@ const TaskPlayerPage: React.FC<TaskPlayerPageProps> = ({
         <div className="flex flex-col gap-4 min-w-0 w-full overflow-hidden">
           <PixelCard className={`editor-canvas-shell p-0 overflow-hidden ${isLightBg ? 'is-light' : 'is-dark'}`}>
             <div ref={viewportRef} className="relative w-full h-[512px] flex items-center justify-center overflow-hidden">
+            {remotePreview && (
+              <div className="absolute inset-0 z-20 flex flex-col items-center justify-center gap-3 bg-[#0d0221] p-4">
+                <AnimatedSpritePreview alt={isZh ? '云端动画预览' : 'Cloud animation preview'}
+                  animationSrc={remotePreview.url} frameCount={remotePreview.frameCount}
+                  columns={remotePreview.columns} fallbackRatio={currentJob ? jobFrameAspectRatio(currentJob) : 1}
+                  src={currentJob?.input_images?.[0]?.url} maxHeight={440}
+                  className="w-full max-w-[512px] pixel-border border-[#5a2d9c]" />
+                <p className="text-white/60 text-center" style={{ fontSize: zhScale(8) }}>
+                  {isZh ? '正在显示云端预览；本地编辑副本暂时无法加载。' : 'Cloud preview is available, but the local editable copy could not be loaded.'}
+                </p>
+              </div>
+            )}
+            {selection.size > 0 && (
+              <div className="absolute top-3 left-1/2 -translate-x-1/2 z-40 px-3 py-2 bg-[#1b0a38]/95 pixel-border border-[#f7d51d] text-[#f7d51d] whitespace-nowrap pointer-events-none"
+                style={{ fontSize: zhScale(9) }}>
+                {isZh ? 'Ctrl+D 取消选择' : 'CTRL+D DESELECT'}
+              </div>
+            )}
             {currentJob && (
               <div 
                 className="absolute top-4 left-4 z-30 p-2 cursor-pointer transition-transform hover:scale-110 active:scale-95 bg-black/20 rounded-full"
@@ -1225,7 +1459,7 @@ const TaskPlayerPage: React.FC<TaskPlayerPageProps> = ({
                 />
               </div>
             )}
-            <div ref={editorContainerRef} className="relative origin-center shrink-0" style={{ width: `${dimensions.width}px`, height: `${dimensions.height}px`, transform: `translate(${pan.x}px, ${pan.y}px) scale(${zoom})`, imageRendering: 'pixelated', backgroundImage: isLightBg ? lightChecker : darkChecker, backgroundSize: `16px 16px`, cursor: isPickingRemovalColor ? 'cell' : 'default' }} onMouseDown={handleMouseDown} onMouseMove={handleCanvasInteraction} onMouseUp={handleMouseUp}>
+            <div ref={editorContainerRef} className="relative origin-center shrink-0" style={{ width: `${dimensions.width}px`, height: `${dimensions.height}px`, transform: `translate(${pan.x}px, ${pan.y}px) scale(${zoom})`, imageRendering: 'pixelated', backgroundImage: isLightBg ? lightChecker : darkChecker, backgroundSize: `16px 16px`, cursor: isPickingRemovalColor ? 'cell' : effectiveTool === 'selection' ? 'crosshair' : 'default', touchAction: effectiveTool === 'selection' ? 'none' : undefined }} onMouseDown={handleMouseDown} onMouseMove={handleCanvasInteraction} onMouseUp={handleMouseUp} onPointerDown={handleSelectionPointerDown} onPointerMove={handleSelectionPointerMove} onPointerUp={handleSelectionPointerUp} onPointerCancel={handleSelectionPointerCancel}>
               {(loading || isJobRunning) && (
                 <div className="absolute inset-0 z-50 flex flex-col items-center justify-center overflow-hidden">
                   {/* Black semi-transparent mask */}
@@ -1281,6 +1515,18 @@ const TaskPlayerPage: React.FC<TaskPlayerPageProps> = ({
               )}
               <canvas ref={canvasRef} className="w-full h-full block" />
               <canvas ref={overlayRef} className="absolute inset-0 w-full h-full pointer-events-none block" />
+              {(selectionOutline || dragOutline) && (
+                <svg className="absolute inset-0 w-full h-full pointer-events-none block"
+                  viewBox={`0 0 ${frameDimensions.width} ${frameDimensions.height}`}
+                  preserveAspectRatio="none" aria-hidden="true">
+                  <style>{`@keyframes selectionMarch { to { stroke-dashoffset: -8; } }`}</style>
+                  <path d={`${selectionOutline}${dragOutline}`} fill="none" stroke="rgba(0, 0, 0, 0.95)"
+                    strokeWidth="1.25" vectorEffect="non-scaling-stroke" strokeLinejoin="miter" />
+                  <path d={`${selectionOutline}${dragOutline}`} fill="none" stroke="rgba(255, 255, 255, 0.98)"
+                    strokeWidth="1.25" vectorEffect="non-scaling-stroke" strokeLinejoin="miter"
+                    strokeDasharray="4 4" style={{ animation: 'selectionMarch 0.8s steps(16, end) infinite' }} />
+                </svg>
+              )}
               
               {activeTool === 'nudge' && !isJobRunning && (
                 <div className="absolute inset-0 pointer-events-none">
@@ -1450,10 +1696,10 @@ const TaskPlayerPage: React.FC<TaskPlayerPageProps> = ({
                    </PixelButton>
                    <div className="space-y-1">
                      <div className="flex justify-between text-white/60">
-                       <span style={{ fontSize: zhScale(8) }}>{isZh ? '去噪阈值' : 'NOISE THRESH'}:</span>
-                       <span style={{ fontSize: '8px' }}>{deNoiseThreshold}</span>
+                       <span style={{ fontSize: zhScale(8) }}>{isZh ? '颜色数量' : 'COLORS'}:</span>
+                       <span style={{ fontSize: '8px' }}>{paletteColorCount}</span>
                      </div>
-                     <input type="range" min="1" max="50" value={deNoiseThreshold} onChange={e => setDeNoiseThreshold(parseInt(e.target.value))} className="w-full accent-white" />
+                     <input type="range" min="16" max="64" step="1" value={paletteColorCount} onChange={e => setPaletteColorCount(parseInt(e.target.value))} className="w-full accent-white" />
                    </div>
                  </div>
 

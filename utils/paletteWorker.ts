@@ -1,4 +1,4 @@
-import { extractBackendCentroids } from './backendPalette.ts';
+import { extractBackendPalette } from './backendPalette.ts';
 import { RGB } from './editorUtils.ts';
 
 interface PaletteResponse {
@@ -39,19 +39,20 @@ const getWorker = () => {
 
 /** Extract the backend-style palette off the browser UI thread. */
 export const extractCentroidsAsync = async (
-  imageData: ImageData,
+  imageData: ImageData | Uint8ClampedArray,
   colorCount: number,
   excludeColor?: RGB,
 ): Promise<RGB[]> => {
+  const source = imageData instanceof Uint8ClampedArray ? imageData : imageData.data;
   const activeWorker = getWorker();
-  if (!activeWorker) return extractBackendCentroids(imageData, colorCount, excludeColor);
+  if (!activeWorker) return extractBackendPalette(source, colorCount, excludeColor);
   const id = ++requestId;
-  const pixels = imageData.data.slice();
+  const pixels = source.slice();
   return new Promise<RGB[]>((resolve, reject) => {
     pending.set(id, { resolve, reject });
     activeWorker.postMessage(
       { id, pixels: pixels.buffer, colorCount, excludeColor },
       [pixels.buffer],
     );
-  }).catch(() => extractBackendCentroids(imageData, colorCount, excludeColor));
+  }).catch(() => extractBackendPalette(source, colorCount, excludeColor));
 };

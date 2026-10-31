@@ -153,6 +153,23 @@ class ApiService {
     return this.request('GET', `jobs/${genId}`);
   }
 
+  async getJobOutputDataUrl(genId: string, index = 0): Promise<string> {
+    const baseUrl = API_BASE.endsWith('/') ? API_BASE : `${API_BASE}/`;
+    const response = await fetch(`${baseUrl}jobs/${encodeURIComponent(genId)}/output/${index}`, {
+      headers: this.token ? { Authorization: `Bearer ${this.token}` } : {},
+      mode: 'cors',
+      credentials: 'omit',
+    });
+    if (!response.ok) throw new Error(`Generated image download failed (${response.status})`);
+    const blob = await response.blob();
+    return new Promise<string>((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(reader.result as string);
+      reader.onerror = () => reject(reader.error || new Error('Generated image could not be read'));
+      reader.readAsDataURL(blob);
+    });
+  }
+
   async getHistory(start: number = 0, k: number = 20, get_liked: boolean = false, job_type?: string): Promise<{ jobs: Job[] }> {
     let url = `history?start=${start}&k=${k}&get_liked=${get_liked}`;
     if (job_type) url += `&job_type=${job_type}`;

@@ -46,6 +46,27 @@ export const saveSpriteToCache = async (data: CachedSprite): Promise<void> => {
   });
 };
 
+/** Seed a new job's original result without replacing a locally edited copy. */
+export const createSpriteCacheIfAbsent = async (data: CachedSprite): Promise<CachedSprite> => {
+  const db = await initDB();
+  return new Promise((resolve, reject) => {
+    const transaction = db.transaction(STORE_NAME, 'readwrite');
+    const store = transaction.objectStore(STORE_NAME);
+    let result = data;
+    transaction.oncomplete = () => resolve(result);
+    transaction.onerror = () => reject(transaction.error);
+    transaction.onabort = () => reject(transaction.error);
+    const request = store.get(data.gen_id);
+    request.onsuccess = () => {
+      if (request.result) {
+        result = request.result;
+        return;
+      }
+      store.put(data);
+    };
+  });
+};
+
 export const getSpriteFromCache = async (genId: string): Promise<CachedSprite | null> => {
   const db = await initDB();
   return new Promise((resolve, reject) => {

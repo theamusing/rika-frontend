@@ -8,6 +8,7 @@ import AnimatedSpritePreview from '../components/AnimatedSpritePreview.tsx';
 import { jobFrameAspectRatio } from '../utils/animationDisplay.ts';
 import { Heart, Trash2, AlertTriangle } from 'lucide-react';
 import { getSpriteFromCache } from '../utils/dbUtils.ts';
+import { ensureOriginalSpriteCache } from '../utils/originalSpriteCache.ts';
 
 interface HistoryPageProps {
   onJobSelected: (job: Job, page?: number) => void;
@@ -24,7 +25,7 @@ const PAGE_SIZE = 20;
 const SHOW_LIKED_ONLY_KEY = 'rika_show_liked_only';
 const JOB_TYPE_KEY = 'rika_history_job_type';
 const isV2Animation = (job: Job) => Number(job.animation_version ?? job.input_params?.animation_version) === 2;
-type CachedPreview = { spriteSheet: string; frameCount?: number; excludedIndices?: number[]; updatedAt: number };
+type CachedPreview = { spriteSheet: string; frameCount?: number; columns?: number; excludedIndices?: number[]; updatedAt: number };
 const isSingleFrameJob = (job: Job) => job.job_type === 'character' || job.job_type === 'item' || job.job_type === 'map';
 
 const animationPreview = (job: Job, cacheChecked: boolean, cached?: CachedPreview) => {
@@ -37,7 +38,7 @@ const animationPreview = (job: Job, cacheChecked: boolean, cached?: CachedPrevie
   return {
     animationSrc: cached?.spriteSheet || job.output_images?.[0]?.url,
     frameCount,
-    columns: Math.min(cached ? 4 : (isV2Animation(job) ? 6 : 4), frameCount),
+    columns: Math.min(cached ? (cached.columns ?? 4) : (isV2Animation(job) ? 6 : 4), frameCount),
     excludedIndices: cached?.excludedIndices,
   };
 };
@@ -164,13 +165,20 @@ const HistoryPage: React.FC<HistoryPageProps> = ({
       while (active && nextIndex < jobs.length) {
         const job = jobs[nextIndex++];
         try {
-          const cached = await getSpriteFromCache(job.gen_id);
+          let cached = await getSpriteFromCache(job.gen_id);
+          if (!cached?.spriteSheet && job.status === 'succeeded' && !isSingleFrameJob(job)) {
+            // Play the cloud image while its original bytes are copied into IndexedDB.
+            if (active) setCheckedCacheIds(previous => previous.has(job.gen_id)
+              ? previous : new Set(previous).add(job.gen_id));
+            cached = await ensureOriginalSpriteCache(job);
+          }
           if (!active) return;
           if (cached?.spriteSheet) {
             const metadata = cached.customData?.frameMetadata;
             const preview: CachedPreview = {
               spriteSheet: cached.spriteSheet,
               frameCount: Array.isArray(metadata) ? metadata.length : undefined,
+              columns: cached.customData?.columns,
               excludedIndices: Array.isArray(metadata)
                 ? metadata.flatMap((frame: { isExcluded?: boolean }, index: number) => frame?.isExcluded ? [index] : [])
                 : undefined,

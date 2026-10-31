@@ -202,7 +202,7 @@ const DocumentPage: React.FC<DocumentPageProps> = ({ lang = 'en', onOpenPricing 
               <ul className="list-disc pl-5 space-y-2 text-white/65 leading-relaxed">
                 <li>{isZh ? '播放、暂停、逐帧查看并调整 FPS；V2 默认以 12 FPS 预览。' : 'Play, pause, step through frames, and adjust FPS. V2 previews at 12 FPS by default.'}</li>
                 <li>{isZh ? '拖拽重新排序，或排除不需要的帧。' : 'Drag to reorder or exclude unwanted frames.'}</li>
-                <li>{isZh ? '使用画笔、橡皮、移动、取色和魔棒工具修改像素。' : 'Edit pixels with brush, eraser, move, picker, and wand tools.'}</li>
+                <li>{isZh ? '使用画笔、橡皮、选区、油漆桶、移动、取色和魔棒工具修改像素。油漆桶优先填充现有选区，否则按魔棒容差填充连通区域。' : 'Edit pixels with brush, eraser, selection, paint bucket, move, picker, and wand tools. The bucket fills an active selection or a connected region using the wand tolerance.'}</li>
                 <li>{isZh ? '支持撤销、重做与恢复初始结果。' : 'Undo, redo, and restore the original result.'}</li>
               </ul>
             </div>
@@ -211,7 +211,7 @@ const DocumentPage: React.FC<DocumentPageProps> = ({ lang = 'en', onOpenPricing 
               <ul className="list-disc pl-5 space-y-2 text-white/65 leading-relaxed">
                 <li>{isZh ? '默认去背景只删除从四角连通的相近颜色区域。' : 'Default background removal clears similar-color regions connected to the four corners.'}</li>
                 <li>{isZh ? '全局匹配会删除所有帧中接近指定背景色的像素，包括不与边缘相连的区域。' : 'Global Match removes every pixel close to the selected background color, including regions not connected to an edge.'}</li>
-                <li>{isZh ? '去杂色工具可合并相近颜色，减少零散颜色点。' : 'De-noise merges nearby colors to reduce isolated color specks.'}</li>
+                <li>{isZh ? '去杂色工具使用整段动画共享的约束调色盘，可将颜色数量限制在 16–64 色。' : 'De-noise uses one constrained palette across the animation, with a limit of 16–64 colors.'}</li>
                 <li>{isZh ? '动画可导出 PNG spritesheet 或 GIF；单图可导出原尺寸或 4× PNG。' : 'Animations export as PNG sprite sheets or GIFs; single images export at native size or 4× PNG.'}</li>
               </ul>
             </div>
