@@ -21,6 +21,7 @@ interface TaskPlayerPageProps {
   onJobSelected: (id: string) => void;
   onRegenerate: (job: Job) => void;
   onBack?: () => void;
+  onRegisterSaveBeforeLeave?: (save: (() => Promise<void>) | null) => void;
   onJobFailed?: (message: string) => void;
   lang?: 'en' | 'zh';
   isLoggedIn?: boolean;
@@ -42,6 +43,7 @@ const TaskPlayerPage: React.FC<TaskPlayerPageProps> = ({
   onJobSelected, 
   onRegenerate, 
   onBack, 
+  onRegisterSaveBeforeLeave,
   onJobFailed,
   lang = 'en',
   isLoggedIn = false,
@@ -281,6 +283,13 @@ const TaskPlayerPage: React.FC<TaskPlayerPageProps> = ({
       setHasUnsavedEdits(false);
     } catch (err) { console.error("Cache fail", err); }
   }, [selectedJobId, frames, isJobRunning]);
+
+  useEffect(() => {
+    onRegisterSaveBeforeLeave?.(async () => {
+      if (hasUnsavedEdits && !isJobRunning && !isCustomMode) await handleSaveToCache();
+    });
+    return () => onRegisterSaveBeforeLeave?.(null);
+  }, [handleSaveToCache, hasUnsavedEdits, isCustomMode, isJobRunning, onRegisterSaveBeforeLeave]);
 
   const deleteSelection = useCallback(() => {
     if (selection.size === 0 || isJobRunning) return;

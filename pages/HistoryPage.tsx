@@ -4,6 +4,7 @@ import { apiService } from '../services/apiService.ts';
 import { Job } from '../types.ts';
 import { PixelButton, PixelCard } from '../components/PixelComponents.tsx';
 import AspectRatioPreview from '../components/AspectRatioPreview.tsx';
+import AnimatedSpritePreview from '../components/AnimatedSpritePreview.tsx';
 import { jobFrameAspectRatio } from '../utils/animationDisplay.ts';
 import { Heart, Trash2, AlertTriangle } from 'lucide-react';
 import { getSpriteFromCache } from '../utils/dbUtils.ts';
@@ -23,6 +24,23 @@ const PAGE_SIZE = 20;
 const SHOW_LIKED_ONLY_KEY = 'rika_show_liked_only';
 const JOB_TYPE_KEY = 'rika_history_job_type';
 const isV2Animation = (job: Job) => Number(job.animation_version ?? job.input_params?.animation_version) === 2;
+type CachedPreview = { spriteSheet: string; frameCount?: number; excludedIndices?: number[]; updatedAt: number };
+const isSingleFrameJob = (job: Job) => job.job_type === 'character' || job.job_type === 'item' || job.job_type === 'map';
+
+const animationPreview = (job: Job, cacheChecked: boolean, cached?: CachedPreview) => {
+  if (!cacheChecked || job.status !== 'succeeded' || isSingleFrameJob(job)) return {};
+  const rawCount = isV2Animation(job)
+    ? Number(job.input_params?.output_frames)
+    : Math.floor((Number(job.input_params?.length ?? 33) - 1) / 2);
+  const frameCount = Math.floor(Number(cached?.frameCount ?? rawCount));
+  if (!Number.isFinite(frameCount) || frameCount < 2) return {};
+  return {
+    animationSrc: cached?.spriteSheet || job.output_images?.[0]?.url,
+    frameCount,
+    columns: Math.min(cached ? 4 : (isV2Animation(job) ? 6 : 4), frameCount),
+    excludedIndices: cached?.excludedIndices,
+  };
+};
 
 const HistoryPage: React.FC<HistoryPageProps> = ({ 
   onJobSelected, 
@@ -49,7 +67,8 @@ const HistoryPage: React.FC<HistoryPageProps> = ({
   });
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
-  const [cachedSprites, setCachedSprites] = useState<Record<string, string>>({});
+  const [cachedSprites, setCachedSprites] = useState<Record<string, CachedPreview>>({});
+  const [checkedCacheIds, setCheckedCacheIds] = useState<Set<string>>(() => new Set());
   
   const lastRefreshTime = useRef<number>(0);
   const isMounted = useRef(true);
@@ -129,27 +148,54 @@ const HistoryPage: React.FC<HistoryPageProps> = ({
   }, [fetchHistory, currentPage, showLikedOnly, jobType]);
 
   useEffect(() => {
-    const loadCachedSprites = async () => {
-      const cacheMap: Record<string, string> = {};
-      for (const job of jobs) {
+    let active = true;
+    const visibleIds = new Set(jobs.map(job => job.gen_id));
+    setCachedSprites(previous => {
+      const kept = Object.entries(previous).filter(([id]) => visibleIds.has(id));
+      return kept.length === Object.keys(previous).length ? previous : Object.fromEntries(kept);
+    });
+    setCheckedCacheIds(previous => {
+      const kept = new Set([...previous].filter(id => visibleIds.has(id)));
+      return kept.size === previous.size ? previous : kept;
+    });
+
+    let nextIndex = 0;
+    const loadNext = async () => {
+      while (active && nextIndex < jobs.length) {
+        const job = jobs[nextIndex++];
         try {
           const cached = await getSpriteFromCache(job.gen_id);
-          if (cached && cached.spriteSheet) {
-            cacheMap[job.gen_id] = cached.spriteSheet;
+          if (!active) return;
+          if (cached?.spriteSheet) {
+            const metadata = cached.customData?.frameMetadata;
+            const preview: CachedPreview = {
+              spriteSheet: cached.spriteSheet,
+              frameCount: Array.isArray(metadata) ? metadata.length : undefined,
+              excludedIndices: Array.isArray(metadata)
+                ? metadata.flatMap((frame: { isExcluded?: boolean }, index: number) => frame?.isExcluded ? [index] : [])
+                : undefined,
+              updatedAt: cached.updatedAt,
+            };
+            setCachedSprites(previous => previous[job.gen_id]?.updatedAt === preview.updatedAt
+              ? previous : { ...previous, [job.gen_id]: preview });
+          } else {
+            setCachedSprites(previous => {
+              if (!previous[job.gen_id]) return previous;
+              const next = { ...previous };
+              delete next[job.gen_id];
+              return next;
+            });
           }
         } catch (err) {
           console.error("Failed to check cache for job", job.gen_id, err);
+        } finally {
+          if (active) setCheckedCacheIds(previous => previous.has(job.gen_id)
+            ? previous : new Set(previous).add(job.gen_id));
         }
       }
-      if (isMounted.current) {
-        setCachedSprites(cacheMap);
-      }
     };
-    if (jobs.length > 0) {
-      loadCachedSprites();
-    } else {
-      setCachedSprites({});
-    }
+    for (let worker = 0; worker < Math.min(4, jobs.length); worker++) void loadNext();
+    return () => { active = false; };
   }, [jobs]);
 
   const handleManualRefresh = () => {
@@ -332,9 +378,10 @@ const HistoryPage: React.FC<HistoryPageProps> = ({
 
             return jobs.map((job) => (
               <PixelCard key={job.gen_id} className="group hover:bg-[#5a2d9c]/20 transition-all cursor-pointer" onClick={() => setSelectedJob(job)}>
-                  <AspectRatioPreview alt="Job preview" fallbackRatio={jobFrameAspectRatio(job)} maxHeight={256}
+                  <AnimatedSpritePreview alt="Job preview" fallbackRatio={jobFrameAspectRatio(job)} maxHeight={256}
+                    play={!selectedJob} {...animationPreview(job, checkedCacheIds.has(job.gen_id), cachedSprites[job.gen_id])}
                     src={((job.job_type === 'character' || job.job_type === 'item') && cachedSprites[job.gen_id])
-                      ? cachedSprites[job.gen_id]
+                      ? cachedSprites[job.gen_id].spriteSheet
                       : ((job.job_type === 'character' || job.job_type === 'item' || job.job_type === 'map')
                         ? (job.output_images?.[0]?.url || job.input_images?.[0]?.url)
                         : (job.input_images?.[0]?.url || job.output_images?.[0]?.url))}
@@ -365,7 +412,7 @@ const HistoryPage: React.FC<HistoryPageProps> = ({
                           <Trash2 size={14} />
                         </button>
                       )}
-                  </AspectRatioPreview>
+                  </AnimatedSpritePreview>
                   <div className="space-y-2">
                       <div className="flex justify-between items-start">
                           <p className={`font-bold truncate pr-4 text-white/90`} style={{ fontSize: isZh && !job.input_params?.prompt ? '14px' : '10px' }}>
@@ -467,9 +514,11 @@ const HistoryPage: React.FC<HistoryPageProps> = ({
                                   <p className={`opacity-50 uppercase mb-2`} style={{ fontSize: zhScale(8) }}>
                                     {isZh ? '生成结果' : 'Generated Output'}
                                   </p>
-                                  <AspectRatioPreview alt="Output" fallbackRatio={jobFrameAspectRatio(selectedJob)}
+                                  <AnimatedSpritePreview alt="Output" fallbackRatio={jobFrameAspectRatio(selectedJob)}
+                                    {...animationPreview(selectedJob, checkedCacheIds.has(selectedJob.gen_id), cachedSprites[selectedJob.gen_id])}
                                     src={((selectedJob.job_type === 'character' || selectedJob.job_type === 'item') && cachedSprites[selectedJob.gen_id])
-                                      ? cachedSprites[selectedJob.gen_id] : selectedJob.output_images[0].url}
+                                      ? cachedSprites[selectedJob.gen_id].spriteSheet
+                                      : (isSingleFrameJob(selectedJob) ? selectedJob.output_images[0].url : selectedJob.input_images?.[0]?.url)}
                                     className={`pixel-border border-[#5a2d9c] ${
                                     (selectedJob.job_type === 'character' || selectedJob.job_type === 'item' || selectedJob.job_type === 'map') ? 'bg-[#2a2a2a]' : 'bg-black/40'
                                   }`}>
@@ -483,7 +532,7 @@ const HistoryPage: React.FC<HistoryPageProps> = ({
                                           strokeWidth={selectedJob.liked ? 0 : 2}
                                         />
                                       </div>
-                                  </AspectRatioPreview>
+                                  </AnimatedSpritePreview>
                               </div>
                           )}
                       </div>

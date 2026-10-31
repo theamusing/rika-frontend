@@ -522,6 +522,35 @@ export const unprocessImage = async (url: string, pixelSize: string = '128', for
   }
 };
 
+export interface SpriteSheetLayout {
+  frameCount: number;
+  columns: number;
+  rows: number;
+  frameWidth: number;
+  frameHeight: number;
+}
+
+export const getSpriteSheetLayout = (
+  imageWidth: number, imageHeight: number, frameCount?: number, apiLength: number = 25, columns?: number,
+): SpriteSheetLayout => {
+  const targetLength = Math.floor(Math.max(1, frameCount !== undefined ? frameCount : (apiLength - 1) / 2));
+  const cols = columns === undefined ? (targetLength < 4 ? targetLength : 4) : Math.max(1, Math.min(columns, targetLength));
+  const rows = Math.ceil(targetLength / cols);
+  const frameWidth = Math.floor(imageWidth / cols);
+  const frameHeight = Math.floor(imageHeight / rows);
+  if (frameWidth < 1 || frameHeight < 1) throw new Error('Invalid image dimensions');
+  return { frameCount: targetLength, columns: cols, rows, frameWidth, frameHeight };
+};
+
+export const drawSpriteSheetFrame = (
+  context: CanvasRenderingContext2D, image: CanvasImageSource, layout: SpriteSheetLayout, index: number,
+): void => {
+  const col = index % layout.columns;
+  const row = Math.floor(index / layout.columns);
+  context.drawImage(image, col * layout.frameWidth, row * layout.frameHeight,
+    layout.frameWidth, layout.frameHeight, 0, 0, layout.frameWidth, layout.frameHeight);
+};
+
 export const sliceSpriteSheet = async (url: string, frameCount?: number, apiLength: number = 25, columns?: number): Promise<string[]> => {
   try {
     const sourceDataUrl = await fetchAsDataUrl(url);
@@ -534,36 +563,17 @@ export const sliceSpriteSheet = async (url: string, frameCount?: number, apiLeng
       img.onload = () => {
         try {
           const frames: string[] = [];
-          const targetLength = Math.floor(Math.max(1, frameCount !== undefined ? frameCount : (apiLength - 1) / 2));
-          const cols = columns === undefined ? (targetLength < 4 ? targetLength : 4) : Math.max(1, Math.min(columns, targetLength));
-          const rows = Math.ceil(targetLength / cols);
-          
-          const frameWidth = Math.floor(img.width / cols);
-          const frameHeight = rows > 0 ? Math.floor(img.height / rows) : 0;
-          
-          if (frameWidth === 0 || frameHeight === 0) {
-            throw new Error("Invalid image dimensions");
-          }
+          const layout = getSpriteSheetLayout(img.width, img.height, frameCount, apiLength, columns);
 
-          let extractedCount = 0;
-          for (let row = 0; row < rows; row++) {
-            for (let col = 0; col < cols; col++) {
-              if (extractedCount >= targetLength) break;
-
-              const canvas = document.createElement('canvas');
-              canvas.width = frameWidth;
-              canvas.height = frameHeight;
-              const ctx = canvas.getContext('2d');
-              if (ctx) {
-                ctx.imageSmoothingEnabled = false;
-                ctx.drawImage(
-                  img, 
-                  col * frameWidth, row * frameHeight, frameWidth, frameHeight,
-                  0, 0, frameWidth, frameHeight
-                );
-                frames.push(canvas.toDataURL('image/png'));
-              }
-              extractedCount++;
+          for (let index = 0; index < layout.frameCount; index++) {
+            const canvas = document.createElement('canvas');
+            canvas.width = layout.frameWidth;
+            canvas.height = layout.frameHeight;
+            const ctx = canvas.getContext('2d');
+            if (ctx) {
+              ctx.imageSmoothingEnabled = false;
+              drawSpriteSheetFrame(ctx, img, layout, index);
+              frames.push(canvas.toDataURL('image/png'));
             }
           }
           

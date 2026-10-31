@@ -1,6 +1,15 @@
 import React from 'react';
 import { PixelButton } from '../components/PixelComponents.tsx';
 
+const ANIMATION_EXAMPLES = [
+  { key: 'idle', labelEn: 'IDLE', labelZh: '待机' },
+  { key: 'run', labelEn: 'RUN', labelZh: '奔跑' },
+  { key: 'attack', labelEn: 'ATTACK', labelZh: '攻击' },
+] as const;
+
+const EXAMPLES_BASE = 'https://cdn.rika-ai.com/assets/frontpage/examples/';
+const FALLBACK_ANIMATION = 'https://cdn.rika-ai.com/assets/frontpage/gifs/1.gif';
+
 interface DocumentPageProps {
   lang?: 'en' | 'zh';
   onOpenPricing?: () => void;
@@ -35,6 +44,38 @@ const DocumentPage: React.FC<DocumentPageProps> = ({ lang = 'en', onOpenPricing 
               ? '本文档介绍当前版本的图像生成、动画生成、Player 编辑器、导出、积分与 API 使用方式。'
               : 'This document covers the current image generators, animation pipelines, Player editor, export tools, credits, and API behavior.'}
           </p>
+          <div className="pt-5 space-y-4" aria-label={isZh ? '动画效果预览' : 'Animation previews'}>
+            <div className="flex items-baseline justify-between gap-4">
+              <h2 className="font-bold uppercase tracking-wide text-[#f7d51d]" style={{ fontSize: zhScale(12) }}>
+                {isZh ? '动画效果预览' : 'ANIMATION PREVIEW'}
+              </h2>
+              <span className="font-mono text-white/40" style={{ fontSize: zhScale(8) }}>
+                {isZh ? '实际生成示例' : 'GENERATED EXAMPLES'}
+              </span>
+            </div>
+            <div className="grid grid-cols-3 gap-2 sm:gap-4">
+              {ANIMATION_EXAMPLES.map((example) => (
+                <div key={example.key} className="pixel-border border-2 border-[#5a2d9c] bg-[#1b0a38]/80 p-2 sm:p-3">
+                  <div className="aspect-square flex items-center justify-center overflow-hidden bg-black/20">
+                    <img
+                      src={`${EXAMPLES_BASE}${example.key}_64.gif`}
+                      alt={isZh ? `${example.labelZh}像素动画示例` : `${example.labelEn.toLowerCase()} pixel animation example`}
+                      loading="eager"
+                      decoding="async"
+                      className="h-full w-full object-contain"
+                      style={{ imageRendering: 'pixelated' }}
+                      onError={(event) => {
+                        if (event.currentTarget.src !== FALLBACK_ANIMATION) event.currentTarget.src = FALLBACK_ANIMATION;
+                      }}
+                    />
+                  </div>
+                  <p className="pt-2 text-center font-bold tracking-wide text-white/80" style={{ fontSize: zhScale(9) }}>
+                    {isZh ? example.labelZh : example.labelEn}
+                  </p>
+                </div>
+              ))}
+            </div>
+          </div>
         </header>
 
         <Section number="01" title={isZh ? '产品功能' : 'PRODUCT CAPABILITIES'}>
@@ -49,8 +90,8 @@ const DocumentPage: React.FC<DocumentPageProps> = ({ lang = 'en', onOpenPricing 
               </thead>
               <tbody>
                 {[
-                  [isZh ? '动画 V1' : 'Animation V1', isZh ? '使用预设动作快速生成 8–16 帧动画。' : 'Preset-motion animation with 8–16 output frames.', '5'],
-                  [isZh ? '动画 V2' : 'Animation V2', isZh ? '支持自定义、多阶段动作和 16–32 帧动画。' : 'Custom and multi-stage motion with 16–32 output frames.', '8'],
+                  [isZh ? '动画 V1' : 'Animation V1', isZh ? '使用预设动作快速生成 8–16 帧动画。' : 'Preset-motion animation with 8–16 output frames.', '4'],
+                  [isZh ? '动画 V2' : 'Animation V2', isZh ? '支持自定义、多阶段动作和 16–32 帧动画。' : 'Custom and multi-stage motion with 16–32 output frames.', '6'],
                   [isZh ? '角色生成' : 'Character', isZh ? '根据文字和可选参考图生成像素角色。' : 'Generate a pixel character from text and an optional reference.', '1'],
                   [isZh ? '道具生成' : 'Item', isZh ? '根据文字和可选参考图生成像素道具。' : 'Generate a pixel item from text and an optional reference.', '1'],
                   [isZh ? '地图生成' : 'Map', isZh ? '根据结构图、场景描述和可选风格图生成横板地图。' : 'Generate a side-scrolling map from structure, text, and an optional style reference.', '2'],

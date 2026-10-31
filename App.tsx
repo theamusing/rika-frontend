@@ -52,6 +52,10 @@ const App: React.FC = () => {
   const createDropdownRef = useRef<HTMLDivElement>(null);
   const basePathRef = useRef(initialRoute.basePath);
   const langRef = useRef<AppLanguage>(initialRoute.lang);
+  const playerSaveBeforeLeaveRef = useRef<(() => Promise<void>) | null>(null);
+  const registerPlayerSaveBeforeLeave = useCallback((save: (() => Promise<void>) | null) => {
+    playerSaveBeforeLeaveRef.current = save;
+  }, []);
 
   const isZh = lang === 'zh';
   const zhScale = (enSize: number) => `${isZh ? enSize + 3 : enSize}px`;
@@ -79,7 +83,8 @@ const App: React.FC = () => {
       writeAppRoute(basePathRef.current, initialRoute.lang, initialRoute.tab, 'replace');
     }
 
-    const handlePopState = () => {
+    const handlePopState = async () => {
+      await playerSaveBeforeLeaveRef.current?.();
       const route = readAppRoute();
       basePathRef.current = route.basePath;
       langRef.current = route.lang;
@@ -180,6 +185,7 @@ const App: React.FC = () => {
   }, [fetchCredits, setTabWithRoute]);
 
   const handleLogout = async () => {
+    await playerSaveBeforeLeaveRef.current?.();
     await supabase.auth.signOut();
     setUser(null);
     setTabWithRoute('intro');
@@ -187,7 +193,8 @@ const App: React.FC = () => {
     setLoginMode('login');
   };
 
-  const navigateTo = (tab: AppTab) => {
+  const navigateTo = async (tab: AppTab) => {
+    if (tab !== 'player') await playerSaveBeforeLeaveRef.current?.();
     setIsPricingOpen(false);
     
     if (tab === 'intro' || tab === 'docs') {
@@ -219,7 +226,8 @@ const App: React.FC = () => {
     setTabWithRoute('player');
   };
 
-  const handleBack = () => {
+  const handleBack = async () => {
+    await playerSaveBeforeLeaveRef.current?.();
     if (navigationSource) {
       setTabWithRoute(navigationSource.tab as AppTab);
       // If we need to pass page back to history, we might need more complex state, 
@@ -229,7 +237,8 @@ const App: React.FC = () => {
     }
   };
 
-  const handleRegenerate = (params: any) => {
+  const handleRegenerate = async (params: any) => {
+    await playerSaveBeforeLeaveRef.current?.();
     setInitialParams(params);
     if (params.action === 'animate') {
       setTabWithRoute('generate');
@@ -557,6 +566,7 @@ const App: React.FC = () => {
                 onJobSelected={(id) => { setSelectedJobId(id); setSelectedJob(null); }}
                 onRegenerate={handleRegenerate}
                 onBack={handleBack}
+                onRegisterSaveBeforeLeave={registerPlayerSaveBeforeLeave}
                 onJobFailed={handleGenerationFailed}
                 lang={lang}
                 isLoggedIn={!!user}
