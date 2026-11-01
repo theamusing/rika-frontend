@@ -1,5 +1,4 @@
 import { Job } from '../types.ts';
-import { apiService } from '../services/apiService.ts';
 import { CachedSprite, createSpriteCacheIfAbsent, getSpriteFromCache } from './dbUtils.ts';
 import { fetchAsDataUrl, getSpriteSheetLayout } from './imageUtils.ts';
 
@@ -24,15 +23,7 @@ export const ensureOriginalSpriteCache = (job: Job): Promise<CachedSprite> => {
     if (!Number.isInteger(frameCount) || frameCount < 1) throw new Error('Invalid animation frame count');
     const columns = Math.min(isV2 ? 6 : 4, frameCount);
 
-    let spriteSheet: string;
-    try {
-      spriteSheet = await fetchAsDataUrl(outputUrl);
-    } catch (cdnError) {
-      // Older CDN objects can render in an <img> while blocking browser pixel reads.
-      // The authenticated job endpoint supplies the same stored bytes for editing.
-      console.warn('Direct image download failed; using the job image endpoint.', cdnError);
-      spriteSheet = await apiService.getJobOutputDataUrl(job.gen_id);
-    }
+    const spriteSheet = await fetchAsDataUrl(outputUrl);
 
     const image = await new Promise<HTMLImageElement>((resolve, reject) => {
       const candidate = new Image();

@@ -8,6 +8,7 @@ import { floodFill, RGB, colorDistance, colorMatchRemoval } from '../utils/edito
 import { applyBackendCentroids } from '../utils/backendPalette.ts';
 import { extractCentroidsAsync } from '../utils/paletteWorker.ts';
 import { saveSpriteToCache, getSpriteFromCache, CachedSprite } from '../utils/dbUtils.ts';
+import { ensureOriginalSpriteCache } from '../utils/originalSpriteCache.ts';
 import { fitImageDimensions } from '../utils/animationDisplay.ts';
 import { lassoSelection, PixelPoint, rectangleSelection, selectionOutlinePath } from '../utils/selectionUtils.ts';
 import { Heart, ArrowLeft, Move, Pipette, HelpCircle, SquareDashedMousePointer, PaintBucket } from 'lucide-react';
@@ -393,13 +394,15 @@ const TaskPlayerPage: React.FC<TaskPlayerPageProps> = ({
     return () => container.removeEventListener('wheel', onWheel);
   }, [zoom, pan]);
 
-  const updateFramesFromJob = useCallback(async (job: Job) => {
+  const updateFramesFromJob = useCallback(async (job: Job): Promise<boolean> => {
     const apiLength = job.input_params?.length || 33;
     const isSingleFrame = job.job_type === 'character' || job.job_type === 'item' || job.job_type === 'map';
     setLoadError(null);
     try {
-      const cached = await getSpriteFromCache(job.gen_id);
-      if (cached) {
+      const existing = await getSpriteFromCache(job.gen_id);
+      const cached = existing?.spriteSheet || job.status !== 'succeeded' || isSingleFrame
+        ? existing : await ensureOriginalSpriteCache(job);
+      if (cached?.spriteSheet) {
         const frameMetadata = (cached.customData as any)?.frameMetadata;
         // For single frame jobs (character/item/map), we expect 1 frame. sliceSpriteSheet handles this if targetLength is 1.
         const targetLength = isSingleFrame ? 1 : (frameMetadata?.length ??
@@ -418,7 +421,7 @@ const TaskPlayerPage: React.FC<TaskPlayerPageProps> = ({
           setLoadError(null);
           setUndoStack([]); setRedoStack([]); setPan({ x: 0, y: 0 }); setSelection(new Set());
           setHasUnsavedEdits(false);
-          return;
+          return true;
         }
       }
     } catch (err) {
@@ -449,11 +452,7 @@ const TaskPlayerPage: React.FC<TaskPlayerPageProps> = ({
           const isV2 = job.animation_version === 2 || job.input_params?.animation_version === 2;
           const frameCount = isV2 ? Number(job.input_params?.output_frames) : Math.floor((Number(apiLength) - 1) / 2);
           const columns = Math.min(isV2 ? 6 : 4, frameCount);
-          const localSheet = await fetchAsDataUrl(outputUrl)
-            .catch(error => {
-              console.warn('Direct animation download failed.', error);
-              return apiService.getJobOutputDataUrl(job.gen_id);
-            });
+          const localSheet = await fetchAsDataUrl(outputUrl);
           const sliced = await sliceSpriteSheet(localSheet, frameCount, apiLength, columns);
           if (isMounted.current) {
             const mappedFrames: FrameData[] = sliced.map((url, i) => ({
@@ -466,12 +465,14 @@ const TaskPlayerPage: React.FC<TaskPlayerPageProps> = ({
             setLoadError(null);
           }
         }
+        return isMounted.current;
       } catch (err) {
         console.error('Generated animation could not be loaded into the editor.', err);
         if (isMounted.current) {
           setFrames([]);
           setLoadError(err instanceof Error ? err.message : String(err));
         }
+        return false;
       }
     } else if (job.status === 'running' || job.status === 'queued') {
       if (job.input_images?.[0]?.url) {
@@ -506,7 +507,11 @@ const TaskPlayerPage: React.FC<TaskPlayerPageProps> = ({
           }
         }
       }
+    } else if (job.status === 'succeeded' && isMounted.current) {
+      setFrames([]);
+      setLoadError('Generated image is unavailable');
     }
+    return false;
   }, []);
 
   useEffect(() => {
@@ -519,8 +524,8 @@ const TaskPlayerPage: React.FC<TaskPlayerPageProps> = ({
         try {
           if (initialJob && initialJob.gen_id === selectedJobId) {
             setCurrentJob(initialJob);
-            await updateFramesFromJob(initialJob);
-            if (initialJob.status === 'succeeded') {
+            const opened = await updateFramesFromJob(initialJob);
+            if (initialJob.status === 'succeeded' && opened) {
               setLoading(false);
               return;
             }

@@ -23,7 +23,7 @@ export const fetchAsDataUrl = async (url: string): Promise<string> => {
   if (shouldCache) {
     try {
       const cached = await getAssetFromCache(url);
-      if (cached) {
+      if (cached?.startsWith('data:image/')) {
         return cached;
       }
     } catch (err) {
@@ -41,6 +41,9 @@ export const fetchAsDataUrl = async (url: string): Promise<string> => {
     
     if (response.ok) {
       const blob = await response.blob();
+      if (blob.type && !blob.type.startsWith('image/')) {
+        throw new Error('Generated image response is not an image');
+      }
       const dataUrl = await new Promise<string>((resolve, reject) => {
         const reader = new FileReader();
         reader.onloadend = () => resolve(reader.result as string);
@@ -533,8 +536,10 @@ export interface SpriteSheetLayout {
 export const getSpriteSheetLayout = (
   imageWidth: number, imageHeight: number, frameCount?: number, apiLength: number = 25, columns?: number,
 ): SpriteSheetLayout => {
-  const targetLength = Math.floor(Math.max(1, frameCount !== undefined ? frameCount : (apiLength - 1) / 2));
-  const cols = columns === undefined ? (targetLength < 4 ? targetLength : 4) : Math.max(1, Math.min(columns, targetLength));
+  const targetLength = Math.floor(frameCount !== undefined ? frameCount : (apiLength - 1) / 2);
+  if (!Number.isInteger(targetLength) || targetLength < 1) throw new Error('Invalid animation frame count');
+  const cols = columns === undefined ? Math.min(4, targetLength) : Math.min(Math.floor(columns), targetLength);
+  if (!Number.isInteger(cols) || cols < 1) throw new Error('Invalid sprite sheet column count');
   const rows = Math.ceil(targetLength / cols);
   const frameWidth = Math.floor(imageWidth / cols);
   const frameHeight = Math.floor(imageHeight / rows);
@@ -570,11 +575,10 @@ export const sliceSpriteSheet = async (url: string, frameCount?: number, apiLeng
             canvas.width = layout.frameWidth;
             canvas.height = layout.frameHeight;
             const ctx = canvas.getContext('2d');
-            if (ctx) {
-              ctx.imageSmoothingEnabled = false;
-              drawSpriteSheetFrame(ctx, img, layout, index);
-              frames.push(canvas.toDataURL('image/png'));
-            }
+            if (!ctx) throw new Error('Canvas context failed while slicing the sprite sheet');
+            ctx.imageSmoothingEnabled = false;
+            drawSpriteSheetFrame(ctx, img, layout, index);
+            frames.push(canvas.toDataURL('image/png'));
           }
           
           resolve(frames);
