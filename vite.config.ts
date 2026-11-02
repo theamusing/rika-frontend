@@ -3,9 +3,8 @@ import react from '@vitejs/plugin-react';
 
 export default defineConfig({
   plugins: [react()],
-  // If your repository URL is https://<USERNAME>.github.io/<REPO-NAME>/
-  // base should be set to '/<REPO-NAME>/'. Using './' is generally safe for relative paths.
-  base: './', 
+  // Use the base path provided by actions/configure-pages, falling back to '/'
+  base: process.env.VITE_BASE_URL ?? '/',
   build: {
     outDir: 'dist',
     assetsDir: 'assets',
