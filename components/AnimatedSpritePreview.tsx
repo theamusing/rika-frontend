@@ -2,6 +2,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import { PixelImage } from './PixelComponents.tsx';
 import AspectRatioPreview from './AspectRatioPreview.tsx';
 import { drawSpriteSheetFrame, getSpriteSheetLayout, SpriteSheetLayout } from '../utils/imageUtils.ts';
+import { loadReadableImage } from '../utils/imageLoader.ts';
 
 const EMPTY_EXCLUDED: number[] = [];
 
@@ -17,11 +18,12 @@ interface Props {
   maxHeight?: number;
   children?: React.ReactNode;
   play?: boolean;
+  lang?: 'en' | 'zh';
 }
 
 const AnimatedSpritePreview: React.FC<Props> = ({
   src, animationSrc, frameCount = 0, columns = 4, excludedIndices = EMPTY_EXCLUDED, alt,
-  className = '', fallbackRatio = 1, maxHeight = 420, children, play = true,
+  className = '', fallbackRatio = 1, maxHeight = 420, children, play = true, lang = 'en',
 }) => {
   const containerRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -31,7 +33,9 @@ const AnimatedSpritePreview: React.FC<Props> = ({
   const [isVisible, setIsVisible] = useState(false);
   const [ready, setReady] = useState(false);
   const [frameRatio, setFrameRatio] = useState(fallbackRatio);
-  const canAnimate = Boolean(animationSrc) && frameCount > 1;
+  const [error, setError] = useState(false);
+  const [retry, setRetry] = useState(0);
+  const canAnimate = Boolean(animationSrc) && frameCount > 0;
 
   useEffect(() => {
     if (!canAnimate || !containerRef.current) return;
@@ -51,10 +55,10 @@ const AnimatedSpritePreview: React.FC<Props> = ({
     layoutRef.current = null;
     frameOrderRef.current = [];
     setReady(false);
+    setError(false);
     if (!canAnimate || !isVisible || !animationSrc) return;
     let active = true;
-    const image = new Image();
-    image.onload = () => {
+    void loadReadableImage(animationSrc, { refresh: retry > 0 }).then(image => {
       if (!active) return;
       try {
         // Player's slicer uses these exact shared crop coordinates.
@@ -67,21 +71,20 @@ const AnimatedSpritePreview: React.FC<Props> = ({
         frameOrderRef.current = order.length ? order : [0];
         setFrameRatio(layout.frameWidth / layout.frameHeight);
         setReady(true);
-      } catch {
-        setReady(false);
+      } catch (error) {
+        console.warn('Animation preview layout failed.', error);
+        setReady(false); setError(true);
       }
-    };
-    image.onerror = () => { if (active) setReady(false); };
-    image.src = animationSrc;
+    }).catch(error => {
+      if (active) { console.warn('Animation preview could not be loaded.', error); setReady(false); setError(true); }
+    });
     return () => {
       active = false;
-      image.onload = null;
-      image.onerror = null;
       sheetRef.current = null;
       layoutRef.current = null;
       frameOrderRef.current = [];
     };
-  }, [animationSrc, canAnimate, columns, excludedIndices, frameCount, isVisible]);
+  }, [animationSrc, canAnimate, columns, excludedIndices, frameCount, isVisible, retry]);
 
   useEffect(() => {
     if (!ready || !isVisible || !canvasRef.current || !sheetRef.current || !layoutRef.current) return;
@@ -120,6 +123,14 @@ const AnimatedSpritePreview: React.FC<Props> = ({
       <canvas ref={canvasRef} role="img" aria-label={alt} aria-hidden={!ready}
         className={`absolute inset-0 h-full w-full object-contain ${ready ? '' : 'invisible'}`}
         style={{ imageRendering: 'pixelated' }} />
+      {!ready && isVisible && (
+        <div className="absolute bottom-0 left-0 right-0 z-30 bg-[#1b0a38]/95 p-2 text-center text-white" style={{ fontSize: lang === 'zh' ? 13 : 10 }}>
+          {error ? <button type="button" className="underline text-[#f7d51d]" onClick={event => {
+            event.stopPropagation(); setRetry(value => value + 1);
+          }}>{lang === 'zh' ? '动画预览加载失败 · 重试' : 'Animation preview failed · Retry'}</button>
+            : (lang === 'zh' ? '正在加载动画…' : 'Loading animation…')}
+        </div>
+      )}
       {children}
     </div>
   );

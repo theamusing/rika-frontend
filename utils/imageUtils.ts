@@ -1,90 +1,7 @@
-
-import { getAssetFromCache, saveAssetToCache } from './dbUtils.ts';
 import { RGB } from './editorUtils.ts';
 import { applyBackendCentroids, quantizeImageDataBackend } from './backendPalette.ts';
-
-/**
- * Checks if a URL points to a user-generated image that should be cached.
- */
-export const isUserImage = (url: string): boolean => {
-  return url.includes('cdn.rika-ai.com/users/');
-};
-
-/**
- * Helper to fetch a remote image and return a Data URL.
- * Implements persistent caching via IndexedDB for user images and robust CORS handling.
- */
-export const fetchAsDataUrl = async (url: string): Promise<string> => {
-  if (url.startsWith('data:')) return url;
-
-  const shouldCache = isUserImage(url);
-
-  // 1. Check persistent cache first (only for user images)
-  if (shouldCache) {
-    try {
-      const cached = await getAssetFromCache(url);
-      if (cached?.startsWith('data:image/')) {
-        return cached;
-      }
-    } catch (err) {
-      console.warn("Persistent cache read failure", err);
-    }
-  }
-
-  // 2. Try fetching via XHR/fetch first (preferred for blobs)
-  try {
-    const response = await fetch(url, { 
-      method: 'GET',
-      mode: 'cors',
-      credentials: 'omit'
-    });
-    
-    if (response.ok) {
-      const blob = await response.blob();
-      if (blob.type && !blob.type.startsWith('image/')) {
-        throw new Error('Generated image response is not an image');
-      }
-      const dataUrl = await new Promise<string>((resolve, reject) => {
-        const reader = new FileReader();
-        reader.onloadend = () => resolve(reader.result as string);
-        reader.onerror = reject;
-        reader.readAsDataURL(blob);
-      });
-
-      if (shouldCache) {
-        try { await saveAssetToCache(url, dataUrl); } catch (e) {}
-      }
-      return dataUrl;
-    }
-  } catch (err) {
-    console.warn(`Fetch API failed for ${url.slice(-20)}, trying Image fallback...`);
-  }
-
-  // 3. Fallback: Try loading via Image element
-  return new Promise((resolve, reject) => {
-    const img = new Image();
-    img.crossOrigin = "anonymous";
-    img.onload = () => {
-      const canvas = document.createElement('canvas');
-      canvas.width = img.width;
-      canvas.height = img.height;
-      const ctx = canvas.getContext('2d');
-      if (!ctx) return reject(new Error("Canvas context failed"));
-      ctx.drawImage(img, 0, 0);
-      try {
-        const dataUrl = canvas.toDataURL('image/png');
-        if (shouldCache) {
-          saveAssetToCache(url, dataUrl).catch(() => {});
-        }
-        resolve(dataUrl);
-      } catch (e) {
-        reject(new Error("Canvas toDataURL failed - likely CORS"));
-      }
-    };
-    img.onerror = () => reject(new Error(`Failed to fetch image via all protocols: ${url}`));
-    img.src = url;
-  });
-};
+import { fetchAsDataUrl, loadReadableImage } from './imageLoader.ts';
+export { fetchAsDataUrl, isUserImage } from './imageLoader.ts';
 
 export const processImage = async (
   source: File | string, 
@@ -557,44 +474,20 @@ export const drawSpriteSheetFrame = (
 };
 
 export const sliceSpriteSheet = async (url: string, frameCount?: number, apiLength: number = 25, columns?: number): Promise<string[]> => {
-  try {
-    const sourceDataUrl = await fetchAsDataUrl(url);
-    const isDataUrl = sourceDataUrl.startsWith('data:');
-
-    return new Promise((resolve, reject) => {
-      const img = new Image();
-      if (!isDataUrl) img.crossOrigin = "anonymous";
-
-      img.onload = () => {
-        try {
-          const frames: string[] = [];
-          const layout = getSpriteSheetLayout(img.width, img.height, frameCount, apiLength, columns);
-
-          for (let index = 0; index < layout.frameCount; index++) {
-            const canvas = document.createElement('canvas');
-            canvas.width = layout.frameWidth;
-            canvas.height = layout.frameHeight;
-            const ctx = canvas.getContext('2d');
-            if (!ctx) throw new Error('Canvas context failed while slicing the sprite sheet');
-            ctx.imageSmoothingEnabled = false;
-            drawSpriteSheetFrame(ctx, img, layout, index);
-            frames.push(canvas.toDataURL('image/png'));
-          }
-          
-          resolve(frames);
-        } catch (e) {
-          reject(e);
-        }
-      };
-      img.onerror = () => {
-        reject(new Error("Image rendering failed"));
-      };
-      img.src = sourceDataUrl;
-    });
-  } catch (err) {
-    console.error("Sprite sheet fetch error:", err);
-    throw err;
+  const image = await loadReadableImage(url);
+  const layout = getSpriteSheetLayout(image.naturalWidth, image.naturalHeight, frameCount, apiLength, columns);
+  const frames: string[] = [];
+  const canvas = document.createElement('canvas');
+  canvas.width = layout.frameWidth; canvas.height = layout.frameHeight;
+  const context = canvas.getContext('2d');
+  if (!context) throw new Error('Canvas context failed while slicing the sprite sheet');
+  context.imageSmoothingEnabled = false;
+  for (let index = 0; index < layout.frameCount; index++) {
+    context.clearRect(0, 0, canvas.width, canvas.height);
+    drawSpriteSheetFrame(context, image, layout, index);
+    frames.push(canvas.toDataURL('image/png'));
   }
+  return frames;
 };
 
 export const scaleToSize = async (url: string, size: number): Promise<string> => {

@@ -34,7 +34,7 @@ const animationPreview = (job: Job, cacheChecked: boolean, cached?: CachedPrevie
     ? Number(job.input_params?.output_frames)
     : Math.floor((Number(job.input_params?.length ?? 33) - 1) / 2);
   const frameCount = Math.floor(Number(cached?.frameCount ?? rawCount));
-  if (!Number.isFinite(frameCount) || frameCount < 2) return {};
+  if (!Number.isFinite(frameCount) || frameCount < 1) return {};
   return {
     animationSrc: cached?.spriteSheet || job.output_images?.[0]?.url,
     frameCount,
@@ -165,13 +165,13 @@ const HistoryPage: React.FC<HistoryPageProps> = ({
       while (active && nextIndex < jobs.length) {
         const job = jobs[nextIndex++];
         try {
-          let cached = await getSpriteFromCache(job.gen_id);
-          if (!cached?.spriteSheet && job.status === 'succeeded' && !isSingleFrameJob(job)) {
-            // Play the cloud image while its original bytes are copied into IndexedDB.
+          let cached;
+          if (job.status === 'succeeded' && !isSingleFrameJob(job)) {
+            // Preview and Player share the same readable image request and validated cache.
             if (active) setCheckedCacheIds(previous => previous.has(job.gen_id)
               ? previous : new Set(previous).add(job.gen_id));
             cached = await ensureOriginalSpriteCache(job);
-          }
+          } else cached = await getSpriteFromCache(job.gen_id);
           if (!active) return;
           if (cached?.spriteSheet) {
             const metadata = cached.customData?.frameMetadata;
@@ -386,7 +386,7 @@ const HistoryPage: React.FC<HistoryPageProps> = ({
 
             return jobs.map((job) => (
               <PixelCard key={job.gen_id} className="group hover:bg-[#5a2d9c]/20 transition-all cursor-pointer" onClick={() => setSelectedJob(job)}>
-                  <AnimatedSpritePreview alt="Job preview" fallbackRatio={jobFrameAspectRatio(job)} maxHeight={256}
+                  <AnimatedSpritePreview lang={lang} alt="Job preview" fallbackRatio={jobFrameAspectRatio(job)} maxHeight={256}
                     play={!selectedJob} {...animationPreview(job, checkedCacheIds.has(job.gen_id), cachedSprites[job.gen_id])}
                     src={((job.job_type === 'character' || job.job_type === 'item') && cachedSprites[job.gen_id])
                       ? cachedSprites[job.gen_id].spriteSheet
@@ -522,7 +522,7 @@ const HistoryPage: React.FC<HistoryPageProps> = ({
                                   <p className={`opacity-50 uppercase mb-2`} style={{ fontSize: zhScale(8) }}>
                                     {isZh ? '生成结果' : 'Generated Output'}
                                   </p>
-                                  <AnimatedSpritePreview alt="Output" fallbackRatio={jobFrameAspectRatio(selectedJob)}
+                                  <AnimatedSpritePreview lang={lang} alt="Output" fallbackRatio={jobFrameAspectRatio(selectedJob)}
                                     {...animationPreview(selectedJob, checkedCacheIds.has(selectedJob.gen_id), cachedSprites[selectedJob.gen_id])}
                                     src={((selectedJob.job_type === 'character' || selectedJob.job_type === 'item') && cachedSprites[selectedJob.gen_id])
                                       ? cachedSprites[selectedJob.gen_id].spriteSheet

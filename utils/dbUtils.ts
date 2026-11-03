@@ -1,4 +1,3 @@
-
 const DB_NAME = 'rika-db';
 const STORE_NAME = 'spritesheets';
 const ASSET_STORE_NAME = 'image-assets';
@@ -11,91 +10,95 @@ export interface CachedSprite {
   updatedAt: number;
   customData?: any;
 }
+export interface CachedAsset { url: string; data: string; updatedAt: number; }
 
-export interface CachedAsset {
-  url: string;
-  data: string; // Base64 data URL
-  updatedAt: number;
-}
-
+let opening: Promise<IDBDatabase> | null = null;
 export const initDB = (): Promise<IDBDatabase> => {
-  return new Promise((resolve, reject) => {
+  if (opening) return opening;
+  opening = new Promise<IDBDatabase>((resolve, reject) => {
+    let expired = false;
+    const timer = setTimeout(() => { expired = true; reject(new Error('Local storage timed out')); }, 5000);
     const request = indexedDB.open(DB_NAME, DB_VERSION);
-    request.onupgradeneeded = (event: any) => {
-      const db = request.result;
-      if (!db.objectStoreNames.contains(STORE_NAME)) {
-        db.createObjectStore(STORE_NAME, { keyPath: 'gen_id' });
-      }
-      if (!db.objectStoreNames.contains(ASSET_STORE_NAME)) {
-        db.createObjectStore(ASSET_STORE_NAME, { keyPath: 'url' });
+    request.onupgradeneeded = () => {
+      for (const [name, keyPath] of [[STORE_NAME, 'gen_id'], [ASSET_STORE_NAME, 'url']]) {
+        if (!request.result.objectStoreNames.contains(name)) request.result.createObjectStore(name, { keyPath });
       }
     };
-    request.onsuccess = () => resolve(request.result);
-    request.onerror = () => reject(request.error);
-  });
-};
-
-export const saveSpriteToCache = async (data: CachedSprite): Promise<void> => {
-  const db = await initDB();
-  return new Promise((resolve, reject) => {
-    const transaction = db.transaction(STORE_NAME, 'readwrite');
-    const store = transaction.objectStore(STORE_NAME);
-    const request = store.put(data);
-    request.onsuccess = () => resolve();
-    request.onerror = () => reject(request.error);
-  });
-};
-
-/** Seed a new job's original result without replacing a locally edited copy. */
-export const createSpriteCacheIfAbsent = async (data: CachedSprite): Promise<CachedSprite> => {
-  const db = await initDB();
-  return new Promise((resolve, reject) => {
-    const transaction = db.transaction(STORE_NAME, 'readwrite');
-    const store = transaction.objectStore(STORE_NAME);
-    let result = data;
-    transaction.oncomplete = () => resolve(result);
-    transaction.onerror = () => reject(transaction.error);
-    transaction.onabort = () => reject(transaction.error);
-    const request = store.get(data.gen_id);
     request.onsuccess = () => {
-      if (request.result) {
-        result = request.result;
-        return;
-      }
-      store.put(data);
+      clearTimeout(timer);
+      const db = request.result;
+      if (expired) { db.close(); return; }
+      db.onversionchange = () => { db.close(); opening = null; };
+      db.onclose = () => { opening = null; };
+      resolve(db);
+    };
+    request.onerror = () => { clearTimeout(timer); reject(request.error); };
+    request.onblocked = () => { expired = true; clearTimeout(timer); reject(new Error('Local storage is blocked by another tab')); };
+  });
+  void opening.catch(() => { opening = null; });
+  return opening;
+};
+
+// Wait for the commit; put-success alone does not guarantee a durable write.
+const transaction = async <T>(storeName: string, mode: IDBTransactionMode,
+  run: (store: IDBObjectStore, result: (value: T) => void) => void): Promise<T> => {
+  const db = await initDB();
+  return new Promise<T>((resolve, reject) => {
+    const tx = db.transaction(storeName, mode);
+    let value: T;
+    const timer = setTimeout(() => { try { tx.abort(); } catch {} reject(new Error('Local storage transaction timed out')); }, 5000);
+    tx.oncomplete = () => { clearTimeout(timer); resolve(value); };
+    tx.onerror = tx.onabort = () => { clearTimeout(timer); reject(tx.error || new Error('Local storage transaction failed')); };
+    try { run(tx.objectStore(storeName), next => { value = next; }); }
+    catch (error) { clearTimeout(timer); try { tx.abort(); } catch {} reject(error); }
+  });
+};
+
+export const saveSpriteToCache = (data: CachedSprite): Promise<void> =>
+  transaction(STORE_NAME, 'readwrite', store => { store.put(data); });
+
+export const getSpriteFromCache = (genId: string): Promise<CachedSprite | null> =>
+  transaction(STORE_NAME, 'readonly', (store, result) => {
+    store.get(genId).onsuccess = event => result((event.target as IDBRequest).result || null);
+  });
+
+export const createSpriteCacheIfAbsent = (data: CachedSprite): Promise<CachedSprite> =>
+  transaction(STORE_NAME, 'readwrite', (store, result) => {
+    store.get(data.gen_id).onsuccess = event => {
+      const existing = (event.target as IDBRequest).result;
+      if (!existing) store.put(data);
+      result(existing || data);
     };
   });
-};
 
-export const getSpriteFromCache = async (genId: string): Promise<CachedSprite | null> => {
-  const db = await initDB();
-  return new Promise((resolve, reject) => {
-    const transaction = db.transaction(STORE_NAME, 'readonly');
-    const store = transaction.objectStore(STORE_NAME);
-    const request = store.get(genId);
-    request.onsuccess = () => resolve(request.result || null);
-    request.onerror = () => reject(request.error);
+/** Keep a recovery copy and never overwrite an edit made by another tab. */
+export const recoverSpriteCache = (data: CachedSprite, expected: CachedSprite): Promise<CachedSprite> =>
+  transaction(STORE_NAME, 'readwrite', (store, result) => {
+    store.get(data.gen_id).onsuccess = event => {
+      const current: CachedSprite | undefined = (event.target as IDBRequest).result;
+      if (current && (current.updatedAt !== expected.updatedAt || current.spriteSheet !== expected.spriteSheet)) {
+        result(current); return;
+      }
+      if (current) store.put({ ...current,
+        gen_id: `recovery:${data.gen_id}:${Date.now()}`,
+        customData: { ...current.customData, recoveryOf: data.gen_id },
+      });
+      store.put(data);
+      result(data);
+    };
   });
-};
 
-export const saveAssetToCache = async (url: string, data: string): Promise<void> => {
-  const db = await initDB();
-  return new Promise((resolve, reject) => {
-    const transaction = db.transaction(ASSET_STORE_NAME, 'readwrite');
-    const store = transaction.objectStore(ASSET_STORE_NAME);
-    const request = store.put({ url, data, updatedAt: Date.now() });
-    request.onsuccess = () => resolve();
-    request.onerror = () => reject(request.error);
-  });
-};
+export const saveAssetToCache = (url: string, data: string): Promise<void> =>
+  transaction(ASSET_STORE_NAME, 'readwrite', store => { store.put({ url, data, updatedAt: Date.now() }); });
 
-export const getAssetFromCache = async (url: string): Promise<string | null> => {
-  const db = await initDB();
-  return new Promise((resolve, reject) => {
-    const transaction = db.transaction(ASSET_STORE_NAME, 'readonly');
-    const store = transaction.objectStore(ASSET_STORE_NAME);
-    const request = store.get(url);
-    request.onsuccess = () => resolve(request.result?.data || null);
-    request.onerror = () => reject(request.error);
+export const getAssetFromCache = (url: string): Promise<string | null> =>
+  transaction(ASSET_STORE_NAME, 'readonly', (store, result) => {
+    store.get(url).onsuccess = event => result((event.target as IDBRequest).result?.data || null);
   });
-};
+
+export const deleteAssetFromCache = (url: string, expected: string): Promise<void> =>
+  transaction(ASSET_STORE_NAME, 'readwrite', store => {
+    store.get(url).onsuccess = event => {
+      if ((event.target as IDBRequest).result?.data === expected) store.delete(url);
+    };
+  });

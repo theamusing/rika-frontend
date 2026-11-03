@@ -8,7 +8,8 @@ import { floodFill, RGB, colorDistance, colorMatchRemoval } from '../utils/edito
 import { applyBackendCentroids } from '../utils/backendPalette.ts';
 import { extractCentroidsAsync } from '../utils/paletteWorker.ts';
 import { saveSpriteToCache, getSpriteFromCache, CachedSprite } from '../utils/dbUtils.ts';
-import { ensureOriginalSpriteCache } from '../utils/originalSpriteCache.ts';
+import { ensureOriginalSpriteCache, animationSpec } from '../utils/originalSpriteCache.ts';
+import { decodeImage } from '../utils/imageLoader.ts';
 import { fitImageDimensions } from '../utils/animationDisplay.ts';
 import { lassoSelection, PixelPoint, rectangleSelection, selectionOutlinePath } from '../utils/selectionUtils.ts';
 import { Heart, ArrowLeft, Move, Pipette, HelpCircle, SquareDashedMousePointer, PaintBucket } from 'lucide-react';
@@ -43,12 +44,12 @@ interface FrameData {
   isExcluded?: boolean;
 }
 
-const TaskPlayerPage: React.FC<TaskPlayerPageProps> = ({ 
-  selectedJobId, 
-  initialJob, 
-  onJobSelected, 
-  onRegenerate, 
-  onBack, 
+const TaskPlayerPage: React.FC<TaskPlayerPageProps> = ({
+  selectedJobId,
+  initialJob,
+  onJobSelected,
+  onRegenerate,
+  onBack,
   onRegisterSaveBeforeLeave,
   onJobFailed,
   lang = 'en',
@@ -90,7 +91,7 @@ const TaskPlayerPage: React.FC<TaskPlayerPageProps> = ({
   const [isLightBg, setIsLightBg] = useState(false);
   const [isCtrlPressed, setIsCtrlPressed] = useState(false);
   const [isQPressed, setIsQPressed] = useState(false);
-  
+
   const [brushSize, setBrushSize] = useState(1);
   const [eraserSize, setEraserSize] = useState(1);
   const [wandTolerance, setWandTolerance] = useState(30);
@@ -108,6 +109,12 @@ const TaskPlayerPage: React.FC<TaskPlayerPageProps> = ({
   const [frameDimensions, setFrameDimensions] = useState({ width: 128, height: 128 });
   const [viewportDimensions, setViewportDimensions] = useState({ width: 512, height: 512 });
   const [loadError, setLoadError] = useState<string | null>(null);
+  const [loadedJobId, setLoadedJobId] = useState<string | null>(null);
+  const [retryLoad, setRetryLoad] = useState(0);
+  const loadedJobRef = useRef<string | null>(null);
+  const loadGenerationRef = useRef(0);
+  const latestFramesRef = useRef(frames);
+  latestFramesRef.current = frames;
 
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const overlayRef = useRef<HTMLCanvasElement>(null);
@@ -124,6 +131,7 @@ const TaskPlayerPage: React.FC<TaskPlayerPageProps> = ({
 
   const isZh = lang === 'zh';
   const isJobRunning = currentJob?.status === 'running' || currentJob?.status === 'queued';
+  const isEditorBlocked = isJobRunning || (!!selectedJobId && !isCustomMode && loadedJobId !== selectedJobId);
   const processingStage = currentJob?.processing_stage;
   const processingLabel = processingStage === 'prompt_optimization'
     ? (isZh ? '正在优化提示词' : 'OPTIMIZING PROMPT')
@@ -194,7 +202,7 @@ const TaskPlayerPage: React.FC<TaskPlayerPageProps> = ({
       return;
     }
     const newLiked = !job.liked;
-    
+
     // Optimistic update
     setCurrentJob(prev => prev && prev.gen_id === job.gen_id ? { ...prev, liked: newLiked } : prev);
 
@@ -215,25 +223,25 @@ const TaskPlayerPage: React.FC<TaskPlayerPageProps> = ({
   };
 
   const nudgeFrame = useCallback((dx: number, dy: number) => {
-    if (isJobRunning) return;
+    if (isEditorBlocked) return;
     setIsPlaying(false);
     const canvas = canvasRef.current;
     if (!canvas) return;
     const ctx = canvas.getContext('2d')!;
-    
+
     // 1. Capture current state
     const tempCanvas = document.createElement('canvas');
     tempCanvas.width = canvas.width;
     tempCanvas.height = canvas.height;
     const tempCtx = tempCanvas.getContext('2d')!;
     tempCtx.drawImage(canvas, 0, 0);
-    
+
     // 2. Clear canvas
     ctx.clearRect(0, 0, canvas.width, canvas.height);
-    
+
     // 3. Draw with offset
     ctx.drawImage(tempCanvas, dx, dy);
-    
+
     // 4. Fill the gap with the "previous color" (edge smear)
     if (dx > 0) {
       // Moved right, fill column 0 with original column 0
@@ -242,7 +250,7 @@ const TaskPlayerPage: React.FC<TaskPlayerPageProps> = ({
       // Moved left, fill last column with original last column
       ctx.drawImage(tempCanvas, canvas.width - 1, 0, 1, canvas.height, canvas.width - 1, 0, 1, canvas.height);
     }
-    
+
     if (dy > 0) {
       // Moved down, fill row 0 with original row 0
       ctx.drawImage(tempCanvas, 0, 0, canvas.width, 1, 0, 0, canvas.width, 1);
@@ -250,49 +258,50 @@ const TaskPlayerPage: React.FC<TaskPlayerPageProps> = ({
       // Moved up, fill last row with original last row
       ctx.drawImage(tempCanvas, 0, canvas.height - 1, canvas.width, 1, 0, canvas.height - 1, canvas.width, 1);
     }
-    
+
     const newFrames = [...frames];
     newFrames[currentFrameIndex] = { ...newFrames[currentFrameIndex], url: canvas.toDataURL() };
     pushToHistory(newFrames);
-  }, [frames, currentFrameIndex, isJobRunning]);
+  }, [frames, currentFrameIndex, isEditorBlocked]);
 
   const handleUndo = useCallback(() => {
-    if (undoStack.length === 0 || isJobRunning) return;
+    if (undoStack.length === 0 || isEditorBlocked) return;
     setIsPlaying(false);
     const prev = undoStack[undoStack.length - 1];
     setRedoStack(prevRedo => [...prevRedo, frames]);
     setUndoStack(prevUndo => prevUndo.slice(0, -1));
     setFrames([...prev]);
     setHasUnsavedEdits(true);
-  }, [undoStack, frames, isJobRunning]);
+  }, [undoStack, frames, isEditorBlocked]);
 
   const handleRedo = useCallback(() => {
-    if (redoStack.length === 0 || isJobRunning) return;
+    if (redoStack.length === 0 || isEditorBlocked) return;
     setIsPlaying(false);
     const next = redoStack[redoStack.length - 1];
     setUndoStack(prevUndo => [...prevUndo, frames]);
     setRedoStack(prevRedo => prevRedo.slice(0, -1));
     setFrames([...next]);
     setHasUnsavedEdits(true);
-  }, [redoStack, frames, isJobRunning]);
+  }, [redoStack, frames, isEditorBlocked]);
 
   const handleSaveToCache = useCallback(async () => {
-    if (!selectedJobId || frames.length === 0 || isJobRunning || isCustomMode) return;
+    if (!selectedJobId || frames.length === 0 || isJobRunning || isCustomMode || loadedJobRef.current !== selectedJobId) return;
+    const generation = loadGenerationRef.current;
+    const savingFrames = frames;
     try {
-      const spriteSheet = await reconstructSpriteSheet(frames.map(f => f.url));
+      const spriteSheet = await reconstructSpriteSheet(savingFrames.map(frame => frame.url));
+      if (generation !== loadGenerationRef.current || loadedJobRef.current !== selectedJobId || latestFramesRef.current !== savingFrames) return;
       const cacheData: CachedSprite = {
-        gen_id: selectedJobId,
-        spriteSheet,
-        updatedAt: Date.now(),
-        // Store frame metadata for persistence
+        gen_id: selectedJobId, spriteSheet, updatedAt: Date.now(),
         customData: {
-          frameMetadata: frames.map(f => ({ id: f.id, isOriginal: f.isOriginal, isExcluded: f.isExcluded }))
-        }
+          cacheVersion: 3, source: 'edited', columns: Math.min(4, savingFrames.length),
+          frameMetadata: savingFrames.map(frame => ({ id: frame.id, isOriginal: frame.isOriginal, isExcluded: frame.isExcluded })),
+        },
       };
       await saveSpriteToCache(cacheData);
-      setHasUnsavedEdits(false);
-    } catch (err) { console.error("Cache fail", err); }
-  }, [selectedJobId, frames, isJobRunning]);
+      if (generation === loadGenerationRef.current && latestFramesRef.current === savingFrames) setHasUnsavedEdits(false);
+    } catch (error) { console.error('Edits could not be saved locally.', error); }
+  }, [selectedJobId, frames, isJobRunning, isCustomMode]);
 
   useEffect(() => {
     onRegisterSaveBeforeLeave?.(async () => {
@@ -302,7 +311,7 @@ const TaskPlayerPage: React.FC<TaskPlayerPageProps> = ({
   }, [handleSaveToCache, hasUnsavedEdits, isCustomMode, isJobRunning, onRegisterSaveBeforeLeave]);
 
   const deleteSelection = useCallback(() => {
-    if (selection.size === 0 || isJobRunning) return;
+    if (selection.size === 0 || isEditorBlocked) return;
     setIsPlaying(false);
     const canvas = canvasRef.current;
     if (!canvas) return;
@@ -315,7 +324,7 @@ const TaskPlayerPage: React.FC<TaskPlayerPageProps> = ({
     newFrames[currentFrameIndex] = { ...newFrames[currentFrameIndex], url: canvas.toDataURL() };
     pushToHistory(newFrames);
     setSelection(new Set());
-  }, [selection, frames, currentFrameIndex, isJobRunning]);
+  }, [selection, frames, currentFrameIndex, isEditorBlocked]);
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -362,9 +371,9 @@ const TaskPlayerPage: React.FC<TaskPlayerPageProps> = ({
   }, [deleteSelection, handleUndo, handleRedo, handleSaveToCache, activeTool, selection.size]);
 
   useEffect(() => {
-    const interval = setInterval(() => { if (!isJobRunning && frames.length > 0) handleSaveToCache(); }, 10000);
+    const interval = setInterval(() => { if (hasUnsavedEdits && !isJobRunning && loadedJobRef.current === selectedJobId) void handleSaveToCache(); }, 10000);
     return () => clearInterval(interval);
-  }, [handleSaveToCache, isJobRunning, frames.length]);
+  }, [handleSaveToCache, isJobRunning, hasUnsavedEdits, selectedJobId]);
 
   useEffect(() => {
     if (frames.length > 0 && removalBgColor === '#000000') {
@@ -394,174 +403,152 @@ const TaskPlayerPage: React.FC<TaskPlayerPageProps> = ({
     return () => container.removeEventListener('wheel', onWheel);
   }, [zoom, pan]);
 
-  const updateFramesFromJob = useCallback(async (job: Job): Promise<boolean> => {
-    const apiLength = job.input_params?.length || 33;
-    const isSingleFrame = job.job_type === 'character' || job.job_type === 'item' || job.job_type === 'map';
+  const updateFramesFromJob = useCallback(async (job: Job, isCurrent: () => boolean): Promise<boolean> => {
+    if (!isCurrent()) return false;
+    const single = ['character', 'item', 'map'].includes(job.job_type || 'animation');
     setLoadError(null);
+    loadedJobRef.current = null;
+    setLoadedJobId(null);
+    if (job.status !== 'succeeded') {
+      if ((job.status === 'running' || job.status === 'queued') && job.input_images?.[0]?.url) {
+        const url = job.input_images[0].url;
+        const preview = await fetchAsDataUrl(url).catch(() => url);
+        if (isCurrent()) {
+          setFrames([{ id: `waiting-${job.gen_id}`, url: preview, isOriginal: true }]);
+          setCurrentFrameIndex(0);
+        }
+      }
+      return false;
+    }
+    setLoading(true);
+    setFrames([]);
+    setSelection(new Set());
     try {
-      const existing = await getSpriteFromCache(job.gen_id);
-      const cached = existing?.spriteSheet || job.status !== 'succeeded' || isSingleFrame
-        ? existing : await ensureOriginalSpriteCache(job);
-      if (cached?.spriteSheet) {
-        const frameMetadata = (cached.customData as any)?.frameMetadata;
-        // For single frame jobs (character/item/map), we expect 1 frame. sliceSpriteSheet handles this if targetLength is 1.
-        const targetLength = isSingleFrame ? 1 : (frameMetadata?.length ??
-          ((job.animation_version === 2 || job.input_params?.animation_version === 2) ? job.input_params.output_frames : undefined));
-        const cachedColumns = cached.customData?.columns;
-        let sliced = isSingleFrame ? [cached.spriteSheet] : await sliceSpriteSheet(cached.spriteSheet, targetLength, apiLength, cachedColumns);
-        if (isMounted.current) {
-          const mappedFrames: FrameData[] = sliced.map((url, i) => ({
-            id: frameMetadata?.[i]?.id || `f-${Date.now()}-${i}`,
-            url,
-            isOriginal: frameMetadata?.[i]?.isOriginal ?? true,
-            isExcluded: frameMetadata?.[i]?.isExcluded ?? false
-          }));
-          setFrames(mappedFrames);
-          setInitialFrames(mappedFrames);
-          setLoadError(null);
-          setUndoStack([]); setRedoStack([]); setPan({ x: 0, y: 0 }); setSelection(new Set());
-          setHasUnsavedEdits(false);
-          return true;
+      let mapped: FrameData[];
+      if (!single) {
+        const cached = await ensureOriginalSpriteCache(job);
+        if (!isCurrent()) return false;
+        const metadata = cached.customData?.frameMetadata;
+        const count = Array.isArray(metadata) ? metadata.length : animationSpec(job).frameCount;
+        const sliced = await sliceSpriteSheet(cached.spriteSheet, count, Number(job.input_params?.length ?? 33), cached.customData?.columns);
+        mapped = sliced.map((url, index) => ({
+          id: metadata?.[index]?.id || `original-${job.gen_id}-${index}`, url,
+          isOriginal: metadata?.[index]?.isOriginal ?? true,
+          isExcluded: metadata?.[index]?.isExcluded ?? false,
+        }));
+      } else {
+        const cached = await getSpriteFromCache(job.gen_id).catch(() => null);
+        let processed: string | undefined;
+        if (cached?.spriteSheet) {
+          try { await decodeImage(cached.spriteSheet); processed = cached.spriteSheet; }
+          catch (error) { console.warn('Stored image could not be opened.', error); }
         }
-      }
-    } catch (err) {
-      console.warn('Cached animation could not be opened; loading the cloud result instead.', err);
-    }
-
-    const outputUrl = job.output_images?.[0]?.url;
-    if (job.status === 'succeeded' && outputUrl) {
-      try {
-        if (isSingleFrame) {
-          let processed = outputUrl;
-          if (job.job_type === 'character' || job.job_type === 'item') {
-            const pixelSize = parseInt(job.input_params?.pixel_size || '128');
+        if (!processed) {
+          const outputUrl = job.output_images?.[0]?.url;
+          if (!outputUrl) throw new Error('Generated image is unavailable');
+          if (job.job_type === 'map') processed = await processMapImage(outputUrl);
+          else {
+            const size = parseInt(job.input_params?.pixel_size || '128');
             const version = parseInt(job.input_params?.version || '1');
-            const targetSize = version === 2 ? pixelSize : (pixelSize === 32 ? 64 : 128);
-            processed = await scaleToSize(outputUrl, targetSize);
-          } else if (job.job_type === 'map') {
-            processed = await processMapImage(outputUrl);
-          } else {
-            processed = await fetchAsDataUrl(outputUrl);
-          }
-          if (isMounted.current) {
-            const frame: FrameData = { id: `f-${Date.now()}-0`, url: processed, isOriginal: true };
-            setFrames([frame]); setInitialFrames([frame]); setUndoStack([]); setRedoStack([]); setPan({ x: 0, y: 0 }); setSelection(new Set());
-            setHasUnsavedEdits(false);
-          }
-        } else {
-          const isV2 = job.animation_version === 2 || job.input_params?.animation_version === 2;
-          const frameCount = isV2 ? Number(job.input_params?.output_frames) : Math.floor((Number(apiLength) - 1) / 2);
-          const columns = Math.min(isV2 ? 6 : 4, frameCount);
-          const localSheet = await fetchAsDataUrl(outputUrl);
-          const sliced = await sliceSpriteSheet(localSheet, frameCount, apiLength, columns);
-          if (isMounted.current) {
-            const mappedFrames: FrameData[] = sliced.map((url, i) => ({
-              id: `f-${Date.now()}-${i}`,
-              url,
-              isOriginal: true
-            }));
-            setFrames(mappedFrames); setInitialFrames(mappedFrames); setUndoStack([]); setRedoStack([]); setPan({ x: 0, y: 0 }); setSelection(new Set());
-            setHasUnsavedEdits(false);
-            setLoadError(null);
+            processed = await scaleToSize(outputUrl, version === 2 ? size : (size === 32 ? 64 : 128));
           }
         }
-        return isMounted.current;
-      } catch (err) {
-        console.error('Generated animation could not be loaded into the editor.', err);
-        if (isMounted.current) {
-          setFrames([]);
-          setLoadError(err instanceof Error ? err.message : String(err));
-        }
-        return false;
+        mapped = [{ id: `original-${job.gen_id}-0`, url: processed, isOriginal: true }];
       }
-    } else if (job.status === 'running' || job.status === 'queued') {
-      if (job.input_images?.[0]?.url) {
-        try {
-          const rawUrl = job.input_images[0].url;
-          let processedUrl: string;
-          if (isSingleFrame) {
-            if (job.job_type === 'character' || job.job_type === 'item') {
-              const pixelSize = parseInt(job.input_params?.pixel_size || '128');
-              const version = parseInt(job.input_params?.version || '1');
-              const targetSize = version === 2 ? pixelSize : (pixelSize === 32 ? 64 : 128);
-              processedUrl = await scaleToSize(rawUrl, targetSize);
-            } else if (job.job_type === 'map') {
-              processedUrl = await processMapImage(rawUrl);
-            } else {
-              processedUrl = await fetchAsDataUrl(rawUrl);
-            }
-          } else {
-            processedUrl = await fetchAsDataUrl(rawUrl);
-          }
-          
-          if (isMounted.current) { 
-            const firstFrame: FrameData = { id: `f-${Date.now()}-0`, url: processedUrl, isOriginal: true, isExcluded: false };
-            setFrames([firstFrame]); setInitialFrames([firstFrame]); setCurrentFrameIndex(0); 
-            setHasUnsavedEdits(false);
-          }
-        } catch (e) {
-          if (isMounted.current) {
-            const firstFrame: FrameData = { id: `f-${Date.now()}-0`, url: job.input_images[0].url, isOriginal: true, isExcluded: false };
-            setFrames([firstFrame]); setInitialFrames([firstFrame]); setCurrentFrameIndex(0);
-            setHasUnsavedEdits(false);
-          }
-        }
+      if (!isCurrent()) return false;
+      if (!mapped.length) throw new Error('The animation has no readable frames');
+      setFrames(mapped); setInitialFrames(mapped); setCurrentFrameIndex(0);
+      setUndoStack([]); setRedoStack([]); setPan({ x: 0, y: 0 });
+      setHasUnsavedEdits(false); setLoadError(null);
+      loadedJobRef.current = job.gen_id;
+      setLoadedJobId(job.gen_id);
+      return true;
+    } catch (error) {
+      if (isCurrent()) {
+        console.error('Generated result could not be loaded.', { jobId: job.gen_id, error });
+        setFrames([]);
+        setLoadError(error instanceof Error ? error.message : String(error));
       }
-    } else if (job.status === 'succeeded' && isMounted.current) {
-      setFrames([]);
-      setLoadError('Generated image is unavailable');
-    }
-    return false;
+      return false;
+    } finally { if (isCurrent()) setLoading(false); }
   }, []);
 
   useEffect(() => {
     isMounted.current = true;
+    let active = true;
+    const generation = ++loadGenerationRef.current;
+    const isCurrent = () => active && generation === loadGenerationRef.current;
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    loadedJobRef.current = null;
+    setLoadedJobId(null);
+    setLoadError(null);
     if (selectedJobId) {
-      setLoading(true);
+      setLoading(true); setFrames([]); setHasUnsavedEdits(false);
+      setSelection(new Set()); setUndoStack([]); setRedoStack([]);
       customModeRef.current = false;
       setIsCustomMode(false);
+      let firstAttempt = true;
+      let failedInitial: Job | null = null;
       const fetchJob = async () => {
         try {
-          if (initialJob && initialJob.gen_id === selectedJobId) {
+          if (firstAttempt && initialJob?.gen_id === selectedJobId && initialJob.status === 'succeeded') {
+            firstAttempt = false;
             setCurrentJob(initialJob);
-            const opened = await updateFramesFromJob(initialJob);
-            if (initialJob.status === 'succeeded' && opened) {
-              setLoading(false);
+            if (await updateFramesFromJob(initialJob, isCurrent)) {
+              if (isCurrent()) setLoading(false);
               return;
             }
+            failedInitial = initialJob;
           }
+          firstAttempt = false;
           const job = await apiService.getJobInfo(selectedJobId);
-          if (isMounted.current) {
-            setCurrentJob(job); await updateFramesFromJob(job); setLoading(false);
-            const isNewlySubmittedJob = !initialJob || initialJob.gen_id !== selectedJobId;
-            if (isNewlySubmittedJob && job.status === 'failed' && (job.animation_version === 2 || job.input_params?.animation_version === 2)) {
-              if (handledFailureJobId.current !== job.gen_id) {
-                handledFailureJobId.current = job.gen_id;
-                onJobFailed?.(job.error || 'Animation generation failed. Your credits have been refunded.');
-              }
-              return;
+          if (!isCurrent()) return;
+          setCurrentJob(job);
+          if (failedInitial && job.status === 'succeeded') {
+            const imageIdentity = (value: Job) => JSON.stringify([
+              value.output_images?.[0]?.url, value.animation_version,
+              value.input_params?.animation_version, value.input_params?.output_frames,
+              value.input_params?.length, value.input_params?.pixel_size,
+            ]);
+            if (imageIdentity(job) === imageIdentity(failedInitial)) {
+              setLoading(false); return;
             }
-            if (job.status === 'running' || job.status === 'queued') setTimeout(fetchJob, 3000);
           }
-        } catch (e) { setLoading(false); }
+          await updateFramesFromJob(job, isCurrent);
+          if (!isCurrent()) return;
+          setLoading(false);
+          const newlySubmitted = !initialJob || initialJob.gen_id !== selectedJobId;
+          if (newlySubmitted && job.status === 'failed' && Number(job.animation_version ?? job.input_params?.animation_version) === 2) {
+            if (handledFailureJobId.current !== job.gen_id) {
+              handledFailureJobId.current = job.gen_id;
+              onJobFailed?.(job.error || 'Animation generation failed. Your credits have been refunded.');
+            }
+            return;
+          }
+          if (job.status === 'running' || job.status === 'queued') timer = setTimeout(fetchJob, 3000);
+        } catch (error) {
+          if (!isCurrent()) return;
+          console.warn('Job status could not be refreshed.', error);
+          setLoading(false);
+          setLoadError('Could not refresh the task. Retrying…');
+          timer = setTimeout(fetchJob, 5000);
+        }
       };
-      fetchJob();
+      void fetchJob();
     } else if (!customModeRef.current) {
       const blank = document.createElement('canvas');
-      blank.width = 128;
-      blank.height = 128;
-      const b64 = blank.toDataURL();
-      const firstFrame: FrameData = { id: `f-${Date.now()}-0`, url: b64, isOriginal: true, isExcluded: false };
-      setFrames([firstFrame]);
-      setInitialFrames([firstFrame]);
-      setCurrentJob(null);
-      setIsCustomMode(false);
-      setUndoStack([]);
-      setRedoStack([]);
-      setHasUnsavedEdits(false);
+      blank.width = 128; blank.height = 128;
+      const frame: FrameData = { id: `f-${Date.now()}-0`, url: blank.toDataURL(), isOriginal: true, isExcluded: false };
+      setFrames([frame]); setInitialFrames([frame]); setCurrentFrameIndex(0);
+      setCurrentJob(null); setIsCustomMode(false); setLoading(false);
+      setUndoStack([]); setRedoStack([]); setHasUnsavedEdits(false);
     }
-    return () => { isMounted.current = false; };
-  }, [selectedJobId, initialJob, updateFramesFromJob, onJobFailed]);
+    return () => {
+      active = false; isMounted.current = false;
+      if (timer) clearTimeout(timer);
+      loadedJobRef.current = null;
+    };
+  }, [selectedJobId, initialJob, updateFramesFromJob, onJobFailed, retryLoad]);
 
   useEffect(() => {
     const viewport = viewportRef.current;
@@ -582,15 +569,15 @@ const TaskPlayerPage: React.FC<TaskPlayerPageProps> = ({
     const canvas = canvasRef.current;
     if (!canvas) return;
     let cancelled = false;
-    
+
     if (frames[currentFrameIndex]) {
       const ctx = canvas.getContext('2d'); if (!ctx) return;
       const img = new Image();
       img.crossOrigin = "anonymous";
       img.onload = () => {
         if (cancelled) return;
-        canvas.width = img.width; canvas.height = img.height; 
-        ctx.imageSmoothingEnabled = false; ctx.clearRect(0, 0, canvas.width, canvas.height); 
+        canvas.width = img.width; canvas.height = img.height;
+        ctx.imageSmoothingEnabled = false; ctx.clearRect(0, 0, canvas.width, canvas.height);
         ctx.drawImage(img, 0, 0);
         setFrameDimensions(previous => previous.width === img.width && previous.height === img.height
           ? previous : { width: img.width, height: img.height });
@@ -677,13 +664,13 @@ const TaskPlayerPage: React.FC<TaskPlayerPageProps> = ({
   };
 
   const handleCanvasInteraction = (e: React.MouseEvent) => {
-    const { x, y } = getEventCoords(e); 
+    const { x, y } = getEventCoords(e);
     if (effectiveTool === 'selection') return;
     setHoverPixel({ x, y });
-    if (isJobRunning) return; 
-    const canvas = canvasRef.current; 
+    if (isEditorBlocked) return;
+    const canvas = canvasRef.current;
     if (!canvas || isPlaying) return;
-    
+
     if (effectiveTool === 'move') {
       if (isPanning) {
         const dx = e.clientX - lastMousePos.current.x; const dy = e.clientY - lastMousePos.current.y;
@@ -823,7 +810,7 @@ const TaskPlayerPage: React.FC<TaskPlayerPageProps> = ({
 
   const handleMouseDown = (e: React.MouseEvent) => {
     if (effectiveTool === 'selection') return;
-    if (isJobRunning) return; setIsPlaying(false); lastMousePos.current = { x: e.clientX, y: e.clientY };
+    if (isEditorBlocked) return; setIsPlaying(false); lastMousePos.current = { x: e.clientX, y: e.clientY };
     const { x, y } = getEventCoords(e);
     if (isQPressed || effectiveTool === 'picker') {
       const canvas = canvasRef.current; if (canvas) {
@@ -848,15 +835,15 @@ const TaskPlayerPage: React.FC<TaskPlayerPageProps> = ({
   };
 
   const handleMouseUp = () => {
-    if (isJobRunning) return;
+    if (isEditorBlocked) return;
     if (isPickingRemovalColor) {
       setIsPickingRemovalColor(false);
     }
     if (isDrawing) {
-      const canvas = canvasRef.current; if (canvas && effectiveTool !== 'picker') { 
-        const newFrames = [...frames]; 
-        newFrames[currentFrameIndex] = { ...newFrames[currentFrameIndex], url: canvas.toDataURL() }; 
-        pushToHistory(newFrames); 
+      const canvas = canvasRef.current; if (canvas && effectiveTool !== 'picker') {
+        const newFrames = [...frames];
+        newFrames[currentFrameIndex] = { ...newFrames[currentFrameIndex], url: canvas.toDataURL() };
+        pushToHistory(newFrames);
       }
     }
     setIsDrawing(false); setIsPanning(false);
@@ -898,11 +885,11 @@ const TaskPlayerPage: React.FC<TaskPlayerPageProps> = ({
   const handleDragOver = (e: React.DragEvent, index: number) => {
     e.preventDefault();
     if (draggedIndex === null || draggedIndex === index) return;
-    
+
     const newFrames = [...frames];
     const item = newFrames.splice(draggedIndex, 1)[0];
     newFrames.splice(index, 0, item);
-    
+
     setFrames(newFrames);
     setDraggedIndex(index);
     if (currentFrameIndex === draggedIndex) setCurrentFrameIndex(index);
@@ -917,37 +904,37 @@ const TaskPlayerPage: React.FC<TaskPlayerPageProps> = ({
   };
 
   const removeBackground = async () => {
-    if (isJobRunning) return;
+    if (isEditorBlocked) return;
     setIsPlaying(false);
     setLoading(true);
     const bgRGB = hexToRgb(removalBgColor);
     const newFrames = await Promise.all(frames.map(async (f) => {
       const canvas = document.createElement('canvas');
-      const img = await new Promise<HTMLImageElement>(res => { 
-        const i = new Image(); 
+      const img = await new Promise<HTMLImageElement>(res => {
+        const i = new Image();
         i.crossOrigin = "anonymous";
-        i.onload = () => res(i); 
-        i.src = f.url; 
+        i.onload = () => res(i);
+        i.src = f.url;
       });
       canvas.width = img.width; canvas.height = img.height; const ctx = canvas.getContext('2d')!; ctx.drawImage(img, 0, 0);
       const data = ctx.getImageData(0, 0, canvas.width, canvas.height);
-      
+
       if (useGlobalColorMatch) {
         colorMatchRemoval(data, bgRGB, bgRemovalTolerance);
       } else {
-        floodFill(data, 0, 0, {r:0,g:0,b:0,a:0}, bgRemovalTolerance, null); 
+        floodFill(data, 0, 0, {r:0,g:0,b:0,a:0}, bgRemovalTolerance, null);
         floodFill(data, canvas.width-1, 0, {r:0,g:0,b:0,a:0}, bgRemovalTolerance, null);
-        floodFill(data, 0, canvas.height-1, {r:0,g:0,b:0,a:0}, bgRemovalTolerance, null); 
+        floodFill(data, 0, canvas.height-1, {r:0,g:0,b:0,a:0}, bgRemovalTolerance, null);
         floodFill(data, canvas.width-1, canvas.height-1, {r:0,g:0,b:0,a:0}, bgRemovalTolerance, null);
       }
-      
+
       ctx.putImageData(data, 0, 0); return { ...f, url: canvas.toDataURL() };
     }));
     pushToHistory(newFrames); setLoading(false);
   };
 
   const handleDeNoise = async () => {
-    if (isJobRunning || frames.length === 0) return;
+    if (isEditorBlocked || frames.length === 0) return;
     setIsPlaying(false);
     setLoading(true);
 
@@ -991,10 +978,10 @@ const TaskPlayerPage: React.FC<TaskPlayerPageProps> = ({
   };
 
   const restoreFrames = async () => {
-    if (isJobRunning || !currentJob) return;
+    if (isEditorBlocked || !currentJob) return;
     const outputUrl = currentJob.output_images?.[0]?.url;
     if (!outputUrl) return;
-    
+
     setLoading(true);
     try {
       const isSingleFrameJob = currentJob.job_type === 'character' || currentJob.job_type === 'item' || currentJob.job_type === 'map';
@@ -1016,7 +1003,8 @@ const TaskPlayerPage: React.FC<TaskPlayerPageProps> = ({
       } else {
         const apiLength = currentJob.input_params?.length || 33;
         const isV2 = currentJob.animation_version === 2 || currentJob.input_params?.animation_version === 2;
-        const sliced = await sliceSpriteSheet(outputUrl, isV2 ? currentJob.input_params.output_frames : undefined,
+        const original = await fetchAsDataUrl(outputUrl, { refresh: true });
+        const sliced = await sliceSpriteSheet(original, isV2 ? currentJob.input_params.output_frames : undefined,
           apiLength, isV2 ? Math.min(6, currentJob.input_params.output_frames) : undefined);
         const mappedFrames: FrameData[] = sliced.map((url, i) => ({
           id: `f-${Date.now()}-${i}`,
@@ -1042,7 +1030,7 @@ const TaskPlayerPage: React.FC<TaskPlayerPageProps> = ({
   };
 
   const handleDownload = async () => {
-    if (frames.length === 0 || isJobRunning) return; setIsExporting(true);
+    if (frames.length === 0 || isEditorBlocked) return; setIsExporting(true);
     try {
       const activeFrames = frames.filter(f => !f.isExcluded); if (activeFrames.length === 0) return;
       const spriteSheetData = await reconstructSpriteSheet(activeFrames.map(f => f.url)); const link = document.createElement('a'); link.href = spriteSheetData; link.download = `rika_${selectedJobId?.slice(0,8) || 'work'}.png`; link.click();
@@ -1050,7 +1038,7 @@ const TaskPlayerPage: React.FC<TaskPlayerPageProps> = ({
   };
 
   const handleDownload4x = async () => {
-    if (frames.length === 0 || isJobRunning) return;
+    if (frames.length === 0 || isEditorBlocked) return;
     setIsExporting4x(true);
     try {
       const activeFrames = frames.filter(f => !f.isExcluded);
@@ -1085,7 +1073,7 @@ const TaskPlayerPage: React.FC<TaskPlayerPageProps> = ({
   };
 
   const handleExportGif = async () => {
-    if (frames.length === 0 || isJobRunning) return;
+    if (frames.length === 0 || isEditorBlocked) return;
     const activeFrames = frames.filter(f => !f.isExcluded); if (activeFrames.length === 0) return;
     setIsExportingGif(true); const bgColor = isLightBg ? '#f5f5dc' : '#121212';
     try {
@@ -1111,11 +1099,11 @@ const TaskPlayerPage: React.FC<TaskPlayerPageProps> = ({
         ctx.drawImage(img, (gifWidth - size.width) / 2, (gifHeight - size.height) / 2, size.width, size.height);
         return canvas.toDataURL('image/png');
       });
-      gifshot.createGIF({ 
-        images: processedFrames, 
+      gifshot.createGIF({
+        images: processedFrames,
         gifWidth,
         gifHeight,
-        interval: 1 / fps, 
+        interval: 1 / fps,
         numFrames: processedFrames.length,
         sampleInterval: 1,
         numWorkers: 4
@@ -1162,7 +1150,7 @@ const TaskPlayerPage: React.FC<TaskPlayerPageProps> = ({
 
     return (
       <div key={id} className="relative flex items-center justify-center w-full group">
-        <button 
+        <button
           onClick={() => { setActiveTool(id); setIsPlaying(false); }}
           className={`w-10 h-10 flex items-center justify-center pixel-border border-2 transition-all shrink-0 ${isActive ? 'bg-[#f7d51d] text-[#2d1b4e] border-white' : 'bg-black/40 text-white border-[#5a2d9c] hover:border-white/50'}`}
           title={getToolTitle()}
@@ -1176,13 +1164,13 @@ const TaskPlayerPage: React.FC<TaskPlayerPageProps> = ({
           )}
         </button>
         {hasParams && (
-          <button 
+          <button
             onClick={(e) => { e.stopPropagation(); setMenuOpenFor(menuOpenFor === id ? null : id); setIsPlaying(false); }}
             className="absolute -right-4 top-1/2 -translate-y-1/2 w-4 h-6 flex items-center justify-center text-[8px] bg-[#5a2d9c] text-white pixel-border border-[1px] hover:bg-white hover:text-black z-10"
           > ▶ </button>
         )}
         {menuOpenFor === id && (
-          <div 
+          <div
             onMouseDown={(e) => e.stopPropagation()}
             className="absolute left-14 top-0 z-[100] bg-[#1b0a38] pixel-border p-4 w-48 shadow-2xl animate-fade-in border-[#5a2d9c]"
           >
@@ -1298,9 +1286,9 @@ const TaskPlayerPage: React.FC<TaskPlayerPageProps> = ({
 
   return (
     <div className="ui-page flex flex-col gap-6 w-full overflow-hidden text-white select-none">
-      <PixelModal 
-        isOpen={showUploadModal} 
-        onClose={() => setShowUploadModal(false)} 
+      <PixelModal
+        isOpen={showUploadModal}
+        onClose={() => setShowUploadModal(false)}
         title={isZh ? "上传序列帧" : "UPLOAD SPRITE SHEET"}
         titleStyle={{ fontSize: zhScale(10) }}
         closeButtonStyle={{ fontSize: zhScale(12) }}
@@ -1313,10 +1301,10 @@ const TaskPlayerPage: React.FC<TaskPlayerPageProps> = ({
             ) : (
               <div className="opacity-40 uppercase" style={{ fontSize: zhScale(10) }}>{isZh ? "点击上传图片" : "Click to upload image"}</div>
             )}
-            <input 
-              type="file" 
-              accept="image/*" 
-              className="absolute inset-0 opacity-0 cursor-pointer" 
+            <input
+              type="file"
+              accept="image/*"
+              className="absolute inset-0 opacity-0 cursor-pointer"
               onChange={e => {
                 const file = e.target.files?.[0];
                 if (file) {
@@ -1345,7 +1333,7 @@ const TaskPlayerPage: React.FC<TaskPlayerPageProps> = ({
       <div className="flex flex-col md:flex-row md:justify-between md:items-center gap-3 bg-[#1b0a38]/90 p-3 pixel-border border-[#5a2d9c] w-full">
         <div className="flex min-w-0 items-center gap-4">
           {onBack && (
-            <button 
+            <button
               onClick={onBack}
               className="p-1 hover:bg-white/10 pixel-border border-[#5a2d9c] transition-colors group"
               title={isZh ? "返回" : "BACK"}
@@ -1357,35 +1345,35 @@ const TaskPlayerPage: React.FC<TaskPlayerPageProps> = ({
             <span>JOB: <span className="text-white">{isCustomMode ? 'NONE' : (selectedJobId?.slice(0,8) || 'NONE')}</span></span>
             <span>MODE: <span className="text-white">{isCustomMode ? 'CUSTOM' : (currentJob?.input_params?.motion_type || 'MANUAL')}</span></span>
             <span>STATUS: <span className={
-              currentJob?.status === 'succeeded' ? 'text-green-500' : 
-              (currentJob?.status === 'running' || currentJob?.status === 'queued') ? 'text-yellow-500' : 
+              currentJob?.status === 'succeeded' ? 'text-green-500' :
+              (currentJob?.status === 'running' || currentJob?.status === 'queued') ? 'text-yellow-500' :
               'text-white/40'
             }>{currentJob?.status || 'READY'}</span></span>
           </div>
         </div>
         <div className="flex flex-wrap items-center justify-between md:justify-end gap-3 text-[9px] uppercase text-white/60">
-          <PixelButton 
-            variant="secondary" 
-            className="h-8 px-3 text-[8px]" 
+          <PixelButton
+            variant="secondary"
+            className="h-8 px-3 text-[8px]"
             onClick={() => setShowUploadModal(true)}
           >
             {isZh ? "上传" : "UPLOAD"}
           </PixelButton>
-          <div 
+          <div
             className={`flex items-center gap-2 select-none ${hasUnsavedEdits && !isJobRunning ? 'cursor-pointer hover:opacity-80' : ''}`}
             onClick={() => { if (hasUnsavedEdits && !isJobRunning) handleSaveToCache(); }}
             title={hasUnsavedEdits && !isJobRunning ? (isZh ? "点击保存当前编辑" : "Click to save edits") : ""}
           >
             <div className={`w-3 h-3 rounded-full ${
-              isJobRunning ? 'bg-yellow-500 animate-pulse' : 
+              isJobRunning ? 'bg-yellow-500 animate-pulse' :
               hasUnsavedEdits ? 'bg-red-500 animate-pulse' : 'bg-green-500'
             }`} />
             <span className={
-              isJobRunning ? 'text-yellow-500' : 
+              isJobRunning ? 'text-yellow-500' :
               hasUnsavedEdits ? 'text-red-500' : 'text-green-500'
             }>
-              {isJobRunning ? processingLabel :
-               hasUnsavedEdits ? (isZh ? '未保存的编辑' : 'UNSAVED EDITS') : 
+              {isJobRunning ? processingLabel : isEditorBlocked ? (isZh ? '结果尚未加载' : 'RESULT NOT LOADED') :
+               hasUnsavedEdits ? (isZh ? '未保存的编辑' : 'UNSAVED EDITS') :
                (isZh ? '已保存' : 'SAVED')}
             </span>
           </div>
@@ -1393,7 +1381,7 @@ const TaskPlayerPage: React.FC<TaskPlayerPageProps> = ({
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-[auto_1fr_auto] gap-6 w-full items-start">
-        <div className={`mx-auto lg:mx-0 flex flex-col items-center gap-4 p-2 bg-[#1b0a38]/80 pixel-border border-[#5a2d9c] w-14 shrink-0 ${isJobRunning ? 'opacity-30 pointer-events-none' : ''}`}>
+        <div className={`mx-auto lg:mx-0 flex flex-col items-center gap-4 p-2 bg-[#1b0a38]/80 pixel-border border-[#5a2d9c] w-14 shrink-0 ${isEditorBlocked ? 'opacity-30 pointer-events-none' : ''}`}>
            {renderToolButton("brush", <img src={`${ICON_BASE}brush.png`} style={{ imageRendering: 'auto' }} className="w-full h-full object-contain" alt="Brush" />, true)}
            {renderToolButton("wand", <img src={`${ICON_BASE}wand.png`} style={{ imageRendering: 'auto' }} className="w-full h-full object-contain" alt="Wand" />, true)}
            {renderToolButton("selection", <SquareDashedMousePointer size={20} />, true)}
@@ -1404,7 +1392,7 @@ const TaskPlayerPage: React.FC<TaskPlayerPageProps> = ({
            {renderToolButton("picker", <Pipette size={20} />)}
            <div className="mt-4 border-t-2 border-[#5a2d9c] pt-4 flex flex-col items-center gap-4 w-full">
               <div ref={brushColorAnchorRef}
-                className="relative w-10 h-10 pixel-border border-2 border-[#5a2d9c] bg-black/40 overflow-hidden shrink-0 cursor-pointer" 
+                className="relative w-10 h-10 pixel-border border-2 border-[#5a2d9c] bg-black/40 overflow-hidden shrink-0 cursor-pointer"
                 title={isZh ? "选择颜色" : "Choose Color"}
                 onClick={() => { setShowBrushPicker(!showBrushPicker); setIsPlaying(false); }}
               >
@@ -1416,10 +1404,10 @@ const TaskPlayerPage: React.FC<TaskPlayerPageProps> = ({
                   onChange={(color) => { setBrushColor(color); setIsPlaying(false); }}
                   onClose={() => setShowBrushPicker(false)} lang={lang} />
               )}
-              <button 
-                onClick={() => { setIsLightBg(!isLightBg); setIsPlaying(false); }} 
+              <button
+                onClick={() => { setIsLightBg(!isLightBg); setIsPlaying(false); }}
                 className={`w-10 h-10 flex items-center justify-center pixel-border border-2 transition-all shrink-0 ${isLightBg ? 'bg-[#f5f5dc] border-black' : 'bg-black text-white border-white'}`}
-              > 
+              >
                 <img src={`${ICON_BASE}switch.png`} style={{ imageRendering: 'auto' }} className={`w-6 h-6 object-contain shrink-0 ${!isLightBg ? 'invert' : ''}`} alt="Switch" />
               </button>
            </div>
@@ -1432,6 +1420,8 @@ const TaskPlayerPage: React.FC<TaskPlayerPageProps> = ({
               <div className="absolute z-20 max-w-[90%] p-4 text-center bg-[#1b0a38] pixel-border border-red-500 text-white break-all"
                 style={{ fontSize: zhScale(9) }}>
                 {isZh ? '动画加载失败：' : 'Animation load failed: '}{loadError}
+                <button type="button" className="block mx-auto mt-3 text-[#f7d51d] underline"
+                  onClick={() => setRetryLoad(value => value + 1)}>{isZh ? '重新加载' : 'Retry loading'}</button>
               </div>
             )}
             {selection.size > 0 && (
@@ -1441,13 +1431,13 @@ const TaskPlayerPage: React.FC<TaskPlayerPageProps> = ({
               </div>
             )}
             {currentJob && (
-              <div 
+              <div
                 className="absolute top-4 left-4 z-30 p-2 cursor-pointer transition-transform hover:scale-110 active:scale-95 bg-black/20 rounded-full"
                 onClick={(e) => toggleLike(e, currentJob)}
               >
-                <Heart 
-                  size={24} 
-                  className={`${currentJob.liked ? 'fill-red-500 text-red-500' : 'text-white/40 hover:text-white/70'}`} 
+                <Heart
+                  size={24}
+                  className={`${currentJob.liked ? 'fill-red-500 text-red-500' : 'text-white/40 hover:text-white/70'}`}
                   strokeWidth={currentJob.liked ? 0 : 2}
                 />
               </div>
@@ -1457,7 +1447,7 @@ const TaskPlayerPage: React.FC<TaskPlayerPageProps> = ({
                 <div className="absolute inset-0 z-50 flex flex-col items-center justify-center overflow-hidden">
                   {/* Black semi-transparent mask */}
                   <div className="absolute inset-0 bg-black/80" />
-                  
+
                   {/* Pixel Grid Animation - Displayed in front of the mask */}
                   <div className="absolute inset-0 grid grid-cols-8 grid-rows-8 opacity-40 pointer-events-none z-10">
                     {[...Array(64)].map((_, i) => {
@@ -1465,7 +1455,7 @@ const TaskPlayerPage: React.FC<TaskPlayerPageProps> = ({
                       const y = Math.floor(i / 8);
                       const delay = (x + y) * 0.15;
                       return (
-                        <div 
+                        <div
                           key={i}
                           className="w-full h-full border border-white/10"
                           style={{
@@ -1488,7 +1478,7 @@ const TaskPlayerPage: React.FC<TaskPlayerPageProps> = ({
                         <div className="w-1 h-1 bg-white animate-bounce" />
                       </div>
                     </div>
-                    
+
                     {isJobRunning && (
                       <div className="text-center">
                         <p className="text-white/60 tracking-tight" style={{ fontSize: zhScale(8) }}>
@@ -1520,26 +1510,26 @@ const TaskPlayerPage: React.FC<TaskPlayerPageProps> = ({
                     strokeDasharray="4 4" style={{ animation: 'selectionMarch 0.8s steps(16, end) infinite' }} />
                 </svg>
               )}
-              
+
               {activeTool === 'nudge' && !isJobRunning && (
                 <div className="absolute inset-0 pointer-events-none">
                   {/* Top Arrow */}
-                  <button 
+                  <button
                     onClick={(e) => { e.stopPropagation(); nudgeFrame(0, -1); }}
                     className="absolute top-2 left-1/2 -translate-x-1/2 pointer-events-auto w-0 h-0 border-l-[10px] border-l-transparent border-r-[10px] border-r-transparent border-b-[15px] border-b-[#f7d51d] hover:border-b-white transition-colors drop-shadow-[0_0_2px_rgba(0,0,0,0.8)]"
                   />
                   {/* Bottom Arrow */}
-                  <button 
+                  <button
                     onClick={(e) => { e.stopPropagation(); nudgeFrame(0, 1); }}
                     className="absolute bottom-2 left-1/2 -translate-x-1/2 pointer-events-auto w-0 h-0 border-l-[10px] border-l-transparent border-r-[10px] border-r-transparent border-t-[15px] border-t-[#f7d51d] hover:border-t-white transition-colors drop-shadow-[0_0_2px_rgba(0,0,0,0.8)]"
                   />
                   {/* Left Arrow */}
-                  <button 
+                  <button
                     onClick={(e) => { e.stopPropagation(); nudgeFrame(-1, 0); }}
                     className="absolute left-2 top-1/2 -translate-y-1/2 pointer-events-auto w-0 h-0 border-t-[10px] border-t-transparent border-b-[10px] border-b-transparent border-r-[15px] border-r-[#f7d51d] hover:border-r-white transition-colors drop-shadow-[0_0_2px_rgba(0,0,0,0.8)]"
                   />
                   {/* Right Arrow */}
-                  <button 
+                  <button
                     onClick={(e) => { e.stopPropagation(); nudgeFrame(1, 0); }}
                     className="absolute right-2 top-1/2 -translate-y-1/2 pointer-events-auto w-0 h-0 border-t-[10px] border-t-transparent border-b-[10px] border-b-transparent border-l-[15px] border-l-[#f7d51d] hover:border-l-white transition-colors drop-shadow-[0_0_2px_rgba(0,0,0,0.8)]"
                   />
@@ -1551,15 +1541,15 @@ const TaskPlayerPage: React.FC<TaskPlayerPageProps> = ({
             </div>
             </div>
           </PixelCard>
-          <div 
-            className={`bg-[#1b0a38]/80 p-4 pixel-border border-[#5a2d9c] w-full overflow-x-auto ${isJobRunning ? 'opacity-30 pointer-events-none' : ''}`}
+          <div
+            className={`bg-[#1b0a38]/80 p-4 pixel-border border-[#5a2d9c] w-full overflow-x-auto ${isEditorBlocked ? 'opacity-30 pointer-events-none' : ''}`}
             onClick={() => setContextMenu(null)}
           >
              <div className="flex items-center gap-3 min-w-max min-h-[64px] pb-2">
                 {frames.map((f, i) => (
-                  <div 
-                    key={f.id} 
-                    onClick={() => { setCurrentFrameIndex(i); setIsPlaying(false); }} 
+                  <div
+                    key={f.id}
+                    onClick={() => { setCurrentFrameIndex(i); setIsPlaying(false); }}
                     onContextMenu={(e) => {
                       e.preventDefault();
                       setContextMenu({ x: e.clientX, y: e.clientY, index: i });
@@ -1570,7 +1560,7 @@ const TaskPlayerPage: React.FC<TaskPlayerPageProps> = ({
                     onDragEnd={handleDragEnd}
                     style={{ width: thumbnailDimensions.width, height: thumbnailDimensions.height }}
                     className={`relative pixel-border border-2 cursor-pointer flex-shrink-0 transition-all ${
-                      currentFrameIndex === i ? 'border-[#f7d51d] scale-110 z-10' : 
+                      currentFrameIndex === i ? 'border-[#f7d51d] scale-110 z-10' :
                       f.isOriginal ? 'border-[#5a2d9c] opacity-60 hover:opacity-100' : 'border-gray-500 opacity-60 hover:opacity-100'
                     } ${draggedIndex === i ? 'opacity-20 scale-90' : ''}`}
                   >
@@ -1584,12 +1574,12 @@ const TaskPlayerPage: React.FC<TaskPlayerPageProps> = ({
         </div>
 
         {contextMenu && (
-          <div 
+          <div
             className="fixed z-[1000] bg-[#1b0a38] pixel-border border-[#5a2d9c] shadow-2xl py-1 min-w-[100px]"
             style={{ left: contextMenu.x, top: contextMenu.y }}
             onMouseLeave={() => setContextMenu(null)}
           >
-            <button 
+            <button
               className="w-full px-4 py-2 text-left text-[10px] uppercase hover:bg-[#f7d51d] hover:text-[#2d1b4e] disabled:opacity-30"
               disabled={frames.length >= 24}
               onClick={() => handleCopyFrame(contextMenu.index)}
@@ -1597,7 +1587,7 @@ const TaskPlayerPage: React.FC<TaskPlayerPageProps> = ({
               {isZh ? '复制' : 'COPY'}
             </button>
             {!frames[contextMenu.index].isOriginal && (
-              <button 
+              <button
                 className="w-full px-4 py-2 text-left text-[10px] uppercase hover:bg-red-600 hover:text-white"
                 onClick={() => handleDeleteFrame(contextMenu.index)}
               >
@@ -1609,7 +1599,7 @@ const TaskPlayerPage: React.FC<TaskPlayerPageProps> = ({
 
         <div className="flex flex-col gap-6 w-full lg:w-64 shrink-0">
            <PixelCard title={isZh ? '智能工具' : 'SMART ACTIONS'}>
-              <div className={`space-y-4 pt-2 ${isJobRunning ? 'opacity-30 pointer-events-none' : ''}`}>
+              <div className={`space-y-4 pt-2 ${isEditorBlocked ? 'opacity-30 pointer-events-none' : ''}`}>
                  <div className="space-y-3">
                    <PixelButton variant="secondary" className="w-full" onClick={removeBackground} style={{ fontSize: zhScale(9) }}>
                       {isZh ? '背景去除' : 'BG REMOVE'}
@@ -1636,12 +1626,12 @@ const TaskPlayerPage: React.FC<TaskPlayerPageProps> = ({
                          </div>
                        </div>
                    </div>
-                   
+
                    {useGlobalColorMatch && (
                      <div className="flex items-center gap-2 p-1 bg-black/40 border border-white/10 relative">
                        <span className="text-[9px] text-white/40 uppercase">BG:</span>
                        <div ref={removalColorAnchorRef}
-                         className="flex-1 h-5 relative pixel-border border border-white/20 cursor-pointer" 
+                         className="flex-1 h-5 relative pixel-border border border-white/20 cursor-pointer"
                          style={{ backgroundColor: removalBgColor }}
                          onClick={() => setShowRemovalPicker(!showRemovalPicker)}
                        />
@@ -1702,7 +1692,7 @@ const TaskPlayerPage: React.FC<TaskPlayerPageProps> = ({
               </div>
            </PixelCard>
            <PixelCard title={isZh ? '历史记录' : 'HISTORY'}>
-              <div className={`grid grid-cols-2 gap-2 pt-2 ${isJobRunning ? 'opacity-30 pointer-events-none' : ''}`}>
+              <div className={`grid grid-cols-2 gap-2 pt-2 ${isEditorBlocked ? 'opacity-30 pointer-events-none' : ''}`}>
                 <PixelButton variant="secondary" onClick={handleUndo} disabled={undoStack.length === 0} style={{ fontSize: zhScale(9) }}>
                   {isZh ? '撤销' : 'UNDO'}
                 </PixelButton>
@@ -1713,35 +1703,35 @@ const TaskPlayerPage: React.FC<TaskPlayerPageProps> = ({
            </PixelCard>
            <PixelCard title={isZh ? '控制工具' : 'CONTROLS'} className={currentJob?.job_type === 'map' ? 'hidden' : ''}>
               <div className="space-y-4 pt-2">
-                 <PixelButton variant={isPlaying ? 'secondary' : 'primary'} className="w-full" onClick={() => setIsPlaying(!isPlaying)} disabled={isJobRunning || frames.length <= 1} style={{ fontSize: zhScale(10) }}>
+                 <PixelButton variant={isPlaying ? 'secondary' : 'primary'} className="w-full" onClick={() => setIsPlaying(!isPlaying)} disabled={isEditorBlocked || frames.length <= 1} style={{ fontSize: zhScale(10) }}>
                    {isPlaying ? (isZh ? '暂停' : 'PAUSE') : (isZh ? '播放' : 'PLAY')}
                  </PixelButton>
                  <div className="space-y-2">
                    <p className="text-[8px] opacity-40 uppercase">FPS: {fps}</p>
-                   <input type="range" min="1" max="24" value={fps} onChange={e => setFps(parseInt(e.target.value))} className="w-full accent-white" disabled={isJobRunning} />
+                   <input type="range" min="1" max="24" value={fps} onChange={e => setFps(parseInt(e.target.value))} className="w-full accent-white" disabled={isEditorBlocked} />
                  </div>
               </div>
            </PixelCard>
            <div className="flex flex-col gap-3">
-              <PixelButton variant="secondary" className="h-12" onClick={() => onRegenerate(currentJob!)} disabled={isJobRunning || !currentJob} style={{ fontSize: zhScale(10) }}>
+              <PixelButton variant="secondary" className="h-12" onClick={() => onRegenerate(currentJob!)} disabled={isEditorBlocked || !currentJob} style={{ fontSize: zhScale(10) }}>
                 {isZh ? '重新生成' : 'RE-GENERATE'}
               </PixelButton>
               {isSingleFrame ? (
                 <>
-                  <PixelButton variant="primary" className="h-12" disabled={isExporting || isJobRunning} onClick={handleDownload} style={{ fontSize: zhScale(10) }}>
+                  <PixelButton variant="primary" className="h-12" disabled={isExporting || isEditorBlocked} onClick={handleDownload} style={{ fontSize: zhScale(10) }}>
                     {isExporting ? (isZh ? '导出中...' : 'EXPORTING...') : (isZh ? '导出图片' : 'DOWNLOAD PNG')}
                   </PixelButton>
-                  <PixelButton variant="secondary" className="h-12" disabled={isExporting4x || isJobRunning} onClick={handleDownload4x} style={{ fontSize: zhScale(10) }}>
+                  <PixelButton variant="secondary" className="h-12" disabled={isExporting4x || isEditorBlocked} onClick={handleDownload4x} style={{ fontSize: zhScale(10) }}>
                     {isExporting4x ? (isZh ? '导出中...' : 'EXPORTING...') : (isZh ? '导出大图' : 'DOWNLOAD PNG (4x)')}
                   </PixelButton>
                 </>
               ) : (
                 <>
-                  <PixelButton variant="primary" className={`h-12 ${currentJob?.job_type === 'map' ? 'hidden' : ''}`} disabled={isExportingGif || isJobRunning} onClick={handleExportGif} style={{ fontSize: zhScale(10) }}> 
-                    {isExportingGif ? (isZh ? '打包中...' : 'PACKING...') : (isZh ? '导出动图' : 'EXPORT GIF')} 
+                  <PixelButton variant="primary" className={`h-12 ${currentJob?.job_type === 'map' ? 'hidden' : ''}`} disabled={isExportingGif || isEditorBlocked} onClick={handleExportGif} style={{ fontSize: zhScale(10) }}>
+                    {isExportingGif ? (isZh ? '打包中...' : 'PACKING...') : (isZh ? '导出动图' : 'EXPORT GIF')}
                   </PixelButton>
-                  <PixelButton variant="secondary" className="h-12" disabled={isExporting || isJobRunning} onClick={handleDownload} style={{ fontSize: zhScale(10) }}> 
-                    {isExporting ? (isZh ? '导出中...' : 'EXPORTING...') : (isZh ? '导出序列帧' : 'DOWNLOAD PNG')} 
+                  <PixelButton variant="secondary" className="h-12" disabled={isExporting || isEditorBlocked} onClick={handleDownload} style={{ fontSize: zhScale(10) }}>
+                    {isExporting ? (isZh ? '导出中...' : 'EXPORTING...') : (isZh ? '导出序列帧' : 'DOWNLOAD PNG')}
                   </PixelButton>
                 </>
               )}
