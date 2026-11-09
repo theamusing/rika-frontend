@@ -29,6 +29,15 @@ interface GenerationPageProps {
 }
 
 const CDN_BASE = "https://cdn.rika-ai.com/assets/frontpage/";
+const EXAMPLES_BASE = `${CDN_BASE}examples/`;
+const V2_EXAMPLES = [
+  "rika_v2_example1.gif",
+  "rika_v2_example2.gif",
+  "rika_v2_example3.gif",
+  "rika_v2_example4.gif",
+] as const;
+// Each CDN GIF has 24 frames at 80 ms per frame; show three full loops.
+const V2_EXAMPLE_DISPLAY_MS = 24 * 80 * 3;
 
 const DEFAULT_PROMPTS: Record<MotionType, string> = {
   idle: 'side-view, 2D game character idle animation, body slightly sways.',
@@ -76,6 +85,8 @@ const GenerationPage: React.FC<GenerationPageProps> = ({
   const [showBgColorPicker, setShowBgColorPicker] = useState(false);
   const bgColorAnchorRef = useRef<HTMLDivElement>(null);
   const [generationVersion, setGenerationVersion] = useState<AnimationVersion>(initialVersion);
+  const [v2ExampleIndex, setV2ExampleIndex] = useState(0);
+  const [loadedExampleSrc, setLoadedExampleSrc] = useState('');
   const [v2PixelChoice, setV2PixelChoice] = useState<PixelSize>('128');
   const [v2Size, setV2Size] = useState<PixelDimensions>({ x: 128, y: 128 });
   const [v2Padding, setV2Padding] = useState<PaddingOffsets>({ ...EMPTY_PADDING });
@@ -117,6 +128,22 @@ const GenerationPage: React.FC<GenerationPageProps> = ({
   const isZh = lang === 'zh';
   const zhScale = (enSize: number) => `${isZh ? enSize + 3 : enSize}px`;
   const isV2 = generationVersion === 'v2';
+  const exampleSrc = `${EXAMPLES_BASE}${isV2 ? V2_EXAMPLES[v2ExampleIndex] : `${params.motion_type}_64.gif`}`;
+  useEffect(() => {
+    if (!isV2) {
+      setV2ExampleIndex(0);
+      setLoadedExampleSrc('');
+      return;
+    }
+    // Start only after the displayed GIF loads, so download time is not counted.
+    if (loadedExampleSrc !== exampleSrc) return;
+    const timer = window.setTimeout(() => {
+      setLoadedExampleSrc('');
+      setV2ExampleIndex(index => (index + 1) % V2_EXAMPLES.length);
+    }, V2_EXAMPLE_DISPLAY_MS);
+    return () => window.clearTimeout(timer);
+  }, [isV2, exampleSrc, loadedExampleSrc]);
+
   const originalCreditsCost = isV2 ? 8 : 5;
   const creditsCost = isV2 ? 6 : 4;
   const actualPadding = usePadding ? constrainPadding(v2Size, v2Padding) : EMPTY_PADDING;
@@ -834,6 +861,20 @@ const GenerationPage: React.FC<GenerationPageProps> = ({
       </div>
 
       <div className="space-y-6">
+        <PixelCard title={isZh ? "动画示例" : "EXAMPLE"} titleStyle={{ fontSize: zhScale(10) }}>
+          <div className="aspect-square w-full flex items-center justify-center overflow-hidden bg-[#1b0a38]/80 pixel-border border-[#5a2d9c]/40">
+            <PixelImage
+              key={exampleSrc}
+              src={exampleSrc}
+              onLoad={() => { if (isV2) setLoadedExampleSrc(exampleSrc); }}
+              alt={isV2
+                ? (isZh ? 'V2 动画示例' : 'V2 animation example')
+                : (isZh ? `${params.motion_type} 动画示例` : `${params.motion_type} animation example`)}
+              className="w-full h-full object-contain"
+              style={{ imageRendering: 'pixelated' }}
+            />
+          </div>
+        </PixelCard>
         <PixelCard title={isZh ? "参数设置" : "CORE PARAMETERS"} titleStyle={{ fontSize: zhScale(10) }}>
           <div className="space-y-4">
              <div className="space-y-2">
