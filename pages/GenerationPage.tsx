@@ -347,17 +347,19 @@ const GenerationPage: React.FC<GenerationPageProps> = ({
     const loadInitial = async () => {
       if (!initialParams) return;
       
-      // Handle 'animate' action from character/item job
-      if (initialParams.action === 'animate' && (initialParams.job_type === 'character' || initialParams.job_type === 'item')) {
+      // Player passes the current edited frame; Dashboard uses the saved job image.
+      if (initialParams.action === 'animate' && (initialParams.start_image || initialParams.job_type === 'character' || initialParams.job_type === 'item')) {
         setGenerationVersion('v1');
         const job = initialParams;
-        const jobParams = job.input_params;
+        const jobParams = job.input_params || {};
         const outputImgs = job.output_images || [];
         
         const sourcePixelSize = parseInt(jobParams.pixel_size || "128");
         const version = parseInt(jobParams.version || "1");
         let targetPixelSize: PixelSize = "128";
-        if (version === 2) {
+        if (job.start_image && Number.isFinite(job.start_pixel_size)) {
+          targetPixelSize = nearestPixelPreset(job.start_pixel_size);
+        } else if (version === 2) {
           targetPixelSize = String(sourcePixelSize) as PixelSize;
         } else {
           if (sourcePixelSize === 32) {
@@ -374,14 +376,16 @@ const GenerationPage: React.FC<GenerationPageProps> = ({
           quantization_colors: 32
         });
         
-        let initialImageUrl = outputImgs.length > 0 ? outputImgs[0].url : null;
-        try {
-          const cached = await getSpriteFromCache(job.gen_id);
-          if (cached && cached.spriteSheet) {
-            initialImageUrl = cached.spriteSheet;
+        let initialImageUrl = job.start_image || (outputImgs.length > 0 ? outputImgs[0].url : null);
+        if (!job.start_image) {
+          try {
+            const cached = await getSpriteFromCache(job.gen_id);
+            if (cached && cached.spriteSheet) {
+              initialImageUrl = cached.spriteSheet;
+            }
+          } catch (err) {
+            console.error("Failed to fetch cached sprite for animation", err);
           }
-        } catch (err) {
-          console.error("Failed to fetch cached sprite for animation", err);
         }
 
         if (initialImageUrl) {

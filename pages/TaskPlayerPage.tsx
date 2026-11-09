@@ -1,5 +1,5 @@
 
-import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
+import React, { useState, useEffect, useRef, useCallback, useMemo, useLayoutEffect } from 'react';
 import { apiService } from '../services/apiService.ts';
 import { Job } from '../types.ts';
 import { PixelButton, PixelCard, PixelModal, PixelInput } from '../components/PixelComponents.tsx';
@@ -12,7 +12,7 @@ import { ensureOriginalSpriteCache, animationSpec } from '../utils/originalSprit
 import { decodeImage } from '../utils/imageLoader.ts';
 import { fitImageDimensions } from '../utils/animationDisplay.ts';
 import { lassoSelection, PixelPoint, rectangleSelection, selectionOutlinePath } from '../utils/selectionUtils.ts';
-import { Heart, ArrowLeft, Move, Pipette, HelpCircle, SquareDashedMousePointer, PaintBucket } from 'lucide-react';
+import { Heart, ArrowLeft, Move, Pipette, HelpCircle, SquareDashedMousePointer, PaintBucket, Eye, EyeOff } from 'lucide-react';
 import ColorPickerPopover from '../components/ColorPickerPopover.tsx';
 // @ts-ignore
 import gifshot from 'gifshot';
@@ -26,7 +26,7 @@ interface TaskPlayerPageProps {
   selectedJobId: string | null;
   initialJob?: Job | null;
   onJobSelected: (id: string) => void;
-  onRegenerate: (job: Job) => void;
+  onRegenerate: (job: Job | { action: 'animate'; start_image: string; start_pixel_size: number }) => void;
   onBack?: () => void;
   onRegisterSaveBeforeLeave?: (save: (() => Promise<void>) | null) => void;
   onJobFailed?: (message: string) => void;
@@ -89,6 +89,7 @@ const TaskPlayerPage: React.FC<TaskPlayerPageProps> = ({
   const [selectionShape, setSelectionShape] = useState<SelectionShape>('rectangle');
   const [selectionDrag, setSelectionDrag] = useState<SelectionDrag | null>(null);
   const [isLightBg, setIsLightBg] = useState(false);
+  const [onionSkinEnabled, setOnionSkinEnabled] = useState(false);
   const [isCtrlPressed, setIsCtrlPressed] = useState(false);
   const [isQPressed, setIsQPressed] = useState(false);
 
@@ -116,6 +117,7 @@ const TaskPlayerPage: React.FC<TaskPlayerPageProps> = ({
   const latestFramesRef = useRef(frames);
   latestFramesRef.current = frames;
 
+  const contextMenuRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const overlayRef = useRef<HTMLCanvasElement>(null);
   const selectionDragRef = useRef<SelectionDrag | null>(null);
@@ -141,7 +143,9 @@ const TaskPlayerPage: React.FC<TaskPlayerPageProps> = ({
   const isSingleFrame = currentJob?.job_type === 'character' || currentJob?.job_type === 'item' || currentJob?.job_type === 'map';
   const dimensions = currentJob?.job_type === 'map' && frames.length > 0 ? frameDimensions
     : fitImageDimensions(frameDimensions, Math.min(512, viewportDimensions.width), Math.min(512, viewportDimensions.height));
-  const thumbnailDimensions = fitImageDimensions(frameDimensions, 64, 64);
+  const thumbnailDimensions = fitImageDimensions(frameDimensions, 80, 80);
+  const onionSkinFrame = onionSkinEnabled && !isEditorBlocked && !loading && !isSingleFrame && currentFrameIndex > 0
+    ? frames[currentFrameIndex - 1] : undefined;
   const effectiveTool: Tool = isPickingRemovalColor ? 'picker' : (isCtrlPressed ? 'move' : isQPressed ? 'picker' : activeTool);
 
   const zhScale = (enSize: number) => `${isZh ? enSize + 3 : enSize}px`;
@@ -150,6 +154,18 @@ const TaskPlayerPage: React.FC<TaskPlayerPageProps> = ({
     if (!currentJob || isSingleFrame) return;
     setFps(12);
   }, [currentJob?.gen_id, isSingleFrame]);
+
+  useEffect(() => {
+    setOnionSkinEnabled(false);
+  }, [selectedJobId]);
+
+  useLayoutEffect(() => {
+    if (!contextMenu || !contextMenuRef.current) return;
+    const rect = contextMenuRef.current.getBoundingClientRect();
+    const x = Math.max(8, Math.min(contextMenu.x, window.innerWidth - rect.width - 8));
+    const y = Math.max(8, Math.min(contextMenu.y, window.innerHeight - rect.height - 8));
+    if (x !== contextMenu.x || y !== contextMenu.y) setContextMenu({ ...contextMenu, x, y });
+  }, [contextMenu]);
 
   const hexToRgb = (hex: string): RGB => {
     const r = parseInt(hex.slice(1, 3), 16) || 0;
@@ -850,7 +866,7 @@ const TaskPlayerPage: React.FC<TaskPlayerPageProps> = ({
   };
 
   const handleCopyFrame = (index: number) => {
-    if (frames.length >= 24) return;
+    if (frames.length >= 64) return;
     const newFrames = [...frames];
     const source = frames[index];
     const copy: FrameData = {
@@ -1029,6 +1045,23 @@ const TaskPlayerPage: React.FC<TaskPlayerPageProps> = ({
     pushToHistory(newFrames);
   };
 
+  const handleGenerateAnimation = async (index: number) => {
+    const frame = frames[index];
+    if (!frame || isEditorBlocked || loading) return;
+    setContextMenu(null);
+    setIsPlaying(false);
+    try {
+      const image = await decodeImage(frame.url);
+      onRegenerate({
+        action: 'animate',
+        start_image: frame.url,
+        start_pixel_size: Math.max(image.naturalWidth, image.naturalHeight),
+      });
+    } catch (error) {
+      console.error('Frame could not be opened for animation.', error);
+    }
+  };
+
   const handleDownload = async () => {
     if (frames.length === 0 || isEditorBlocked) return; setIsExporting(true);
     try {
@@ -1037,39 +1070,36 @@ const TaskPlayerPage: React.FC<TaskPlayerPageProps> = ({
     } catch (err) {} finally { setIsExporting(false); }
   };
 
-  const handleDownload4x = async () => {
-    if (frames.length === 0 || isEditorBlocked) return;
-    setIsExporting4x(true);
+  const handleExportFrame = async (index: number, scale: 1 | 4) => {
+    const frame = frames[index];
+    if (!frame || isEditorBlocked || loading || isExporting || isExporting4x) return;
+    setContextMenu(null);
+    const setExporting = scale === 4 ? setIsExporting4x : setIsExporting;
+    setExporting(true);
     try {
-      const activeFrames = frames.filter(f => !f.isExcluded);
-      if (activeFrames.length === 0) return;
-      const frameUrl = activeFrames[0].url;
-      const img = new Image();
-      img.crossOrigin = "anonymous";
-      await new Promise((resolve, reject) => {
-        img.onload = resolve;
-        img.onerror = reject;
-        img.src = frameUrl;
-      });
-
+      const image = await decodeImage(frame.url);
       const canvas = document.createElement('canvas');
-      canvas.width = img.width * 4;
-      canvas.height = img.height * 4;
+      canvas.width = image.naturalWidth * scale;
+      canvas.height = image.naturalHeight * scale;
       const ctx = canvas.getContext('2d');
-      if (ctx) {
-        ctx.imageSmoothingEnabled = false;
-        ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
-        const dataUrl = canvas.toDataURL('image/png');
-        const link = document.createElement('a');
-        link.href = dataUrl;
-        link.download = `rika_${selectedJobId?.slice(0,8) || 'work'}_4x.png`;
-        link.click();
-      }
-    } catch (err) {
-      console.error("4x Download failed", err);
+      if (!ctx) throw new Error('Export canvas unavailable');
+      ctx.imageSmoothingEnabled = false;
+      ctx.drawImage(image, 0, 0, canvas.width, canvas.height);
+      const link = document.createElement('a');
+      link.href = canvas.toDataURL('image/png');
+      const frameSuffix = isSingleFrame ? '' : `_frame_${index + 1}`;
+      link.download = `rika_${selectedJobId?.slice(0,8) || 'work'}${frameSuffix}${scale === 4 ? '_4x' : ''}.png`;
+      link.click();
+    } catch (error) {
+      console.error('Frame export failed.', error);
     } finally {
-      setIsExporting4x(false);
+      setExporting(false);
     }
+  };
+
+  const handleDownload4x = () => {
+    const index = frames.findIndex(frame => !frame.isExcluded);
+    if (index >= 0) void handleExportFrame(index, 4);
   };
 
   const handleExportGif = async () => {
@@ -1405,10 +1435,27 @@ const TaskPlayerPage: React.FC<TaskPlayerPageProps> = ({
                   onClose={() => setShowBrushPicker(false)} lang={lang} />
               )}
               <button
+                title={isZh ? (isLightBg ? '切换为暗色背景' : '切换为亮色背景') : (isLightBg ? 'Switch to dark background' : 'Switch to light background')}
+                aria-label={isZh ? (isLightBg ? '切换为暗色背景' : '切换为亮色背景') : (isLightBg ? 'Switch to dark background' : 'Switch to light background')}
                 onClick={() => { setIsLightBg(!isLightBg); setIsPlaying(false); }}
                 className={`w-10 h-10 flex items-center justify-center pixel-border border-2 transition-all shrink-0 ${isLightBg ? 'bg-[#f5f5dc] border-black' : 'bg-black text-white border-white'}`}
               >
                 <img src={`${ICON_BASE}switch.png`} style={{ imageRendering: 'auto' }} className={`w-6 h-6 object-contain shrink-0 ${!isLightBg ? 'invert' : ''}`} alt="Switch" />
+              </button>
+              <button
+                type="button"
+                title={isZh ? (onionSkinEnabled ? '关闭洋葱皮' : '开启洋葱皮：半透明显示前一帧') : (onionSkinEnabled ? 'Turn off onion skin' : 'Onion skin: overlay the previous frame')}
+                aria-label={isZh ? '洋葱皮' : 'Onion skin'}
+                aria-pressed={onionSkinEnabled}
+                disabled={isEditorBlocked || loading || isSingleFrame || frames.length < 2}
+                onClick={() => setOnionSkinEnabled(enabled => !enabled)}
+                className={`w-10 h-10 flex items-center justify-center pixel-border border-2 transition-all shrink-0 disabled:opacity-30 disabled:cursor-not-allowed ${onionSkinEnabled ? 'bg-[#f7d51d] text-[#2d1b4e] border-white' : 'bg-black/40 text-white border-[#5a2d9c] hover:border-white/50'}`}
+              >
+                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                  <path d="M12 8V3m0 3L8 3m4 2 4-3" />
+                  <path d="M12 8c-1.5 2-7 3-7 7a7 6 0 0 0 14 0c0-4-5.5-5-7-7Z" />
+                  <path d="M12 8c-3 5-4 9 0 13 4-4 3-8 0-13Z" />
+                </svg>
               </button>
            </div>
         </div>
@@ -1497,6 +1544,12 @@ const TaskPlayerPage: React.FC<TaskPlayerPageProps> = ({
                 </div>
               )}
               <canvas ref={canvasRef} className="w-full h-full block" />
+              {onionSkinFrame && (
+                <img key={onionSkinFrame.id} src={onionSkinFrame.url}
+                  alt="" aria-hidden="true" draggable={false} data-onion-skin="true"
+                  className="absolute inset-0 w-full h-full pointer-events-none block"
+                  style={{ opacity: 0.3, imageRendering: 'pixelated' }} />
+              )}
               <canvas ref={overlayRef} className="absolute inset-0 w-full h-full pointer-events-none block" />
               {(selectionOutline || dragOutline) && (
                 <svg className="absolute inset-0 w-full h-full pointer-events-none block"
@@ -1545,13 +1598,15 @@ const TaskPlayerPage: React.FC<TaskPlayerPageProps> = ({
             className={`bg-[#1b0a38]/80 p-4 pixel-border border-[#5a2d9c] w-full overflow-x-auto ${isEditorBlocked ? 'opacity-30 pointer-events-none' : ''}`}
             onClick={() => setContextMenu(null)}
           >
-             <div className="flex items-center gap-3 min-w-max min-h-[64px] pb-2">
+             <div className="flex items-center gap-3 min-w-max min-h-[80px] pb-2">
                 {frames.map((f, i) => (
                   <div
                     key={f.id}
                     onClick={() => { setCurrentFrameIndex(i); setIsPlaying(false); }}
                     onContextMenu={(e) => {
                       e.preventDefault();
+                      if (isEditorBlocked || loading) return;
+                      setIsPlaying(false);
                       setContextMenu({ x: e.clientX, y: e.clientY, index: i });
                     }}
                     draggable
@@ -1566,34 +1621,77 @@ const TaskPlayerPage: React.FC<TaskPlayerPageProps> = ({
                   >
                     <img src={f.url} className="w-full h-full object-contain" style={{ imageRendering: 'pixelated' }} alt={`F${i+1}`} />
                     {f.isExcluded && <div className="absolute inset-0 bg-red-900/60 z-10 flex items-center justify-center"><div className="w-full h-0.5 bg-red-400 rotate-45 absolute" /></div>}
-                    <button className="absolute -top-2 -right-2 w-5 h-5 bg-red-600 text-white text-[10px] flex items-center justify-center border border-white z-20" onClick={(e) => toggleFrameExclusion(i, e)}> × </button>
+                    <button
+                      type="button"
+                      className={`absolute top-0 left-0 w-5 h-5 flex items-center justify-center border-0 bg-transparent z-20 drop-shadow-[0_1px_1px_rgba(0,0,0,0.9)] ${f.isExcluded ? 'text-white/60' : 'text-white'} hover:text-[#f7d51d]`}
+                      aria-label={isZh ? `${f.isExcluded ? '显示' : '隐藏'}第 ${i + 1} 帧` : `${f.isExcluded ? 'Show' : 'Hide'} frame ${i + 1}`}
+                      title={isZh ? `${f.isExcluded ? '参与' : '排除'}播放和导出` : `${f.isExcluded ? 'Include in' : 'Exclude from'} playback and export`}
+                      disabled={isEditorBlocked}
+                      onClick={(e) => toggleFrameExclusion(i, e)}
+                    >
+                      {f.isExcluded ? <EyeOff size={13} strokeWidth={2} /> : <Eye size={13} strokeWidth={2} />}
+                    </button>
+                    <span className="absolute bottom-0 right-0 z-20 min-w-4 h-4 px-1 flex items-center justify-center bg-[#0d0221]/90 text-white leading-none tabular-nums pointer-events-none"
+                      style={{ fontFamily: 'Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif', fontSize: '11px', fontWeight: 400, letterSpacing: 'normal' }}>
+                      {i + 1}
+                    </span>
                   </div>
                 ))}
              </div>
           </div>
         </div>
 
-        {contextMenu && (
+        {contextMenu && frames[contextMenu.index] && (
           <div
-            className="fixed z-[1000] bg-[#1b0a38] pixel-border border-[#5a2d9c] shadow-2xl py-1 min-w-[100px]"
-            style={{ left: contextMenu.x, top: contextMenu.y }}
+            ref={contextMenuRef}
+            role="menu"
+            className="fixed z-[1000] bg-[#1b0a38] pixel-border border-[#5a2d9c] shadow-2xl py-1 w-48 max-w-[calc(100vw-16px)] overflow-y-auto"
+            style={{ left: contextMenu.x, top: contextMenu.y, maxHeight: 'calc(100vh - 16px)' }}
             onMouseLeave={() => setContextMenu(null)}
           >
+            {!isSingleFrame && (
+              <button role="menuitem" style={{ fontSize: zhScale(10) }}
+                className="w-full px-4 py-2 text-left uppercase hover:bg-[#f7d51d] hover:text-[#2d1b4e] disabled:opacity-30"
+                disabled={isEditorBlocked || loading}
+                onClick={() => handleGenerateAnimation(contextMenu.index)}>
+                {isZh ? '生成动画' : 'ANIMATE'}
+              </button>
+            )}
+            {!isSingleFrame && <div role="separator" className="my-1 border-t-2 border-[#5a2d9c]" />}
             <button
+              role="menuitem"
+              style={{ fontSize: zhScale(10) }}
               className="w-full px-4 py-2 text-left text-[10px] uppercase hover:bg-[#f7d51d] hover:text-[#2d1b4e] disabled:opacity-30"
-              disabled={frames.length >= 24}
+              disabled={frames.length >= 64}
               onClick={() => handleCopyFrame(contextMenu.index)}
             >
               {isZh ? '复制' : 'COPY'}
             </button>
             {!frames[contextMenu.index].isOriginal && (
               <button
+                role="menuitem"
+                style={{ fontSize: zhScale(10) }}
                 className="w-full px-4 py-2 text-left text-[10px] uppercase hover:bg-red-600 hover:text-white"
                 onClick={() => handleDeleteFrame(contextMenu.index)}
               >
                 {isZh ? '删除' : 'DELETE'}
               </button>
             )}
+            {!isSingleFrame && <>
+              <div className="my-1 border-t-2 border-[#5a2d9c]" />
+              <button role="menuitem" style={{ fontSize: zhScale(10) }}
+                className="w-full px-4 py-2 text-left uppercase hover:bg-[#f7d51d] hover:text-[#2d1b4e] disabled:opacity-30"
+                disabled={isEditorBlocked || loading || isExporting || isExporting4x}
+                onClick={() => handleExportFrame(contextMenu.index, 1)}>
+                {isZh ? '导出帧' : 'DOWNLOAD PNG'}
+              </button>
+              <button role="menuitem" style={{ fontSize: zhScale(10) }}
+                className="w-full px-4 py-2 text-left uppercase hover:bg-[#f7d51d] hover:text-[#2d1b4e] disabled:opacity-30"
+                disabled={isEditorBlocked || loading || isExporting || isExporting4x}
+                onClick={() => handleExportFrame(contextMenu.index, 4)}>
+                {isZh ? '导出大图' : 'DOWNLOAD PNG 4X'}
+              </button>
+            </>}
           </div>
         )}
 
@@ -1701,7 +1799,7 @@ const TaskPlayerPage: React.FC<TaskPlayerPageProps> = ({
                 </PixelButton>
               </div>
            </PixelCard>
-           <PixelCard title={isZh ? '控制工具' : 'CONTROLS'} className={currentJob?.job_type === 'map' ? 'hidden' : ''}>
+           {!isSingleFrame && <PixelCard title={isZh ? '控制工具' : 'CONTROLS'}>
               <div className="space-y-4 pt-2">
                  <PixelButton variant={isPlaying ? 'secondary' : 'primary'} className="w-full" onClick={() => setIsPlaying(!isPlaying)} disabled={isEditorBlocked || frames.length <= 1} style={{ fontSize: zhScale(10) }}>
                    {isPlaying ? (isZh ? '暂停' : 'PAUSE') : (isZh ? '播放' : 'PLAY')}
@@ -1711,7 +1809,7 @@ const TaskPlayerPage: React.FC<TaskPlayerPageProps> = ({
                    <input type="range" min="1" max="24" value={fps} onChange={e => setFps(parseInt(e.target.value))} className="w-full accent-white" disabled={isEditorBlocked} />
                  </div>
               </div>
-           </PixelCard>
+           </PixelCard>}
            <div className="flex flex-col gap-3">
               <PixelButton variant="secondary" className="h-12" onClick={() => onRegenerate(currentJob!)} disabled={isEditorBlocked || !currentJob} style={{ fontSize: zhScale(10) }}>
                 {isZh ? '重新生成' : 'RE-GENERATE'}
@@ -1723,6 +1821,9 @@ const TaskPlayerPage: React.FC<TaskPlayerPageProps> = ({
                   </PixelButton>
                   <PixelButton variant="secondary" className="h-12" disabled={isExporting4x || isEditorBlocked} onClick={handleDownload4x} style={{ fontSize: zhScale(10) }}>
                     {isExporting4x ? (isZh ? '导出中...' : 'EXPORTING...') : (isZh ? '导出大图' : 'DOWNLOAD PNG (4x)')}
+                  </PixelButton>
+                  <PixelButton variant="secondary" className="h-12" disabled={loading || isEditorBlocked || !frames[currentFrameIndex]} onClick={() => handleGenerateAnimation(currentFrameIndex)} style={{ fontSize: zhScale(10) }}>
+                    {isZh ? '生成动画' : 'GENERATE ANIMATION'}
                   </PixelButton>
                 </>
               ) : (
