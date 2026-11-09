@@ -26,7 +26,7 @@ interface TaskPlayerPageProps {
   selectedJobId: string | null;
   initialJob?: Job | null;
   onJobSelected: (id: string) => void;
-  onRegenerate: (job: Job | { action: 'animate'; start_image: string; start_pixel_size: number }) => void;
+  onRegenerate: (job: Job | { action: 'animate'; start_image: string; start_pixel_size: number; source_animation_version?: number; source_params?: any }) => void;
   onBack?: () => void;
   onRegisterSaveBeforeLeave?: (save: (() => Promise<void>) | null) => void;
   onJobFailed?: (message: string) => void;
@@ -1056,6 +1056,8 @@ const TaskPlayerPage: React.FC<TaskPlayerPageProps> = ({
         action: 'animate',
         start_image: frame.url,
         start_pixel_size: Math.max(image.naturalWidth, image.naturalHeight),
+        source_animation_version: currentJob?.job_type === 'animation' ? Number(currentJob.animation_version ?? currentJob.input_params?.animation_version ?? 1) : undefined,
+        source_params: currentJob?.input_params,
       });
     } catch (error) {
       console.error('Frame could not be opened for animation.', error);

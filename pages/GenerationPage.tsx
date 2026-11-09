@@ -8,6 +8,7 @@ import { AnimationV2Params, AnimationVersion, GenerationParams, MotionType, Padd
 import PaddingEditorV2 from '../components/PaddingEditorV2.tsx';
 import { constrainPadding, EMPTY_PADDING, paddedDimensions, processImageV2, removePaddingV2, snapPixelSize } from '../utils/animationV2.ts';
 import { RGB } from '../utils/editorUtils.ts';
+import { PlayerFrameInput, readPlayerFrameInput, squarePlayerFrame, processPlayerFrameV2 } from '../utils/playerAnimationInput.ts';
 import { extractCentroidsAsync } from '../utils/paletteWorker.ts';
 import { HelpCircle } from 'lucide-react';
 import ColorPickerPopover from '../components/ColorPickerPopover.tsx';
@@ -94,6 +95,7 @@ const GenerationPage: React.FC<GenerationPageProps> = ({
   const [aiExpand, setAiExpand] = useState(true);
   const [paddingPreviewImage, setPaddingPreviewImage] = useState<string | null>(null);
   const [imagesProcessing, setImagesProcessing] = useState(false);
+  const [playerFrame, setPlayerFrame] = useState<PlayerFrameInput | null>(null);
 
   const [uiLength, setUiLength] = useState(12);
   const [paletteSource, setPaletteSource] = useState<ImageData | null>(null);
@@ -159,6 +161,20 @@ const GenerationPage: React.FC<GenerationPageProps> = ({
     bl: isZh ? '左下' : 'BOTTOM LEFT',
     bc: isZh ? '下方' : 'BOTTOM',
     br: isZh ? '右下' : 'BOTTOM RIGHT',
+  };
+
+  const applyPlayerFrameLayout = (frame: PlayerFrameInput, version: AnimationVersion) => {
+    setGenerationVersion(version);
+    setV2PixelChoice(String(frame.contentSize.x) as PixelSize);
+    setV2Size(frame.contentSize);
+    setV2Padding(frame.padding);
+    setUsePadding(version === 'v2' && Object.values(frame.padding).some(value => value > 0));
+    setForcedScaleFactor(null);
+    setPaddingPosition('mc');
+    setParams(current => ({ ...current,
+      pixel_size: version === 'v1' ? frame.squareSize : String(frame.contentSize.x) as PixelSize,
+      bg_color: frame.background, use_quantization: false,
+    }));
   };
 
   const changeV2Size = (size: PixelDimensions) => {
@@ -230,8 +246,14 @@ const GenerationPage: React.FC<GenerationPageProps> = ({
         const source = sourceFiles[i];
         if (source) {
           try {
+            const imported = playerFrame && source === playerFrame.image ? playerFrame : null;
             if (isV2) {
-              const result = await processImageV2(source, v2Size,
+              const result = imported
+                ? await processPlayerFrameV2(imported, v2Size,
+                  usePadding ? constrainPadding(v2Size, v2Padding) : EMPTY_PADDING,
+                  flipStates[i], params.bg_color || '#004040', !!params.use_quantization,
+                  params.quantization_colors || 32, centroids)
+                : await processImageV2(source, v2Size,
                 usePadding ? constrainPadding(v2Size, v2Padding) : EMPTY_PADDING,
                 flipStates[i], params.bg_color || '#004040', params.use_quantization,
                 params.quantization_colors, centroids);
@@ -242,9 +264,10 @@ const GenerationPage: React.FC<GenerationPageProps> = ({
               if (i === 0) setPaddingPreviewImage(result.contentImage);
               continue;
             }
+            const v1Source = imported ? await squarePlayerFrame(imported, Number(params.pixel_size), params.bg_color || imported.background) : source;
             // Process for display (downscaled)
             const displayB64 = await processImage(
-              source, 
+              v1Source,
               usePadding, 
               flipStates[i], 
               params.pixel_size, 
@@ -259,7 +282,7 @@ const GenerationPage: React.FC<GenerationPageProps> = ({
             
             // Process for backend (full size)
             const fullB64 = await processImage(
-              source, 
+              v1Source,
               usePadding, 
               flipStates[i], 
               params.pixel_size, 
@@ -311,7 +334,7 @@ const GenerationPage: React.FC<GenerationPageProps> = ({
     };
     reprocessAll();
     return () => { cancelled = true; };
-  }, [usePadding, paddingPosition, sourceFiles, flipStates, params.pixel_size, params.bg_color, params.use_quantization, params.quantization_colors, centroids, forcedScaleFactor, isV2, v2Size, v2Padding]);
+  }, [usePadding, paddingPosition, sourceFiles, flipStates, params.pixel_size, params.bg_color, params.use_quantization, params.quantization_colors, centroids, forcedScaleFactor, isV2, v2Size, v2Padding, playerFrame]);
 
   // Update palette source when start image changes
   useEffect(() => {
@@ -346,9 +369,24 @@ const GenerationPage: React.FC<GenerationPageProps> = ({
   useEffect(() => {
     const loadInitial = async () => {
       if (!initialParams) return;
+      if (initialParams.action === 'animate' && initialParams.start_image) {
+        try {
+          const version = initialParams.source_animation_version === 2 ? 'v2' : 'v1';
+          const frame = await readPlayerFrameInput(initialParams.start_image, initialParams.source_params, version);
+          setPlayerFrame(frame);
+          applyPlayerFrameLayout(frame, version);
+          setSourceFiles([frame.image, null, null]);
+          setFlipStates([false, false, false]);
+          setExpandImages(false);
+          setLoopAnimation(false);
+          setParams(current => ({ ...current, use_mid_image: false, use_end_image: false }));
+        } catch (error: any) { setError(error.message || 'Image could not be opened'); }
+        onConsumed?.();
+        return;
+      }
       
-      // Player passes the current edited frame; Dashboard uses the saved job image.
-      if (initialParams.action === 'animate' && (initialParams.start_image || initialParams.job_type === 'character' || initialParams.job_type === 'item')) {
+      // Dashboard's existing character/item action uses the saved job image.
+      if (initialParams.action === 'animate' && (initialParams.job_type === 'character' || initialParams.job_type === 'item')) {
         setGenerationVersion('v1');
         const job = initialParams;
         const jobParams = job.input_params || {};
@@ -357,9 +395,7 @@ const GenerationPage: React.FC<GenerationPageProps> = ({
         const sourcePixelSize = parseInt(jobParams.pixel_size || "128");
         const version = parseInt(jobParams.version || "1");
         let targetPixelSize: PixelSize = "128";
-        if (job.start_image && Number.isFinite(job.start_pixel_size)) {
-          targetPixelSize = nearestPixelPreset(job.start_pixel_size);
-        } else if (version === 2) {
+        if (version === 2) {
           targetPixelSize = String(sourcePixelSize) as PixelSize;
         } else {
           if (sourcePixelSize === 32) {
@@ -376,16 +412,14 @@ const GenerationPage: React.FC<GenerationPageProps> = ({
           quantization_colors: 32
         });
         
-        let initialImageUrl = job.start_image || (outputImgs.length > 0 ? outputImgs[0].url : null);
-        if (!job.start_image) {
-          try {
-            const cached = await getSpriteFromCache(job.gen_id);
-            if (cached && cached.spriteSheet) {
-              initialImageUrl = cached.spriteSheet;
-            }
-          } catch (err) {
-            console.error("Failed to fetch cached sprite for animation", err);
+        let initialImageUrl = outputImgs.length > 0 ? outputImgs[0].url : null;
+        try {
+          const cached = await getSpriteFromCache(job.gen_id);
+          if (cached && cached.spriteSheet) {
+            initialImageUrl = cached.spriteSheet;
           }
+        } catch (err) {
+          console.error("Failed to fetch cached sprite for animation", err);
         }
 
         if (initialImageUrl) {
@@ -496,6 +530,7 @@ const GenerationPage: React.FC<GenerationPageProps> = ({
   }, [initialParams, onConsumed]);
 
   const handleImageUpload = (index: number, file: File) => {
+    if (index === 0) setPlayerFrame(null);
     const newFiles = [...sourceFiles];
     newFiles[index] = file;
     if (index === 0 && loopAnimation) newFiles[2] = file;
@@ -641,6 +676,7 @@ const GenerationPage: React.FC<GenerationPageProps> = ({
             <button type="button" disabled={loading} aria-pressed={generationVersion === 'v1'}
               className={generationVersion === 'v1' ? 'is-active' : ''}
               onClick={() => {
+                if (playerFrame) { applyPlayerFrameLayout(playerFrame, 'v1'); setError(''); return; }
                 if (generationVersion === 'v2') {
                   setParams(current => ({ ...current, pixel_size: v2PixelChoice }));
                 }
@@ -652,6 +688,7 @@ const GenerationPage: React.FC<GenerationPageProps> = ({
             <button type="button" disabled={loading} aria-pressed={generationVersion === 'v2'}
               className={generationVersion === 'v2' ? 'is-active' : ''}
               onClick={() => {
+                if (playerFrame) { applyPlayerFrameLayout(playerFrame, 'v2'); setError(''); return; }
                 if (generationVersion === 'v1') {
                   const inheritedSize = params.pixel_size;
                   setV2PixelChoice(inheritedSize);
