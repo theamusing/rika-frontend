@@ -12,7 +12,7 @@ import { ensureOriginalSpriteCache, animationSpec } from '../utils/originalSprit
 import { decodeImage } from '../utils/imageLoader.ts';
 import { fitImageDimensions } from '../utils/animationDisplay.ts';
 import { lassoSelection, PixelPoint, rectangleSelection, selectionOutlinePath } from '../utils/selectionUtils.ts';
-import { Heart, ArrowLeft, Move, Pipette, HelpCircle, SquareDashedMousePointer, PaintBucket, Eye, EyeOff } from 'lucide-react';
+import { Heart, ArrowLeft, Move, Pipette, HelpCircle, SquareDashedMousePointer, Lasso, PaintBucket, Eye, EyeOff } from 'lucide-react';
 import ColorPickerPopover from '../components/ColorPickerPopover.tsx';
 // @ts-ignore
 import gifshot from 'gifshot';
@@ -1166,12 +1166,12 @@ const TaskPlayerPage: React.FC<TaskPlayerPageProps> = ({
   const renderToolButton = (id: Tool, content: React.ReactNode, hasParams?: boolean) => {
     const isActive = effectiveTool === id;
     const getToolTitle = () => {
-      if (!isZh) return id.toUpperCase();
+      if (!isZh) return id === 'selection' ? (selectionShape === 'lasso' ? 'FREE LASSO' : 'RECTANGLE SELECT') : id.toUpperCase();
       switch(id) {
         case 'brush': return '笔刷';
         case 'eraser': return '橡皮';
         case 'wand': return '魔棒';
-        case 'selection': return '选区';
+        case 'selection': return selectionShape === 'lasso' ? '自由套索' : '矩形框选';
         case 'bucket': return '油漆桶';
         case 'nudge': return '微移';
         case 'move': return '移动';
@@ -1416,7 +1416,7 @@ const TaskPlayerPage: React.FC<TaskPlayerPageProps> = ({
         <div className={`mx-auto lg:mx-0 flex flex-col items-center gap-4 p-2 bg-[#1b0a38]/80 pixel-border border-[#5a2d9c] w-14 shrink-0 ${isEditorBlocked ? 'opacity-30 pointer-events-none' : ''}`}>
            {renderToolButton("brush", <img src={`${ICON_BASE}brush.png`} style={{ imageRendering: 'auto' }} className="w-full h-full object-contain" alt="Brush" />, true)}
            {renderToolButton("wand", <img src={`${ICON_BASE}wand.png`} style={{ imageRendering: 'auto' }} className="w-full h-full object-contain" alt="Wand" />, true)}
-           {renderToolButton("selection", <SquareDashedMousePointer size={20} />, true)}
+           {renderToolButton("selection", selectionShape === 'lasso' ? <Lasso size={20} /> : <SquareDashedMousePointer size={20} />, true)}
            {renderToolButton("bucket", <PaintBucket size={20} />, true)}
            {renderToolButton("eraser", <img src={`${ICON_BASE}eraser.png`} style={{ imageRendering: 'auto' }} className="w-full h-full object-contain" alt="Eraser" />, true)}
            {renderToolButton("nudge", <Move size={20} />)}
