@@ -504,7 +504,7 @@ const TaskPlayerPage: React.FC<TaskPlayerPageProps> = ({
       customModeRef.current = false;
       setIsCustomMode(false);
       let firstAttempt = true;
-      let failedInitial: Job | null = null;
+      let completedLoadFailures = 0;
       const fetchJob = async () => {
         try {
           if (firstAttempt && initialJob?.gen_id === selectedJobId && initialJob.status === 'succeeded') {
@@ -514,25 +514,23 @@ const TaskPlayerPage: React.FC<TaskPlayerPageProps> = ({
               if (isCurrent()) setLoading(false);
               return;
             }
-            failedInitial = initialJob;
+            if (!isCurrent()) return;
+            completedLoadFailures++;
           }
           firstAttempt = false;
           const job = await apiService.getJobInfo(selectedJobId);
           if (!isCurrent()) return;
           setCurrentJob(job);
-          if (failedInitial && job.status === 'succeeded') {
-            const imageIdentity = (value: Job) => JSON.stringify([
-              value.output_images?.[0]?.url, value.animation_version,
-              value.input_params?.animation_version, value.input_params?.output_frames,
-              value.input_params?.length, value.input_params?.pixel_size,
-            ]);
-            if (imageIdentity(job) === imageIdentity(failedInitial)) {
-              setLoading(false); return;
-            }
-          }
-          await updateFramesFromJob(job, isCurrent);
+          const loaded = await updateFramesFromJob(job, isCurrent);
           if (!isCurrent()) return;
           setLoading(false);
+          if (job.status === 'succeeded' && !loaded) {
+            completedLoadFailures++;
+            if (completedLoadFailures < 4) {
+              timer = setTimeout(fetchJob, 2000 * completedLoadFailures);
+            }
+            return;
+          }
           const newlySubmitted = !initialJob || initialJob.gen_id !== selectedJobId;
           if (newlySubmitted && job.status === 'failed' && Number(job.animation_version ?? job.input_params?.animation_version) === 2) {
             if (handledFailureJobId.current !== job.gen_id) {
