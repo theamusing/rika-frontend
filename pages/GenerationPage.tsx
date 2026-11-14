@@ -264,7 +264,9 @@ const GenerationPage: React.FC<GenerationPageProps> = ({
               if (i === 0) setPaddingPreviewImage(result.contentImage);
               continue;
             }
-            const v1Source = imported ? await squarePlayerFrame(imported, Number(params.pixel_size), params.bg_color || imported.background) : source;
+            // Pad a Player frame to its original legal square once in source
+            // coordinates. Changing the pixel preset then resamples that square.
+            const v1Source = imported ? await squarePlayerFrame(imported, Number(imported.squareSize), params.bg_color || imported.background) : source;
             // Process for display (downscaled)
             const displayB64 = await processImage(
               v1Source,
