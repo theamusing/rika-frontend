@@ -8,7 +8,60 @@ export const isUserImage = (url: string): boolean => {
 const pending = new Map<string, Promise<string>>();
 const memory = new Map<string, string>();
 const decoded = new Map<string, Promise<HTMLImageElement>>();
-const TIMEOUT = 15000;
+const DECODE_TIMEOUT = 15000;
+const DOWNLOAD_IDLE_TIMEOUT = 30000;
+const MAX_DOWNLOADS = 4;
+const RETRY_DELAYS = [0, 2000, 5000];
+let activeDownloads = 0;
+const downloadQueue: Array<() => void> = [];
+
+// Share one limit across thumbnails, previews and Player. Waiting here does not
+// consume a request's timeout, and retry delays do not occupy a download slot.
+const withDownloadSlot = async <T>(run: () => Promise<T>): Promise<T> => {
+  await new Promise<void>(resolve => {
+    const start = () => { activeDownloads++; resolve(); };
+    if (activeDownloads < MAX_DOWNLOADS) start();
+    else downloadQueue.push(start);
+  });
+  try { return await run(); }
+  finally { activeDownloads--; downloadQueue.shift()?.(); }
+};
+
+const downloadImage = (url: string, fresh: boolean): Promise<Blob> => withDownloadSlot(async () => {
+  const controller = new AbortController();
+  let stalled = false;
+  let timer: ReturnType<typeof setTimeout>;
+  const resetIdleTimer = () => {
+    clearTimeout(timer);
+    timer = setTimeout(() => { stalled = true; controller.abort(); }, DOWNLOAD_IDLE_TIMEOUT);
+  };
+  resetIdleTimer();
+  try {
+    const response = await fetch(url, {
+      mode: 'cors', credentials: 'omit', signal: controller.signal,
+      cache: fresh ? 'no-store' : 'default',
+    });
+    if (!response.ok) {
+      await response.body?.cancel().catch(() => {});
+      throw new Error(`HTTP ${response.status}`);
+    }
+    resetIdleTimer();
+    if (!response.body) return await response.blob();
+    const reader = response.body.getReader();
+    const chunks: BlobPart[] = [];
+    try {
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        if (value.byteLength) { chunks.push(value); resetIdleTimer(); }
+      }
+    } finally { reader.releaseLock(); }
+    return new Blob(chunks, { type: response.headers.get('Content-Type') || '' });
+  } catch (error) {
+    if (stalled) throw new Error('Image download made no progress for 30 seconds');
+    throw error;
+  } finally { clearTimeout(timer!); }
+});
 export interface ImageLoadOptions { refresh?: boolean; }
 
 export const decodeImage = (src: string): Promise<HTMLImageElement> => {
@@ -16,7 +69,8 @@ export const decodeImage = (src: string): Promise<HTMLImageElement> => {
   if (existing) { decoded.delete(src); decoded.set(src, existing); return existing; }
   const task = new Promise<HTMLImageElement>((resolve, reject) => {
     const image = new Image();
-    const timer = setTimeout(() => { image.onload = image.onerror = null; image.src = ''; reject(new Error('Image decoding timed out')); }, TIMEOUT);
+    const remote = !src.startsWith('data:') && !src.startsWith('blob:');
+    const timer = setTimeout(() => { image.onload = image.onerror = null; image.src = ''; reject(new Error(remote ? 'Image download timed out' : 'Image decoding timed out')); }, remote ? DOWNLOAD_IDLE_TIMEOUT : DECODE_TIMEOUT);
     image.onload = () => {
       clearTimeout(timer);
       if (!image.naturalWidth || !image.naturalHeight) reject(new Error('Image has invalid dimensions'));
@@ -67,31 +121,33 @@ export const fetchAsDataUrl = (url: string, options: ImageLoadOptions = {}): Pro
         }
       }
     }
-    const attempts: string[] = [];
-    const retry = new URL(url, window.location.href);
-    if (isUserImage(url)) retry.searchParams.set('_rika_retry', String(Date.now()));
-    for (let attempt = 0; attempt < 2; attempt++) {
-      const controller = new AbortController();
-      const timer = setTimeout(() => controller.abort(), TIMEOUT);
+    const attempts: Array<{ stage: string; message: string; elapsedMs: number }> = [];
+    const requestUrl = (fresh: boolean, attempt: number) => {
+      const parsed = new URL(url, window.location.href);
+      if (fresh && isUserImage(url)) parsed.searchParams.set('_rika_retry', `${Date.now()}-${attempt}`);
+      return parsed.href;
+    };
+    for (let attempt = 0; attempt < RETRY_DELAYS.length; attempt++) {
+      if (RETRY_DELAYS[attempt]) await new Promise(resolve => setTimeout(resolve, RETRY_DELAYS[attempt]));
+      const started = Date.now();
+      let stage = 'download';
       try {
         const fresh = options.refresh || attempt > 0;
-        const response = await fetch(fresh ? retry.href : url, {
-          mode: 'cors', credentials: 'omit', signal: controller.signal,
-          cache: fresh ? 'no-store' : 'default',
-        });
-        if (!response.ok) throw new Error(`HTTP ${response.status}`);
-        const blob = await response.blob();
+        const blob = await downloadImage(requestUrl(Boolean(fresh), attempt), Boolean(fresh));
+        stage = 'response validation';
         if (!blob.size || (blob.type && !blob.type.startsWith('image/'))) throw new Error('Response is not an image');
+        stage = 'read image bytes';
         const data = await blobDataUrl(blob);
+        stage = 'decode';
         await decodeImage(data);
         remember(url, data);
         if (isUserImage(url)) void saveAssetToCache(url, data).catch(() => {});
         return data;
-      } catch (error) { attempts.push(error instanceof Error ? error.message : String(error)); }
-      finally { clearTimeout(timer); }
+      } catch (error) { attempts.push({ stage, message: error instanceof Error ? error.message : String(error), elapsedMs: Date.now() - started }); }
     }
+    const fallbackStarted = Date.now();
     try {
-      const image = await decodeImage(retry.href);
+      const image = await withDownloadSlot(() => decodeImage(requestUrl(true, RETRY_DELAYS.length)));
       const canvas = document.createElement('canvas');
       canvas.width = image.naturalWidth; canvas.height = image.naturalHeight;
       const context = canvas.getContext('2d');
@@ -101,10 +157,10 @@ export const fetchAsDataUrl = (url: string, options: ImageLoadOptions = {}): Pro
       remember(url, data);
       if (isUserImage(url)) void saveAssetToCache(url, data).catch(() => {});
       return data;
-    } catch (error) { attempts.push(error instanceof Error ? error.message : String(error)); }
+    } catch (error) { attempts.push({ stage: 'image element fallback', message: error instanceof Error ? error.message : String(error), elapsedMs: Date.now() - fallbackStarted }); }
     console.error('Image loading failed.', { url: url.split('?')[0], attempts });
-    const httpError = attempts.find(message => /^HTTP \d+$/.test(message));
-    throw new Error(httpError ? `Image download failed (${httpError}). Please retry.` : 'Image could not be downloaded or decoded. Please retry.');
+    const httpError = attempts.find(attempt => /^HTTP \d+$/.test(attempt.message));
+    throw new Error(httpError ? `Image download failed (${httpError.message}). Please retry.` : 'Image could not be downloaded or decoded. Please retry.');
   })();
   pending.set(url, task);
   void task.finally(() => { if (pending.get(url) === task) pending.delete(url); }).catch(() => {});

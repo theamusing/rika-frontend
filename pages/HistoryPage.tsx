@@ -388,11 +388,9 @@ const HistoryPage: React.FC<HistoryPageProps> = ({
               <PixelCard key={job.gen_id} className="group hover:bg-[#5a2d9c]/20 transition-all cursor-pointer" onClick={() => setSelectedJob(job)}>
                   <AnimatedSpritePreview lang={lang} alt="Job preview" fallbackRatio={jobFrameAspectRatio(job)} maxHeight={256}
                     play={!selectedJob} {...animationPreview(job, checkedCacheIds.has(job.gen_id), cachedSprites[job.gen_id])}
-                    src={((job.job_type === 'character' || job.job_type === 'item') && cachedSprites[job.gen_id])
-                      ? cachedSprites[job.gen_id].spriteSheet
-                      : ((job.job_type === 'character' || job.job_type === 'item' || job.job_type === 'map')
-                        ? (job.output_images?.[0]?.url || job.input_images?.[0]?.url)
-                        : (job.input_images?.[0]?.url || job.output_images?.[0]?.url))}
+                    src={isSingleFrameJob(job)
+                      ? (cachedSprites[job.gen_id]?.spriteSheet || job.output_images?.[0]?.url || job.input_images?.[0]?.url)
+                      : undefined}
                     className={`mb-4 pixel-border border-2 border-[#5a2d9c] group-hover:border-white/40 ${
                     (job.job_type === 'character' || job.job_type === 'item' || job.job_type === 'map') ? 'bg-[#2a2a2a]' : 'bg-black/40'
                   }`}>
@@ -526,7 +524,7 @@ const HistoryPage: React.FC<HistoryPageProps> = ({
                                     {...animationPreview(selectedJob, checkedCacheIds.has(selectedJob.gen_id), cachedSprites[selectedJob.gen_id])}
                                     src={((selectedJob.job_type === 'character' || selectedJob.job_type === 'item') && cachedSprites[selectedJob.gen_id])
                                       ? cachedSprites[selectedJob.gen_id].spriteSheet
-                                      : (isSingleFrameJob(selectedJob) ? selectedJob.output_images[0].url : selectedJob.input_images?.[0]?.url)}
+                                      : (isSingleFrameJob(selectedJob) ? selectedJob.output_images[0].url : undefined)}
                                     className={`pixel-border border-[#5a2d9c] ${
                                     (selectedJob.job_type === 'character' || selectedJob.job_type === 'item' || selectedJob.job_type === 'map') ? 'bg-[#2a2a2a]' : 'bg-black/40'
                                   }`}>
