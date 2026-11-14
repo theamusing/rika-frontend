@@ -8,6 +8,7 @@ export type AppTab =
   | 'map'
   | 'player'
   | 'history'
+  | 'gallery'
   | 'api'
   | 'docs';
 
@@ -19,6 +20,7 @@ const TAB_SEGMENTS: Record<AppTab, string> = {
   map: 'create/map',
   player: 'player',
   history: 'dashboard',
+  gallery: 'gallery',
   api: 'api',
   docs: 'docs',
 };
@@ -27,7 +29,7 @@ const SEGMENT_TABS = new Map(
   Object.entries(TAB_SEGMENTS).map(([tab, segment]) => [segment, tab as AppTab]),
 );
 
-const INDEXABLE_TABS = new Set<AppTab>(['intro', 'docs', 'api']);
+const INDEXABLE_TABS = new Set<AppTab>(['intro', 'docs', 'api', 'gallery']);
 
 const SEO_COPY: Record<AppLanguage, Record<AppTab, { title: string; description: string }>> = {
   en: {
@@ -49,6 +51,7 @@ const SEO_COPY: Record<AppLanguage, Record<AppTab, { title: string; description:
     map: { title: 'Create Pixel Art Maps – Rika AI', description: 'Generate pixel art maps and environments with Rika AI.' },
     player: { title: 'Animation Player – Rika AI', description: 'Preview and edit your Rika AI generation.' },
     history: { title: 'Dashboard – Rika AI', description: 'Manage your Rika AI generations.' },
+    gallery: { title: 'Pixel Art Gallery – Rika AI', description: 'Explore public pixel art characters, items, maps, and sprite animations created with Rika AI.' },
   },
   zh: {
     intro: {
@@ -69,6 +72,7 @@ const SEO_COPY: Record<AppLanguage, Record<AppTab, { title: string; description:
     map: { title: '生成像素地图｜Rika AI', description: '使用 Rika AI 生成像素画地图与场景。' },
     player: { title: '动画播放器｜Rika AI', description: '预览和编辑你的 Rika AI 生成结果。' },
     history: { title: '仪表盘｜Rika AI', description: '管理你的 Rika AI 生成记录。' },
+    gallery: { title: '像素作品画廊｜Rika AI', description: '浏览 Rika AI 用户公开的像素角色、道具、地图和序列帧动画。' },
   },
 };
 

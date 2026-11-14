@@ -14,6 +14,7 @@ import { fitImageDimensions } from '../utils/animationDisplay.ts';
 import { lassoSelection, PixelPoint, rectangleSelection, selectionOutlinePath } from '../utils/selectionUtils.ts';
 import { Heart, ArrowLeft, Move, Pipette, HelpCircle, SquareDashedMousePointer, Lasso, PaintBucket, Eye, EyeOff } from 'lucide-react';
 import ColorPickerPopover from '../components/ColorPickerPopover.tsx';
+import GalleryVisibility from '../components/GalleryVisibility.tsx';
 // @ts-ignore
 import gifshot from 'gifshot';
 
@@ -1371,7 +1372,7 @@ const TaskPlayerPage: React.FC<TaskPlayerPageProps> = ({
               <ArrowLeft size={16} className="text-white/60 group-hover:text-white" />
             </button>
           )}
-          <div className="flex flex-wrap gap-x-4 gap-y-2 text-[9px] text-white/60 uppercase">
+          <div className="flex items-center gap-x-4 overflow-x-auto whitespace-nowrap text-[9px] text-white/60 uppercase">
             <span>JOB: <span className="text-white">{isCustomMode ? 'NONE' : (selectedJobId?.slice(0,8) || 'NONE')}</span></span>
             <span>MODE: <span className="text-white">{isCustomMode ? 'CUSTOM' : (currentJob?.input_params?.motion_type || 'MANUAL')}</span></span>
             <span>STATUS: <span className={
@@ -1379,6 +1380,8 @@ const TaskPlayerPage: React.FC<TaskPlayerPageProps> = ({
               (currentJob?.status === 'running' || currentJob?.status === 'queued') ? 'text-yellow-500' :
               'text-white/40'
             }>{currentJob?.status || 'READY'}</span></span>
+            {currentJob?.status === 'succeeded' && !isCustomMode &&
+              <GalleryVisibility key={currentJob.gen_id} generationId={currentJob.gen_id} lang={lang} compact />}
           </div>
         </div>
         <div className="flex flex-wrap items-center justify-between md:justify-end gap-3 text-[9px] uppercase text-white/60">

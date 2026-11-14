@@ -49,6 +49,24 @@ export interface Job {
   liked?: boolean;
 }
 
+export type GalleryMethod = 'week' | 'month' | 'latest' | 'random';
+export type GalleryJobType = 'animation' | 'character' | 'item' | 'map';
+export interface GalleryItem {
+  post_id: string;
+  generation_id: string;
+  author: { id: string; name: string };
+  published_at: string;
+  like_count: number;
+  image_url: string;
+  input_images: string[];
+  parameters: Record<string, unknown>;
+  job_type: GalleryJobType;
+  animation_version: number | null;
+  frame_count: number;
+  columns: number;
+  pixel_size: string | PixelDimensions | null;
+}
+
 export interface AuthUser {
   id: string;
   email: string;

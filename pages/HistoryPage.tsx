@@ -1,5 +1,6 @@
 
 import React, { useState, useEffect, useRef, useCallback } from 'react';
+import { createPortal } from 'react-dom';
 import { apiService } from '../services/apiService.ts';
 import { Job } from '../types.ts';
 import { PixelButton, PixelCard } from '../components/PixelComponents.tsx';
@@ -9,6 +10,8 @@ import { jobFrameAspectRatio } from '../utils/animationDisplay.ts';
 import { Heart, Trash2, AlertTriangle } from 'lucide-react';
 import { getSpriteFromCache } from '../utils/dbUtils.ts';
 import { ensureOriginalSpriteCache } from '../utils/originalSpriteCache.ts';
+import GalleryVisibility from '../components/GalleryVisibility.tsx';
+import ParameterPanel, { jobParameters } from '../components/ParameterPanel.tsx';
 
 interface HistoryPageProps {
   onJobSelected: (job: Job, page?: number) => void;
@@ -294,11 +297,16 @@ const HistoryPage: React.FC<HistoryPageProps> = ({
 
   return (
     <div className="ui-page space-y-8 text-white">
-      <div className="flex flex-wrap justify-between items-center gap-4">
-          <div className="flex flex-wrap items-center gap-3">
-            <h2 className="ui-page-title font-bold uppercase">
-              {isZh ? '历史记录' : 'GENERATION ARCHIVE'}
-            </h2>
+      <div className="space-y-7">
+        <div className="flex flex-wrap justify-between items-center gap-4">
+          <h2 className="ui-page-title font-bold uppercase">
+            {isZh ? '历史记录' : 'GENERATION ARCHIVE'}
+          </h2>
+          <PixelButton variant="secondary" onClick={handleManualRefresh} style={{ fontSize: zhScale(10) }}>
+            {isZh ? '刷新' : 'Refresh'}
+          </PixelButton>
+        </div>
+        <div className="flex flex-wrap items-center gap-3">
             <div className="flex flex-wrap items-center gap-2">
               <div className={`px-3 py-1 bg-[#5a2d9c]/40 pixel-border border-[#5a2d9c] text-white/60 text-[10px]`}>
                 PAGE {String(currentPage + 1).padStart(2, '0')} / {String(totalPages || 1).padStart(2, '0')}
@@ -338,10 +346,7 @@ const HistoryPage: React.FC<HistoryPageProps> = ({
               <Heart size={12} className={showLikedOnly ? 'fill-red-500' : ''} />
               {isZh ? '仅显示收藏' : 'LIKED ONLY'}
             </button>
-          </div>
-          <PixelButton variant="secondary" onClick={handleManualRefresh} style={{ fontSize: zhScale(10) }}>
-            {isZh ? '刷新' : 'Refresh'}
-          </PixelButton>
+        </div>
       </div>
 
       {localizedNotice && (
@@ -496,12 +501,13 @@ const HistoryPage: React.FC<HistoryPageProps> = ({
         </>
       )}
 
-      {selectedJob && (
-          <div className="fixed inset-0 z-[60] bg-black/90 flex items-center justify-center p-4">
-              <PixelCard className="max-w-4xl w-full max-h-[90vh] overflow-y-auto" title={isZh ? '任务详情' : 'Task Specifications'}>
+      {selectedJob && createPortal(
+          <div className="fixed inset-0 z-[110] bg-black/90 flex items-center justify-center p-6 pt-9">
+              <PixelCard className="max-w-4xl w-full pt-7" title={isZh ? '任务详情' : 'Task Specifications'}>
+                <div className="max-h-[calc(100vh-6rem)] overflow-y-auto">
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
                       <div className="space-y-6">
-                          <div>
+                          {!!selectedJob.input_images?.length && <div>
                               <p className={`opacity-50 uppercase mb-2`} style={{ fontSize: zhScale(8) }}>
                                 {isZh ? '输入图像' : 'Input Reference'}
                               </p>
@@ -514,7 +520,7 @@ const HistoryPage: React.FC<HistoryPageProps> = ({
                                       }`} />
                                   ))}
                               </div>
-                          </div>
+                          </div>}
                           {selectedJob.status === 'succeeded' && selectedJob.output_images?.[0] && (
                               <div>
                                   <p className={`opacity-50 uppercase mb-2`} style={{ fontSize: zhScale(8) }}>
@@ -544,12 +550,9 @@ const HistoryPage: React.FC<HistoryPageProps> = ({
                       </div>
                       <div className="space-y-6">
                           <div className="space-y-4">
-                              <div className="p-4 bg-[#0d0221] pixel-border border-[#5a2d9c]">
-                                  <p className={`uppercase underline mb-2 text-white/60 text-[10px]`}>Parameters</p>
-                                  <pre className={`leading-relaxed opacity-80 overflow-x-auto text-white/90 text-[8px]`}>
-                                      {JSON.stringify(selectedJob.input_params, null, 2)}
-                                  </pre>
-                              </div>
+                              {selectedJob.status === 'succeeded' &&
+                                <GalleryVisibility key={selectedJob.gen_id} generationId={selectedJob.gen_id} lang={lang} />}
+                              <ParameterPanel parameters={jobParameters(selectedJob)} lang={lang} />
                               {selectedJob.error && (
                                   <div className="p-4 bg-red-900/20 pixel-border border-red-500">
                                       <p className={`uppercase text-red-500 mb-1`} style={{ fontSize: zhScale(8) }}>
@@ -595,11 +598,12 @@ const HistoryPage: React.FC<HistoryPageProps> = ({
                           </div>
                       </div>
                   </div>
+                </div>
               </PixelCard>
           </div>
-      )}
-      {showDeleteConfirm && (
-        <div className="fixed inset-0 z-[100] bg-black/80 flex items-center justify-center p-4 backdrop-blur-sm">
+      , document.body)}
+      {showDeleteConfirm && createPortal(
+        <div className="fixed inset-0 z-[130] bg-black/80 flex items-center justify-center p-4 backdrop-blur-sm">
           <PixelCard className="max-w-sm w-full p-6 text-center space-y-6" title={isZh ? '确认删除' : 'CONFIRM DELETE'}>
             <div className="flex justify-center">
               <div className="w-12 h-12 bg-red-500/20 rounded-full flex items-center justify-center text-red-500">
@@ -635,8 +639,7 @@ const HistoryPage: React.FC<HistoryPageProps> = ({
               </PixelButton>
             </div>
           </PixelCard>
-        </div>
-      )}
+        </div>, document.body)}
     </div>
   );
 };

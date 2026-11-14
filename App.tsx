@@ -10,6 +10,7 @@ import ItemPage from './pages/ItemPage.tsx';
 import MapPage from './pages/MapPage.tsx';
 import TaskPlayerPage from './pages/TaskPlayerPage.tsx';
 import HistoryPage from './pages/HistoryPage.tsx';
+import GalleryPage from './pages/GalleryPage.tsx';
 import LandingPage from './pages/LandingPage.tsx';
 import DocumentPage from './pages/DocumentPage.tsx';
 import ApiPage from './pages/ApiPage.tsx';
@@ -341,6 +342,12 @@ const App: React.FC = () => {
             >
               {isZh ? '仪表盘' : 'DASHBOARD'}
             </button>
+            <button
+              onClick={() => navigateTo('gallery')}
+              className={`nav-button ${activeTab === 'gallery' ? 'is-active' : ''}`}
+            >
+              {isZh ? '画廊' : 'GALLERY'}
+            </button>
             <button 
               onClick={() => navigateTo('api')}
               className={`nav-button ${activeTab === 'api' ? 'is-active' : ''}`}
@@ -483,6 +490,7 @@ const App: React.FC = () => {
             }}
             onGenerateCharacter={() => navigateTo('character')}
             onGenerateMap={() => navigateTo('map')}
+            onViewGallery={() => navigateTo('gallery')}
             onViewDocs={() => navigateTo('docs')} 
           />
         ) : activeTab === 'docs' ? (
@@ -590,6 +598,12 @@ const App: React.FC = () => {
                   setForceLogin(true);
                 }}
               />
+            )}
+            {activeTab === 'gallery' && (
+              <GalleryPage lang={lang} isLoggedIn={!!user} onLoginRequest={() => {
+                setPendingTab('gallery');
+                setForceLogin(true);
+              }} />
             )}
             {activeTab === 'api' && (
               <ApiPage lang={lang} isLoggedIn={!!user} onLoginRequest={() => navigateTo('generate')} />

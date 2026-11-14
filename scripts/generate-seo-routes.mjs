@@ -9,6 +9,7 @@ const routes = [
   { segment: '', indexable: true },
   { segment: 'docs', indexable: true },
   { segment: 'api', indexable: true },
+  { segment: 'gallery', indexable: true },
   { segment: 'create/character', indexable: false },
   { segment: 'create/item', indexable: false },
   { segment: 'create/animation', indexable: false },
@@ -37,6 +38,12 @@ const copy = {
       heading: 'Rika AI generation API',
       body: 'Integrate pixel art character, item, map, and animation generation into games, creative tools, and production pipelines.',
     },
+    gallery: {
+      title: 'Pixel Art Gallery – Rika AI',
+      description: 'Explore public pixel art characters, items, maps, and sprite animations created with Rika AI.',
+      heading: 'Public pixel art gallery',
+      body: 'Browse community pixel art and sprite animations, including weekly and monthly favorites.',
+    },
   },
   zh: {
     '': {
@@ -56,6 +63,12 @@ const copy = {
       description: '通过 Rika AI API 将像素角色、道具、地图和序列帧动画生成能力接入你的应用。',
       heading: 'Rika AI 生成 API',
       body: '将像素角色、道具、地图和动画生成能力接入游戏、创作工具与自动化生产流程。',
+    },
+    gallery: {
+      title: '像素作品画廊｜Rika AI',
+      description: '浏览 Rika AI 用户公开的像素角色、道具、地图和序列帧动画。',
+      heading: '像素作品画廊',
+      body: '浏览社区公开的像素作品与序列帧动画，查看每周和每月排行。',
     },
   },
 };

@@ -1,6 +1,6 @@
 
 import { API_BASE, SUPABASE_FUNCTIONS_URL, SUPABASE_PUBLISHABLE_KEY } from '../constants.ts';
-import { AnimationV2Params, Job } from '../types.ts';
+import { AnimationV2Params, GalleryItem, GalleryJobType, GalleryMethod, Job } from '../types.ts';
 
 class ApiService {
   private token: string | null = null;
@@ -163,6 +163,50 @@ class ApiService {
     let url = `history_num?get_liked=${get_liked}`;
     if (job_type) url += `&job_type=${job_type}`;
     return this.request('POST', url);
+  }
+
+  async getGallery(method: GalleryMethod, k = 20, jobType?: GalleryJobType): Promise<{ method: GalleryMethod; items: GalleryItem[] }> {
+    const query = new URLSearchParams({ method, k: String(k) });
+    if (jobType) query.set('job_type', jobType);
+    return this.request('GET', `gallery?${query}`);
+  }
+
+  async getGalleryVisibility(generationId: string): Promise<{ visible: boolean; post_id: string | null }> {
+    return this.request('GET', `gallery/visibility/${encodeURIComponent(generationId)}`);
+  }
+
+  async getGalleryLikedIds(postIds: string[]): Promise<string[]> {
+    if (!postIds.length || !this.token) return [];
+    const result = await this.request('GET', `gallery/likes?post_ids=${encodeURIComponent(postIds.join(','))}`);
+    return result.liked_ids || [];
+  }
+
+  private async galleryMutation(name: string, body: object): Promise<any> {
+    if (!this.token) throw new Error('Please log in first');
+    const response = await fetch(`${SUPABASE_FUNCTIONS_URL}${name}`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${this.token}`,
+        'apikey': SUPABASE_PUBLISHABLE_KEY,
+      },
+      body: JSON.stringify(body),
+      mode: 'cors',
+      credentials: 'omit',
+    });
+    if (!response.ok) {
+      const result = await response.json().catch(() => ({}));
+      throw new Error(result.error || result.message || `Request failed (${response.status})`);
+    }
+    return response.json();
+  }
+
+  async setGalleryVisibility(generationId: string, visible: boolean): Promise<{ visible: boolean; post_id: string | null }> {
+    return this.galleryMutation('set-gallery-visibility', { generation_id: generationId, visible });
+  }
+
+  async setGalleryLike(postId: string, liked: boolean): Promise<void> {
+    await this.galleryMutation('set-gallery-like', { post_id: postId, liked });
   }
 
   async deleteHistory(genId: string): Promise<any> {
