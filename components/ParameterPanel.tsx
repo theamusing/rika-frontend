@@ -11,8 +11,15 @@ const formatValue = (value: unknown): string => {
   return String(value);
 };
 
+export const mapParameters = (params: Record<string, unknown>): Record<string, unknown> => ({
+  style: params.style,
+  prompt: params.prompt,
+  bg_style: params.bg_style,
+});
+
 export const jobParameters = (job: Job): Record<string, unknown> => {
   const params = job.input_params || {};
+  if (job.job_type === 'map') return mapParameters(params);
   if (job.job_type !== 'animation') return params;
   const v2 = Number(job.animation_version ?? params.animation_version) === 2;
   const length = v2 ? params.output_frames : Math.max(1, Math.floor((Number(params.length ?? 33) - 1) / 2));
@@ -40,6 +47,8 @@ const ParameterPanel: React.FC<Props> = ({ parameters, lang }) => {
     length: isZh ? '帧数' : 'LENGTH',
     type: isZh ? '动作类型' : 'TYPE',
     seed: isZh ? '随机种子' : 'SEED',
+    style: isZh ? '风格' : 'STYLE',
+    bg_style: isZh ? '背景风格' : 'BG STYLE',
   };
   return <div className="font-sans p-4 bg-[#0d0221] pixel-border border-[#5a2d9c]">
     <h3 className="mb-4 text-white/70 uppercase" style={{ fontSize: isZh ? 13 : 11 }}>

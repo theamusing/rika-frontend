@@ -3,7 +3,7 @@ import { createPortal } from 'react-dom';
 import { Heart } from 'lucide-react';
 import AnimatedSpritePreview from '../components/AnimatedSpritePreview.tsx';
 import AspectRatioPreview from '../components/AspectRatioPreview.tsx';
-import ParameterPanel from '../components/ParameterPanel.tsx';
+import ParameterPanel, { mapParameters } from '../components/ParameterPanel.tsx';
 import { PixelButton, PixelCard } from '../components/PixelComponents.tsx';
 import { apiService } from '../services/apiService.ts';
 import { GalleryItem, GalleryJobType, GalleryMethod } from '../types.ts';
@@ -205,7 +205,9 @@ const GalleryPage: React.FC<Props> = ({ lang, isLoggedIn, onLoginRequest }) => {
                 <p className="text-white/60" style={{ fontSize: isZh ? 12 : 9 }}>
                   {isZh ? '作者' : 'CREATOR'}: <span className="text-white">{selected.author.name}</span>
                 </p>
-                <ParameterPanel parameters={selected.parameters || {}} lang={lang} />
+                <ParameterPanel parameters={selected.job_type === 'map'
+                  ? mapParameters(selected.parameters || {})
+                  : selected.parameters || {}} lang={lang} />
                 <div className="flex flex-col gap-3">
                   <PixelButton onClick={() => setLargePreview(true)}>{isZh ? '预览' : 'PREVIEW'}</PixelButton>
                   <PixelButton variant="secondary" onClick={() => setSelected(null)}>{isZh ? '关闭' : 'CLOSE'}</PixelButton>
