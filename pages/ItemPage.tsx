@@ -51,7 +51,7 @@ const ITEM_EXAMPLES: Record<string, any[]> = {
     { id: 1, en: "A square metal safe with a circular handle", zh: "圆形把手方形金属保险柜", image: "https://cdn.rika-ai.com/assets/references/item_ref_64_2.png" }
   ],
   '128': [
-    { id: 2, en: "An exquisite patterned metal safe", zh: "精致的带花纹的金属保险箱", image: "https://cdn.rika-ai.com/assets/references/item_ref_128_2.png" }
+    { id: 2, en: "A futuristic high-tech pistol", zh: "一把充满未来科技感的手枪", image: "https://cdn.rika-ai.com/assets/references/item_ref_128_2.png" }
   ],
   '256': [
     { id: 3, en: "Simple upright wooden bookshelf with wood texture", zh: "木头质感，朴素的直立书架", image: "https://cdn.rika-ai.com/assets/references/item_ref_256_2.png" }

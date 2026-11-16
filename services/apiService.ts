@@ -145,6 +145,10 @@ class ApiService {
     return this.request('POST', 'generate-item', { image_base64, params });
   }
 
+  async editImage(image_base64: string[], params: { prompt: string; pixel_size: string; image_type: 'character' | 'item' }): Promise<{ gen_id: string }> {
+    return this.request('POST', 'edit-image', { image_base64, params });
+  }
+
   async generateMap(image_base64: string[] | null, params: any) {
     return this.request('POST', 'generate-map', { image_base64, params });
   }

@@ -7,10 +7,12 @@ import { PixelButton, PixelCard } from '../components/PixelComponents.tsx';
 import AspectRatioPreview from '../components/AspectRatioPreview.tsx';
 import AnimatedSpritePreview from '../components/AnimatedSpritePreview.tsx';
 import { jobFrameAspectRatio } from '../utils/animationDisplay.ts';
+import { isSingleImageJob, isAIImageEdit } from '../utils/jobTypes.ts';
 import { Heart, Trash2, AlertTriangle } from 'lucide-react';
 import { getSpriteFromCache } from '../utils/dbUtils.ts';
 import { ensureOriginalSpriteCache } from '../utils/originalSpriteCache.ts';
 import GalleryVisibility from '../components/GalleryVisibility.tsx';
+import WorkDetailLabel from '../components/WorkDetailLabel.tsx';
 import ParameterPanel, { jobParameters } from '../components/ParameterPanel.tsx';
 
 interface HistoryPageProps {
@@ -29,7 +31,7 @@ const SHOW_LIKED_ONLY_KEY = 'rika_show_liked_only';
 const JOB_TYPE_KEY = 'rika_history_job_type';
 const isV2Animation = (job: Job) => Number(job.animation_version ?? job.input_params?.animation_version) === 2;
 type CachedPreview = { spriteSheet: string; frameCount?: number; columns?: number; excludedIndices?: number[]; updatedAt: number };
-const isSingleFrameJob = (job: Job) => job.job_type === 'character' || job.job_type === 'item' || job.job_type === 'map';
+const isSingleFrameJob = isSingleImageJob;
 
 const animationPreview = (job: Job, cacheChecked: boolean, cached?: CachedPreview) => {
   if (!cacheChecked || job.status !== 'succeeded' || isSingleFrameJob(job)) return {};
@@ -397,7 +399,7 @@ const HistoryPage: React.FC<HistoryPageProps> = ({
                       ? (cachedSprites[job.gen_id]?.spriteSheet || job.output_images?.[0]?.url || job.input_images?.[0]?.url)
                       : undefined}
                     className={`mb-4 pixel-border border-2 border-[#5a2d9c] group-hover:border-white/40 ${
-                    (job.job_type === 'character' || job.job_type === 'item' || job.job_type === 'map') ? 'bg-[#2a2a2a]' : 'bg-black/40'
+                    isSingleFrameJob(job) ? 'bg-[#2a2a2a]' : 'bg-black/40'
                   }`}>
                       <div 
                         className="absolute top-1 left-1 z-30 p-1 cursor-pointer transition-transform hover:scale-110 active:scale-95"
@@ -505,34 +507,39 @@ const HistoryPage: React.FC<HistoryPageProps> = ({
           <div className="fixed inset-0 z-[110] bg-black/90 flex items-center justify-center p-6 pt-9">
               <PixelCard className="max-w-4xl w-full pt-7" title={isZh ? '任务详情' : 'Task Specifications'}>
                 <div className="max-h-[calc(100vh-6rem)] overflow-y-auto">
+                  <div className="grid grid-cols-1 md:grid-cols-2 items-center gap-x-8 gap-y-3 mb-4">
+                    <WorkDetailLabel lang={lang} className="m-0 min-h-8 flex items-center">
+                      {selectedJob.input_images?.length ? (isZh ? '输入图像' : 'Input Reference')
+                        : (isAIImageEdit(selectedJob) ? (isZh ? '编辑结果' : 'Edited Output') : (isZh ? '生成结果' : 'Generated Output'))}
+                    </WorkDetailLabel>
+                    {selectedJob.status === 'succeeded' &&
+                      <GalleryVisibility key={selectedJob.gen_id} generationId={selectedJob.gen_id} lang={lang} />}
+                  </div>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
                       <div className="space-y-6">
                           {!!selectedJob.input_images?.length && <div>
-                              <p className={`opacity-50 uppercase mb-2`} style={{ fontSize: zhScale(8) }}>
-                                {isZh ? '输入图像' : 'Input Reference'}
-                              </p>
                               <div className="grid grid-cols-3 gap-2">
                                   {selectedJob.input_images?.map((img, i) => (
                                       <AspectRatioPreview key={i} src={img.url} alt={`Input ${i}`}
                                         fallbackRatio={jobFrameAspectRatio(selectedJob)} maxHeight={160}
                                         className={`pixel-border border-[#5a2d9c] ${
-                                        (selectedJob.job_type === 'character' || selectedJob.job_type === 'item' || selectedJob.job_type === 'map') ? 'bg-[#2a2a2a]' : 'bg-black/40'
+                                        isSingleFrameJob(selectedJob) ? 'bg-[#2a2a2a]' : 'bg-black/40'
                                       }`} />
                                   ))}
                               </div>
                           </div>}
                           {selectedJob.status === 'succeeded' && selectedJob.output_images?.[0] && (
                               <div>
-                                  <p className={`opacity-50 uppercase mb-2`} style={{ fontSize: zhScale(8) }}>
-                                    {isZh ? '生成结果' : 'Generated Output'}
-                                  </p>
+                                  {!!selectedJob.input_images?.length && <WorkDetailLabel lang={lang}>
+                                    {isAIImageEdit(selectedJob) ? (isZh ? '编辑结果' : 'Edited Output') : (isZh ? '生成结果' : 'Generated Output')}
+                                  </WorkDetailLabel>}
                                   <AnimatedSpritePreview lang={lang} alt="Output" fallbackRatio={jobFrameAspectRatio(selectedJob)}
                                     {...animationPreview(selectedJob, checkedCacheIds.has(selectedJob.gen_id), cachedSprites[selectedJob.gen_id])}
                                     src={((selectedJob.job_type === 'character' || selectedJob.job_type === 'item') && cachedSprites[selectedJob.gen_id])
                                       ? cachedSprites[selectedJob.gen_id].spriteSheet
                                       : (isSingleFrameJob(selectedJob) ? selectedJob.output_images[0].url : undefined)}
                                     className={`pixel-border border-[#5a2d9c] ${
-                                    (selectedJob.job_type === 'character' || selectedJob.job_type === 'item' || selectedJob.job_type === 'map') ? 'bg-[#2a2a2a]' : 'bg-black/40'
+                                    isSingleFrameJob(selectedJob) ? 'bg-[#2a2a2a]' : 'bg-black/40'
                                   }`}>
                                       <div 
                                         className="absolute top-2 left-2 z-30 p-2 cursor-pointer transition-transform hover:scale-110 active:scale-95 bg-black/20 rounded-full"
@@ -550,8 +557,6 @@ const HistoryPage: React.FC<HistoryPageProps> = ({
                       </div>
                       <div className="space-y-6">
                           <div className="space-y-4">
-                              {selectedJob.status === 'succeeded' &&
-                                <GalleryVisibility key={selectedJob.gen_id} generationId={selectedJob.gen_id} lang={lang} />}
                               <ParameterPanel parameters={jobParameters(selectedJob)} lang={lang} />
                               {selectedJob.error && (
                                   <div className="p-4 bg-red-900/20 pixel-border border-red-500">
@@ -577,9 +582,9 @@ const HistoryPage: React.FC<HistoryPageProps> = ({
                                   {isZh ? '制作动画' : 'ANIMATE'}
                                 </PixelButton>
                               )}
-                              <PixelButton variant="secondary" onClick={() => onRegenerate(selectedJob)} style={{ fontSize: zhScale(10) }}>
+                              {!isAIImageEdit(selectedJob) && <PixelButton variant="secondary" onClick={() => onRegenerate(selectedJob)} style={{ fontSize: zhScale(10) }}>
                                 {isZh ? '重新生成' : 'Re-generate'}
-                              </PixelButton>
+                              </PixelButton>}
                               <PixelButton variant="secondary" onClick={() => setSelectedJob(null)} style={{ fontSize: zhScale(10) }}>
                                 {isZh ? '关闭' : 'Close Archive'}
                               </PixelButton>

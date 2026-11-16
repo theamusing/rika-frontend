@@ -572,6 +572,7 @@ const App: React.FC = () => {
                 selectedJobId={selectedJobId} 
                 initialJob={selectedJob}
                 onJobSelected={(id) => { setSelectedJobId(id); setSelectedJob(null); }}
+                onCreditsChanged={fetchCredits}
                 onRegenerate={handleRegenerate}
                 onBack={handleBack}
                 onRegisterSaveBeforeLeave={registerPlayerSaveBeforeLeave}

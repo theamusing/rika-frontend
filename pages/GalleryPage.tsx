@@ -3,6 +3,7 @@ import { createPortal } from 'react-dom';
 import { Heart } from 'lucide-react';
 import AnimatedSpritePreview from '../components/AnimatedSpritePreview.tsx';
 import AspectRatioPreview from '../components/AspectRatioPreview.tsx';
+import WorkDetailLabel from '../components/WorkDetailLabel.tsx';
 import ParameterPanel, { mapParameters } from '../components/ParameterPanel.tsx';
 import { PixelButton, PixelCard } from '../components/PixelComponents.tsx';
 import { apiService } from '../services/apiService.ts';
@@ -186,7 +187,7 @@ const GalleryPage: React.FC<Props> = ({ lang, isLoggedIn, onLoginRequest }) => {
             <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
               <div className="space-y-6">
                 {!!selected.input_images?.length && <div>
-                  <h3 className="mb-2 text-white/60" style={{ fontSize: isZh ? 12 : 9 }}>{isZh ? '输入图像' : 'INPUT REFERENCES'}</h3>
+                  <WorkDetailLabel lang={lang}>{isZh ? '输入图像' : 'INPUT REFERENCES'}</WorkDetailLabel>
                   <div className="grid grid-cols-3 gap-2">
                     {(selected.input_images || []).map((url, index) => <AspectRatioPreview key={url + index} src={url}
                       alt={`Input ${index + 1}`} fallbackRatio={frameRatio(selected)} maxHeight={160}
@@ -194,7 +195,7 @@ const GalleryPage: React.FC<Props> = ({ lang, isLoggedIn, onLoginRequest }) => {
                   </div>
                 </div>}
                 <div>
-                  <h3 className="mb-2 text-white/60" style={{ fontSize: isZh ? 12 : 9 }}>{isZh ? '生成结果' : 'GENERATED OUTPUT'}</h3>
+                  <WorkDetailLabel lang={lang}>{selected.parameters?.image_operation === 'edit' ? (isZh ? '编辑结果' : 'EDITED OUTPUT') : (isZh ? '生成结果' : 'GENERATED OUTPUT')}</WorkDetailLabel>
                   <div className="relative">
                     <OutputPreview item={selected} lang={lang} maxHeight={420} />
                     <div className="absolute top-2 left-2 z-30">{heart(selected, true)}</div>

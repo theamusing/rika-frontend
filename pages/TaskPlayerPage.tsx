@@ -3,11 +3,12 @@ import React, { useState, useEffect, useRef, useCallback, useMemo, useLayoutEffe
 import { apiService } from '../services/apiService.ts';
 import { Job } from '../types.ts';
 import { PixelButton, PixelCard, PixelModal, PixelInput } from '../components/PixelComponents.tsx';
-import { sliceSpriteSheet, reconstructSpriteSheet, processImage, fetchAsDataUrl, sliceCustomSpriteSheet, scaleToSize, processMapImage } from '../utils/imageUtils.ts';
+import { sliceSpriteSheet, reconstructSpriteSheet, processImage, fetchAsDataUrl, sliceCustomSpriteSheet, processMapImage } from '../utils/imageUtils.ts';
+import { loadGeneratedSprite, hasProcessedSprite, SPRITE_PIXELIZER_VERSION } from '../utils/generatedSpritePixelizer.ts';
 import { floodFill, RGB, colorDistance, colorMatchRemoval } from '../utils/editorUtils.ts';
 import { applyBackendCentroids } from '../utils/backendPalette.ts';
 import { extractCentroidsAsync } from '../utils/paletteWorker.ts';
-import { saveSpriteToCache, getSpriteFromCache, CachedSprite } from '../utils/dbUtils.ts';
+import { saveSpriteToCache, getSpriteFromCache, createSpriteCacheIfAbsent, recoverSpriteCache, CachedSprite } from '../utils/dbUtils.ts';
 import { ensureOriginalSpriteCache, animationSpec } from '../utils/originalSpriteCache.ts';
 import { decodeImage } from '../utils/imageLoader.ts';
 import { fitImageDimensions } from '../utils/animationDisplay.ts';
@@ -15,6 +16,8 @@ import { lassoSelection, PixelPoint, rectangleSelection, selectionOutlinePath } 
 import { Heart, ArrowLeft, Move, Pipette, HelpCircle, SquareDashedMousePointer, Lasso, PaintBucket, Eye, EyeOff } from 'lucide-react';
 import ColorPickerPopover from '../components/ColorPickerPopover.tsx';
 import GalleryVisibility from '../components/GalleryVisibility.tsx';
+import AIImageEditModal from '../components/AIImageEditModal.tsx';
+import { canAIEditImage, isSingleImageJob, isAIImageEdit } from '../utils/jobTypes.ts';
 // @ts-ignore
 import gifshot from 'gifshot';
 
@@ -31,6 +34,7 @@ interface TaskPlayerPageProps {
   onBack?: () => void;
   onRegisterSaveBeforeLeave?: (save: (() => Promise<void>) | null) => void;
   onJobFailed?: (message: string) => void;
+  onCreditsChanged?: () => void;
   lang?: 'en' | 'zh';
   isLoggedIn?: boolean;
   onLoginRequest?: () => void;
@@ -53,6 +57,7 @@ const TaskPlayerPage: React.FC<TaskPlayerPageProps> = ({
   onBack,
   onRegisterSaveBeforeLeave,
   onJobFailed,
+  onCreditsChanged,
   lang = 'en',
   isLoggedIn = false,
   onLoginRequest
@@ -71,6 +76,7 @@ const TaskPlayerPage: React.FC<TaskPlayerPageProps> = ({
   const [isExporting4x, setIsExporting4x] = useState(false);
   const [isCustomMode, setIsCustomMode] = useState(false);
   const [showUploadModal, setShowUploadModal] = useState(false);
+  const [aiEditSource, setAIEditSource] = useState<string | null>(null);
   const [customFile, setCustomFile] = useState<File | null>(null);
   const [uploadPreview, setUploadPreview] = useState<string | null>(null);
   const [customRows, setCustomRows] = useState(1);
@@ -141,7 +147,7 @@ const TaskPlayerPage: React.FC<TaskPlayerPageProps> = ({
     : processingStage === 'generation_starting'
       ? (isZh ? '正在启动生成' : 'STARTING GENERATION')
       : (isZh ? '正在渲染' : 'RENDERING');
-  const isSingleFrame = currentJob?.job_type === 'character' || currentJob?.job_type === 'item' || currentJob?.job_type === 'map';
+  const isSingleFrame = isSingleImageJob(currentJob);
   const dimensions = currentJob?.job_type === 'map' && frames.length > 0 ? frameDimensions
     : fitImageDimensions(frameDimensions, Math.min(512, viewportDimensions.width), Math.min(512, viewportDimensions.height));
   const thumbnailDimensions = fitImageDimensions(frameDimensions, 80, 80);
@@ -158,6 +164,7 @@ const TaskPlayerPage: React.FC<TaskPlayerPageProps> = ({
 
   useEffect(() => {
     setOnionSkinEnabled(false);
+    setAIEditSource(null);
   }, [selectedJobId]);
 
   useLayoutEffect(() => {
@@ -345,6 +352,7 @@ const TaskPlayerPage: React.FC<TaskPlayerPageProps> = ({
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
+      if (aiEditSource) return;
       if (document.activeElement?.tagName === 'INPUT' || document.activeElement?.tagName === 'TEXTAREA') return;
       const key = e.key.toLowerCase();
       if (e.key === 'Control' || e.key === 'Meta') setIsCtrlPressed(true);
@@ -385,7 +393,7 @@ const TaskPlayerPage: React.FC<TaskPlayerPageProps> = ({
       window.removeEventListener('keydown', handleKeyDown);
       window.removeEventListener('keyup', handleKeyUp);
     };
-  }, [deleteSelection, handleUndo, handleRedo, handleSaveToCache, activeTool, selection.size]);
+  }, [deleteSelection, handleUndo, handleRedo, handleSaveToCache, activeTool, selection.size, aiEditSource]);
 
   useEffect(() => {
     const interval = setInterval(() => { if (hasUnsavedEdits && !isJobRunning && loadedJobRef.current === selectedJobId) void handleSaveToCache(); }, 10000);
@@ -422,7 +430,7 @@ const TaskPlayerPage: React.FC<TaskPlayerPageProps> = ({
 
   const updateFramesFromJob = useCallback(async (job: Job, isCurrent: () => boolean): Promise<boolean> => {
     if (!isCurrent()) return false;
-    const single = ['character', 'item', 'map'].includes(job.job_type || 'animation');
+    const single = isSingleImageJob(job);
     setLoadError(null);
     loadedJobRef.current = null;
     setLoadedJobId(null);
@@ -456,7 +464,10 @@ const TaskPlayerPage: React.FC<TaskPlayerPageProps> = ({
       } else {
         const cached = await getSpriteFromCache(job.gen_id).catch(() => null);
         let processed: string | undefined;
-        if (cached?.spriteSheet) {
+        const refreshGenerated = job.job_type !== 'map' && cached?.customData?.source === 'generated'
+          && (cached.customData.pixelizerVersion !== SPRITE_PIXELIZER_VERSION
+            || cached.customData.backendOutputKey !== job.output_images?.[0]?.key);
+        if (cached?.spriteSheet && !refreshGenerated) {
           try { await decodeImage(cached.spriteSheet); processed = cached.spriteSheet; }
           catch (error) { console.warn('Stored image could not be opened.', error); }
         }
@@ -465,9 +476,22 @@ const TaskPlayerPage: React.FC<TaskPlayerPageProps> = ({
           if (!outputUrl) throw new Error('Generated image is unavailable');
           if (job.job_type === 'map') processed = await processMapImage(outputUrl);
           else {
-            const size = parseInt(job.input_params?.pixel_size || '128');
-            const version = parseInt(job.input_params?.version || '1');
-            processed = await scaleToSize(outputUrl, version === 2 ? size : (size === 32 ? 64 : 128));
+            processed = await loadGeneratedSprite(job);
+            const initial: CachedSprite = {
+              gen_id: job.gen_id, spriteSheet: processed, updatedAt: Date.now(),
+              customData: { cacheVersion: 4, source: 'generated', columns: 1, pixelizerVersion: SPRITE_PIXELIZER_VERSION,
+                backendOutputKey: job.output_images?.[0]?.key,
+                frameMetadata: [{ id: `original-${job.gen_id}-0`, isOriginal: true, isExcluded: false }] },
+            };
+            try {
+              const stored = cached ? await recoverSpriteCache(initial, cached) : await createSpriteCacheIfAbsent(initial);
+              if (stored !== initial && stored.spriteSheet) {
+                await decodeImage(stored.spriteSheet);
+                processed = stored.spriteSheet;
+              }
+            } catch (error) {
+              console.warn('Generated sprite could not be saved locally.', error);
+            }
           }
         }
         mapped = [{ id: `original-${job.gen_id}-0`, url: processed, isOriginal: true }];
@@ -508,7 +532,8 @@ const TaskPlayerPage: React.FC<TaskPlayerPageProps> = ({
       let completedLoadFailures = 0;
       const fetchJob = async () => {
         try {
-          if (firstAttempt && initialJob?.gen_id === selectedJobId && initialJob.status === 'succeeded') {
+          if (firstAttempt && initialJob?.gen_id === selectedJobId && initialJob.status === 'succeeded'
+              && (initialJob.job_type === 'map' || !isSingleImageJob(initialJob) || hasProcessedSprite(initialJob))) {
             firstAttempt = false;
             setCurrentJob(initialJob);
             if (await updateFramesFromJob(initialJob, isCurrent)) {
@@ -533,10 +558,12 @@ const TaskPlayerPage: React.FC<TaskPlayerPageProps> = ({
             return;
           }
           const newlySubmitted = !initialJob || initialJob.gen_id !== selectedJobId;
-          if (newlySubmitted && job.status === 'failed' && Number(job.animation_version ?? job.input_params?.animation_version) === 2) {
+          if (newlySubmitted && job.status === 'failed' && (isAIImageEdit(job) || Number(job.animation_version ?? job.input_params?.animation_version) === 2)) {
             if (handledFailureJobId.current !== job.gen_id) {
               handledFailureJobId.current = job.gen_id;
-              onJobFailed?.(job.error || 'Animation generation failed. Your credits have been refunded.');
+              onJobFailed?.(isAIImageEdit(job)
+                ? (isZh ? '图片编辑失败，积分已退还，请稍后重试。' : 'Image editing failed. Your credit has been refunded. Please try again.')
+                : (job.error || 'Animation generation failed. Your credits have been refunded.'));
             }
             return;
           }
@@ -545,7 +572,7 @@ const TaskPlayerPage: React.FC<TaskPlayerPageProps> = ({
           if (!isCurrent()) return;
           console.warn('Job status could not be refreshed.', error);
           setLoading(false);
-          setLoadError('Could not refresh the task. Retrying…');
+          setLoadError(error instanceof Error ? error.message + (isZh ? '，正在重试…' : ' Retrying…') : 'Could not refresh the task. Retrying…');
           timer = setTimeout(fetchJob, 5000);
         }
       };
@@ -999,14 +1026,11 @@ const TaskPlayerPage: React.FC<TaskPlayerPageProps> = ({
 
     setLoading(true);
     try {
-      const isSingleFrameJob = currentJob.job_type === 'character' || currentJob.job_type === 'item' || currentJob.job_type === 'map';
+      const isSingleFrameJob = isSingleImageJob(currentJob);
       if (isSingleFrameJob) {
         let processed = outputUrl;
-        if (currentJob.job_type === 'character' || currentJob.job_type === 'item') {
-          const pixelSize = parseInt(currentJob.input_params?.pixel_size || '128');
-          const version = parseInt(currentJob.input_params?.version || '1');
-          const targetSize = version === 2 ? pixelSize : (pixelSize === 32 ? 64 : 128);
-          processed = await scaleToSize(outputUrl, targetSize);
+        if (currentJob.job_type !== 'map') {
+          processed = await loadGeneratedSprite(currentJob);
         } else if (currentJob.job_type === 'map') {
           processed = await processMapImage(outputUrl);
         } else {
@@ -1042,6 +1066,29 @@ const TaskPlayerPage: React.FC<TaskPlayerPageProps> = ({
     const newFrames = [...frames];
     newFrames[index] = { ...newFrames[index], isExcluded: !newFrames[index].isExcluded };
     pushToHistory(newFrames);
+  };
+
+  const handleAIEdit = async (prompt: string) => {
+    if (!currentJob || (currentJob.job_type !== 'character' && currentJob.job_type !== 'item') || !canAIEditImage(currentJob) || !aiEditSource || isEditorBlocked || loading || isCustomMode) return;
+    // Submit the image captured when opening the dialog, including local pixel edits.
+    const image = await decodeImage(aiEditSource);
+    const size = image.naturalWidth;
+    if (size !== image.naturalHeight || ![32, 64, 128, 256].includes(size)) {
+      throw new Error('Unsupported edit image dimensions');
+    }
+    if (hasUnsavedEdits) await handleSaveToCache();
+    const input = document.createElement('canvas');
+    input.width = 512; input.height = 512;
+    const context = input.getContext('2d');
+    if (!context) throw new Error('Edit image canvas unavailable');
+    context.imageSmoothingEnabled = false;
+    context.drawImage(image, 0, 0, 512, 512);
+    const result = await apiService.editImage([input.toDataURL('image/png')], {
+      prompt, pixel_size: String(size), image_type: currentJob.job_type,
+    });
+    setAIEditSource(null);
+    onCreditsChanged?.();
+    onJobSelected(result.gen_id);
   };
 
   const handleGenerateAnimation = async (index: number) => {
@@ -1317,6 +1364,8 @@ const TaskPlayerPage: React.FC<TaskPlayerPageProps> = ({
 
   return (
     <div className="ui-page flex flex-col gap-6 w-full overflow-hidden text-white select-none">
+      {aiEditSource && <AIImageEditModal image={aiEditSource} lang={lang}
+        onClose={() => setAIEditSource(null)} onSubmit={handleAIEdit} />}
       <PixelModal
         isOpen={showUploadModal}
         onClose={() => setShowUploadModal(false)}
@@ -1469,7 +1518,7 @@ const TaskPlayerPage: React.FC<TaskPlayerPageProps> = ({
             {loadError && (
               <div className="absolute z-20 max-w-[90%] p-4 text-center bg-[#1b0a38] pixel-border border-red-500 text-white break-all"
                 style={{ fontSize: zhScale(9) }}>
-                {isZh ? '动画加载失败：' : 'Animation load failed: '}{loadError}
+                {isSingleFrame || (initialJob?.gen_id === selectedJobId && isSingleImageJob(initialJob)) ? (isZh ? '图片加载失败：' : 'Image load failed: ') : (isZh ? '动画加载失败：' : 'Animation load failed: ')}{loadError}
                 <button type="button" className="block mx-auto mt-3 text-[#f7d51d] underline"
                   onClick={() => setRetryLoad(value => value + 1)}>{isZh ? '重新加载' : 'Retry loading'}</button>
               </div>
@@ -1787,6 +1836,18 @@ const TaskPlayerPage: React.FC<TaskPlayerPageProps> = ({
                    </div>
                  </div>
 
+                 {canAIEditImage(currentJob) && !isCustomMode && (
+                   <PixelButton variant="primary" className="w-full"
+                     disabled={loading || isEditorBlocked || !frames[currentFrameIndex]}
+                     onClick={() => {
+                       if (!isLoggedIn) { onLoginRequest?.(); return; }
+                       setIsPlaying(false);
+                       setAIEditSource(frames[currentFrameIndex].url);
+                     }} style={{ fontSize: zhScale(9) }}>
+                     {isZh ? 'AI 编辑' : 'AI EDIT'}
+                   </PixelButton>
+                 )}
+
                  <PixelButton variant="secondary" className="w-full" onClick={restoreFrames} style={{ fontSize: zhScale(9) }}>
                     {isZh ? '还原初始' : 'RESTORE ORIGINAL'}
                  </PixelButton>
@@ -1814,9 +1875,9 @@ const TaskPlayerPage: React.FC<TaskPlayerPageProps> = ({
               </div>
            </PixelCard>}
            <div className="flex flex-col gap-3">
-              <PixelButton variant="secondary" className="h-12" onClick={() => onRegenerate(currentJob!)} disabled={isEditorBlocked || !currentJob} style={{ fontSize: zhScale(10) }}>
+              {!isAIImageEdit(currentJob) && <PixelButton variant="secondary" className="h-12" onClick={() => onRegenerate(currentJob!)} disabled={isEditorBlocked || !currentJob} style={{ fontSize: zhScale(10) }}>
                 {isZh ? '重新生成' : 'RE-GENERATE'}
-              </PixelButton>
+              </PixelButton>}
               {isSingleFrame ? (
                 <>
                   <PixelButton variant="primary" className="h-12" disabled={isExporting || isEditorBlocked} onClick={handleDownload} style={{ fontSize: zhScale(10) }}>

@@ -19,6 +19,7 @@ export const mapParameters = (params: Record<string, unknown>): Record<string, u
 
 export const jobParameters = (job: Job): Record<string, unknown> => {
   const params = job.input_params || {};
+  if (params.image_operation === 'edit') return { prompt: params.prompt, pixel_size: params.pixel_size };
   if (job.job_type === 'map') return mapParameters(params);
   if (job.job_type !== 'animation') return params;
   const v2 = Number(job.animation_version ?? params.animation_version) === 2;
@@ -54,7 +55,7 @@ const ParameterPanel: React.FC<Props> = ({ parameters, lang }) => {
     <h3 className="mb-4 text-white/70 uppercase" style={{ fontSize: isZh ? 13 : 11 }}>
       {isZh ? '参数' : 'PARAMETERS'}
     </h3>
-    <dl className="space-y-3">
+    <dl className="max-h-80 overflow-y-auto overscroll-contain pr-2 space-y-3">
       {Object.entries(parameters).filter(([, value]) => value !== undefined).map(([key, value]) =>
         <div key={key} className="grid grid-cols-[minmax(90px,28%)_1fr] gap-3 border-t border-white/10 pt-2">
           <dt className="text-white/50 break-words" style={{ fontSize: isZh ? 12 : 10 }}>{labels[key] || key.replaceAll('_', ' ')}</dt>

@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { apiService } from '../services/apiService.ts';
 import { PixelButton, PixelCard } from './PixelComponents.tsx';
+import { workDetailLabelStyle } from './WorkDetailLabel.tsx';
 
 interface Props {
   generationId: string;
@@ -44,10 +45,10 @@ const GalleryVisibility: React.FC<Props> = ({ generationId, lang, compact = fals
   return <>
     <div className={compact ? 'inline-flex shrink-0 items-center gap-2 whitespace-nowrap' : 'flex items-center justify-between gap-3'}>
       <div className="flex shrink-0 items-center gap-2 whitespace-nowrap">
-        <span className="text-white/60" style={{ fontSize: isZh ? 12 : 9 }}>
+        <span className="text-white/60" style={workDetailLabelStyle(lang)}>
           {isZh ? '可见性' : 'VISIBILITY'}:
         </span>
-        <span className={visible ? 'text-green-400' : 'text-white/70'} style={{ fontSize: isZh ? 12 : 9 }}>
+        <span className={visible ? 'text-green-400' : 'text-white/70'} style={workDetailLabelStyle(lang)}>
           {visible ? (isZh ? '公开' : 'PUBLIC') : (isZh ? '私密' : 'PRIVATE')}
         </span>
       </div>
