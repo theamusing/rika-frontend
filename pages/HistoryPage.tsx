@@ -7,7 +7,8 @@ import { PixelButton, PixelCard } from '../components/PixelComponents.tsx';
 import AspectRatioPreview from '../components/AspectRatioPreview.tsx';
 import AnimatedSpritePreview from '../components/AnimatedSpritePreview.tsx';
 import { jobFrameAspectRatio } from '../utils/animationDisplay.ts';
-import { isSingleImageJob, isAIImageEdit, isFourDirectionCharacter } from '../utils/jobTypes.ts';
+import { isSingleImageJob, isAIImageEdit, isFourDirectionCharacter, isJobGenerating, generationActivityLabel } from '../utils/jobTypes.ts';
+import GenerationActivity from '../components/GenerationActivity.tsx';
 import { Heart, Trash2, AlertTriangle } from 'lucide-react';
 import { getSpriteFromCache } from '../utils/dbUtils.ts';
 import { animationSpec, ensureOriginalSpriteCache } from '../utils/originalSpriteCache.ts';
@@ -406,6 +407,7 @@ const HistoryPage: React.FC<HistoryPageProps> = ({
                     className={`mb-4 pixel-border border-2 border-[#5a2d9c] group-hover:border-white/40 ${
                     isSingleFrameJob(job) ? 'bg-[#2a2a2a]' : 'bg-black/40'
                   }`}>
+                      {isJobGenerating(job) && <GenerationActivity label={generationActivityLabel(job, lang)} lang={lang} className="z-10" />}
                       <div 
                         className="absolute top-1 left-1 z-30 p-1 cursor-pointer transition-transform hover:scale-110 active:scale-95"
                         onClick={(e) => toggleLike(e, job)}
@@ -439,7 +441,7 @@ const HistoryPage: React.FC<HistoryPageProps> = ({
                           <span className={`px-1 border text-[6px] ${
                             job.status === 'succeeded' ? 'border-green-500 text-green-500' : 
                             job.status === 'failed' ? 'border-red-500 text-red-500' : 
-                            (job.status === 'running' || job.status === 'queued') ? 'border-yellow-500 text-yellow-500' : 
+                            isJobGenerating(job) ? 'border-yellow-500 text-yellow-500' :
                             'border-white/30 text-white/60'
                           }`}>
                               {job.status.toUpperCase()}

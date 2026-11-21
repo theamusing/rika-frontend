@@ -18,7 +18,8 @@ import { Heart, ArrowLeft, Move, Pipette, HelpCircle, SquareDashedMousePointer, 
 import ColorPickerPopover from '../components/ColorPickerPopover.tsx';
 import GalleryVisibility from '../components/GalleryVisibility.tsx';
 import AIImageEditModal from '../components/AIImageEditModal.tsx';
-import { canAIEditImage, isSingleImageJob, isAIImageEdit, isFourDirectionCharacter } from '../utils/jobTypes.ts';
+import GenerationActivity from '../components/GenerationActivity.tsx';
+import { canAIEditImage, isSingleImageJob, isAIImageEdit, isFourDirectionCharacter, isJobGenerating, generationActivityLabel } from '../utils/jobTypes.ts';
 // @ts-ignore
 import gifshot from 'gifshot';
 
@@ -140,14 +141,9 @@ const TaskPlayerPage: React.FC<TaskPlayerPageProps> = ({
   const handledFailureJobId = useRef<string | null>(null);
 
   const isZh = lang === 'zh';
-  const isJobRunning = currentJob?.status === 'running' || currentJob?.status === 'queued';
+  const isJobRunning = isJobGenerating(currentJob);
   const isEditorBlocked = isJobRunning || (!!selectedJobId && !isCustomMode && loadedJobId !== selectedJobId);
-  const processingStage = currentJob?.processing_stage;
-  const processingLabel = processingStage === 'prompt_optimization'
-    ? (isZh ? '正在优化提示词' : 'OPTIMIZING PROMPT')
-    : processingStage === 'generation_starting'
-      ? (isZh ? '正在启动生成' : 'STARTING GENERATION')
-      : (isZh ? '正在渲染' : 'RENDERING');
+  const processingLabel = currentJob ? generationActivityLabel(currentJob, lang) : '';
   const isSingleFrame = isSingleImageJob(currentJob);
   const dimensions = currentJob?.job_type === 'map' && frames.length > 0 ? frameDimensions
     : fitImageDimensions(frameDimensions, Math.min(512, viewportDimensions.width), Math.min(512, viewportDimensions.height));
@@ -1552,57 +1548,9 @@ const TaskPlayerPage: React.FC<TaskPlayerPageProps> = ({
             )}
             <div ref={editorContainerRef} className="relative origin-center shrink-0" style={{ width: `${dimensions.width}px`, height: `${dimensions.height}px`, transform: `translate(${pan.x}px, ${pan.y}px) scale(${zoom})`, imageRendering: 'pixelated', backgroundImage: isLightBg ? lightChecker : darkChecker, backgroundSize: `16px 16px`, cursor: isPickingRemovalColor ? 'cell' : effectiveTool === 'selection' ? 'crosshair' : 'default', touchAction: effectiveTool === 'selection' ? 'none' : undefined }} onMouseDown={handleMouseDown} onMouseMove={handleCanvasInteraction} onMouseUp={handleMouseUp} onPointerDown={handleSelectionPointerDown} onPointerMove={handleSelectionPointerMove} onPointerUp={handleSelectionPointerUp} onPointerCancel={handleSelectionPointerCancel}>
               {(loading || isJobRunning) && (
-                <div className="absolute inset-0 z-50 flex flex-col items-center justify-center overflow-hidden">
-                  {/* Black semi-transparent mask */}
-                  <div className="absolute inset-0 bg-black/80" />
-
-                  {/* Pixel Grid Animation - Displayed in front of the mask */}
-                  <div className="absolute inset-0 grid grid-cols-8 grid-rows-8 opacity-40 pointer-events-none z-10">
-                    {[...Array(64)].map((_, i) => {
-                      const x = i % 8;
-                      const y = Math.floor(i / 8);
-                      const delay = (x + y) * 0.15;
-                      return (
-                        <div
-                          key={i}
-                          className="w-full h-full border border-white/10"
-                          style={{
-                            animation: `pixelFade 2s ease-in-out infinite`,
-                            animationDelay: `${delay}s`
-                          }}
-                        />
-                      );
-                    })}
-                  </div>
-
-                  <div className="relative z-20 flex flex-col items-center gap-2">
-                    <div className="flex flex-col items-center">
-                      <div className="font-bold tracking-[0.2em] text-white uppercase animate-pulse" style={{ fontSize: zhScale(8) }}>
-                        {isJobRunning ? (isZh ? '正在渲染' : 'RENDERING') : (isZh ? '正在同步' : 'SYNCING')}
-                      </div>
-                      <div className="flex gap-1 mt-1">
-                        <div className="w-1 h-1 bg-white animate-bounce [animation-delay:-0.3s]" />
-                        <div className="w-1 h-1 bg-white animate-bounce [animation-delay:-0.15s]" />
-                        <div className="w-1 h-1 bg-white animate-bounce" />
-                      </div>
-                    </div>
-
-                    {isJobRunning && (
-                      <div className="text-center">
-                        <p className="text-white/60 tracking-tight" style={{ fontSize: zhScale(8) }}>
-                          {isZh ? '可以到dashboard中查看已经生成的结果' : 'You can check the Dashboard for generated results'}
-                        </p>
-                      </div>
-                    )}
-                  </div>
-
-                  <style>{`
-                    @keyframes pixelFade {
-                      0%, 100% { background-color: transparent; }
-                      50% { background-color: rgba(168, 85, 247, 0.6); }
-                    }
-                  `}</style>
-                </div>
+                <GenerationActivity lang={lang} className="z-50"
+                  label={isJobRunning ? processingLabel : (isZh ? '正在同步' : 'Syncing')}
+                  description={isJobRunning ? (isZh ? '生成完成后，可在仪表盘查看结果' : 'You can check the Dashboard for generated results') : undefined} />
               )}
               <canvas ref={canvasRef} className="w-full h-full block" />
               {onionSkinFrame && (

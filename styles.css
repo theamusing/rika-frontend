@@ -462,6 +462,20 @@ input[type="range"] {
   100% { background-position: -200% 0; }
 }
 
+.generation-activity-tile {
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  background-color: rgba(168, 85, 247, 0.08);
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .generation-activity-tile { animation: generation-pixel-wave 2s ease-in-out infinite; }
+}
+
+@keyframes generation-pixel-wave {
+  0%, 100% { background-color: transparent; }
+  50% { background-color: rgba(168, 85, 247, 0.28); }
+}
+
 .ui-shell .border-2 {
   border-width: 3px !important;
 }
