@@ -7,10 +7,11 @@ import { PixelButton, PixelCard } from '../components/PixelComponents.tsx';
 import AspectRatioPreview from '../components/AspectRatioPreview.tsx';
 import AnimatedSpritePreview from '../components/AnimatedSpritePreview.tsx';
 import { jobFrameAspectRatio } from '../utils/animationDisplay.ts';
-import { isSingleImageJob, isAIImageEdit } from '../utils/jobTypes.ts';
+import { isSingleImageJob, isAIImageEdit, isFourDirectionCharacter } from '../utils/jobTypes.ts';
 import { Heart, Trash2, AlertTriangle } from 'lucide-react';
 import { getSpriteFromCache } from '../utils/dbUtils.ts';
-import { ensureOriginalSpriteCache } from '../utils/originalSpriteCache.ts';
+import { animationSpec, ensureOriginalSpriteCache } from '../utils/originalSpriteCache.ts';
+import { FOUR_DIRECTION_TURN_ORDER, fourDirectionPlaybackOrder } from '../utils/fourDirectionPlayback.ts';
 import GalleryVisibility from '../components/GalleryVisibility.tsx';
 import WorkDetailLabel from '../components/WorkDetailLabel.tsx';
 import ParameterPanel, { jobParameters } from '../components/ParameterPanel.tsx';
@@ -30,20 +31,22 @@ const PAGE_SIZE = 20;
 const SHOW_LIKED_ONLY_KEY = 'rika_show_liked_only';
 const JOB_TYPE_KEY = 'rika_history_job_type';
 const isV2Animation = (job: Job) => Number(job.animation_version ?? job.input_params?.animation_version) === 2;
-type CachedPreview = { spriteSheet: string; frameCount?: number; columns?: number; excludedIndices?: number[]; updatedAt: number };
+type CachedPreview = { spriteSheet: string; frameCount?: number; columns?: number; playbackOrder?: readonly number[]; excludedIndices?: number[]; updatedAt: number };
 const isSingleFrameJob = isSingleImageJob;
 
 const animationPreview = (job: Job, cacheChecked: boolean, cached?: CachedPreview) => {
   if (!cacheChecked || job.status !== 'succeeded' || isSingleFrameJob(job)) return {};
-  const rawCount = isV2Animation(job)
-    ? Number(job.input_params?.output_frames)
-    : Math.floor((Number(job.input_params?.length ?? 33) - 1) / 2);
+  let spec: ReturnType<typeof animationSpec>;
+  try { spec = animationSpec(job); } catch { return {}; }
+  const rawCount = spec.frameCount;
   const frameCount = Math.floor(Number(cached?.frameCount ?? rawCount));
   if (!Number.isFinite(frameCount) || frameCount < 1) return {};
   return {
     animationSrc: cached?.spriteSheet || job.output_images?.[0]?.url,
     frameCount,
-    columns: Math.min(cached ? (cached.columns ?? 4) : (isV2Animation(job) ? 6 : 4), frameCount),
+    columns: Math.min(cached ? (cached.columns ?? 4) : spec.columns, frameCount),
+    fps: isFourDirectionCharacter(job) ? 4 : 12,
+    playbackOrder: isFourDirectionCharacter(job) ? (cached ? cached.playbackOrder : FOUR_DIRECTION_TURN_ORDER) : undefined,
     excludedIndices: cached?.excludedIndices,
   };
 };
@@ -184,6 +187,8 @@ const HistoryPage: React.FC<HistoryPageProps> = ({
               spriteSheet: cached.spriteSheet,
               frameCount: Array.isArray(metadata) ? metadata.length : undefined,
               columns: cached.customData?.columns,
+              playbackOrder: isFourDirectionCharacter(job)
+                ? fourDirectionPlaybackOrder(Array.isArray(metadata) ? metadata.length : 4, metadata, cached.customData?.source, cached.customData?.fourDirectionOrderVersion) : undefined,
               excludedIndices: Array.isArray(metadata)
                 ? metadata.flatMap((frame: { isExcluded?: boolean }, index: number) => frame?.isExcluded ? [index] : [])
                 : undefined,
@@ -573,7 +578,7 @@ const HistoryPage: React.FC<HistoryPageProps> = ({
                               <PixelButton variant="primary" onClick={() => onJobSelected(selectedJob, currentPage)} disabled={selectedJob.status === 'failed'} style={{ fontSize: zhScale(10) }}>
                                 {isZh ? '预览' : 'View In Player'}
                               </PixelButton>
-                              {(selectedJob.job_type === 'character' || selectedJob.job_type === 'item') && selectedJob.status === 'succeeded' && (
+                              {(selectedJob.job_type === 'character' || selectedJob.job_type === 'item') && !isFourDirectionCharacter(selectedJob) && selectedJob.status === 'succeeded' && (
                                 <PixelButton 
                                   variant="primary" 
                                   onClick={() => onRegenerate({ ...selectedJob, action: 'animate' })} 

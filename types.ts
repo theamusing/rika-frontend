@@ -39,7 +39,7 @@ export interface Job {
   status: 'queued' | 'running' | 'succeeded' | 'failed';
   job_type?: 'animation' | 'character' | 'item' | 'map';
   input_params: any;
-  output_params?: { sprite_processed?: boolean; pixelizer_version?: number; pixel_size?: number; color_count?: number } | null;
+  output_params?: { sprite_processed?: boolean; pixelizer_version?: number; pixel_size?: number; color_count?: number; layout?: 'four_direction'; frame_count?: number; columns?: number; rows?: number; width?: number; height?: number; directions?: string[] } | null;
   animation_version?: number;
   processing_stage?: 'prompt_optimization' | 'generation_starting' | 'generating';
   created_at: string;

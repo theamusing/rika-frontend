@@ -8,6 +8,7 @@ import ParameterPanel, { mapParameters } from '../components/ParameterPanel.tsx'
 import { PixelButton, PixelCard } from '../components/PixelComponents.tsx';
 import { apiService } from '../services/apiService.ts';
 import { GalleryItem, GalleryJobType, GalleryMethod } from '../types.ts';
+import { FOUR_DIRECTION_TURN_ORDER } from '../utils/fourDirectionPlayback.ts';
 
 interface Props {
   lang: 'en' | 'zh';
@@ -36,12 +37,13 @@ const frameRatio = (item: GalleryItem) => {
 
 const OutputPreview: React.FC<{ item: GalleryItem; lang: 'en' | 'zh'; maxHeight?: number; play?: boolean }> =
   ({ item, lang, maxHeight = 256, play = true }) => {
-    const animation = item.job_type === 'animation';
+    const animation = item.frame_count > 1;
     return <AnimatedSpritePreview lang={lang} alt={lang === 'zh' ? '画廊作品' : 'Gallery work'}
       src={animation ? undefined : item.image_url}
       animationSrc={animation ? item.image_url : undefined}
       frameCount={animation ? item.frame_count : 0}
-      columns={item.columns}
+      columns={item.columns} fps={item.job_type === 'character' ? 4 : 12}
+      playbackOrder={item.job_type === 'character' && item.parameters.character_mode === 'four_direction' ? FOUR_DIRECTION_TURN_ORDER : undefined}
       fallbackRatio={frameRatio(item)} maxHeight={maxHeight} play={play}
       className="pixel-border border-[#5a2d9c] bg-black/40" />;
   };

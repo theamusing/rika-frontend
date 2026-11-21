@@ -10,6 +10,8 @@ interface Props {
   src?: string;
   animationSrc?: string;
   frameCount?: number;
+  fps?: number;
+  playbackOrder?: readonly number[];
   columns?: number;
   excludedIndices?: number[];
   alt: string;
@@ -22,7 +24,7 @@ interface Props {
 }
 
 const AnimatedSpritePreview: React.FC<Props> = ({
-  src, animationSrc, frameCount = 0, columns = 4, excludedIndices = EMPTY_EXCLUDED, alt,
+  src, animationSrc, frameCount = 0, fps = 12, playbackOrder, columns = 4, excludedIndices = EMPTY_EXCLUDED, alt,
   className = '', fallbackRatio = 1, maxHeight = 420, children, play = true, lang = 'en',
 }) => {
   const containerRef = useRef<HTMLDivElement>(null);
@@ -64,7 +66,11 @@ const AnimatedSpritePreview: React.FC<Props> = ({
         // Player's slicer uses these exact shared crop coordinates.
         const layout = getSpriteSheetLayout(image.naturalWidth, image.naturalHeight, frameCount, 33, columns);
         const excluded = new Set(excludedIndices);
-        const order = Array.from({ length: layout.frameCount }, (_, index) => index)
+        const indices = Array.from({ length: layout.frameCount }, (_, index) => index);
+        const validOrder = playbackOrder?.length === layout.frameCount
+          && new Set(playbackOrder).size === layout.frameCount
+          && playbackOrder.every(index => Number.isInteger(index) && index >= 0 && index < layout.frameCount);
+        const order = (validOrder ? [...playbackOrder!] : indices)
           .filter(index => !excluded.has(index));
         sheetRef.current = image;
         layoutRef.current = layout;
@@ -84,7 +90,7 @@ const AnimatedSpritePreview: React.FC<Props> = ({
       layoutRef.current = null;
       frameOrderRef.current = [];
     };
-  }, [animationSrc, canAnimate, columns, excludedIndices, frameCount, isVisible, retry]);
+  }, [animationSrc, canAnimate, columns, excludedIndices, frameCount, isVisible, retry, playbackOrder]);
 
   useEffect(() => {
     if (!ready || !isVisible || !canvasRef.current || !sheetRef.current || !layoutRef.current) return;
@@ -105,9 +111,9 @@ const AnimatedSpritePreview: React.FC<Props> = ({
     };
     draw();
     if (!play || order.length < 2 || window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
-    const timer = window.setInterval(draw, 1000 / 12);
+    const timer = window.setInterval(draw, 1000 / Math.max(1, fps));
     return () => window.clearInterval(timer);
-  }, [isVisible, play, ready]);
+  }, [isVisible, play, ready, fps]);
 
   if (!canAnimate) {
     return <AspectRatioPreview src={src} alt={alt} className={className}

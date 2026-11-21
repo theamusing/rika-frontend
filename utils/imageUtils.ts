@@ -875,7 +875,7 @@ export const sliceCustomSpriteSheet = async (url: string, rows: number, cols: nu
   }
 };
 
-export const reconstructSpriteSheet = async (frames: string[]): Promise<string> => {
+export const reconstructSpriteSheet = async (frames: string[], columns?: number): Promise<string> => {
   if (frames.length === 0) throw new Error("No frames provided");
 
   const loadImage = (src: string): Promise<HTMLImageElement> => {
@@ -893,7 +893,8 @@ export const reconstructSpriteSheet = async (frames: string[]): Promise<string> 
     const frameWidth = imgObjects[0].width;
     const frameHeight = imgObjects[0].height;
 
-    const cols = imgObjects.length < 4 ? imgObjects.length : 4;
+    const cols = columns === undefined ? Math.min(4, imgObjects.length) : Math.min(columns, imgObjects.length);
+    if (!Number.isInteger(cols) || cols < 1) throw new Error('Invalid sprite sheet column count');
     const rows = Math.ceil(imgObjects.length / cols);
 
     const canvas = document.createElement('canvas');

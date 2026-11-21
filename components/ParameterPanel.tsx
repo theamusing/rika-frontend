@@ -1,4 +1,5 @@
 import React from 'react';
+import { isFourDirectionCharacter } from '../utils/jobTypes.ts';
 import { Job } from '../types.ts';
 
 const formatValue = (value: unknown): string => {
@@ -20,6 +21,10 @@ export const mapParameters = (params: Record<string, unknown>): Record<string, u
 export const jobParameters = (job: Job): Record<string, unknown> => {
   const params = job.input_params || {};
   if (params.image_operation === 'edit') return { prompt: params.prompt, pixel_size: params.pixel_size };
+  if (isFourDirectionCharacter(job)) return {
+    prompt: params.prompt, pixel_size: params.pixel_size,
+    character_mode: params.character_mode, camera_view: params.camera_view,
+  };
   if (job.job_type === 'map') return mapParameters(params);
   if (job.job_type !== 'animation') return params;
   const v2 = Number(job.animation_version ?? params.animation_version) === 2;
@@ -42,6 +47,8 @@ interface Props {
 const ParameterPanel: React.FC<Props> = ({ parameters, lang }) => {
   const isZh = lang === 'zh';
   const labels: Record<string, string> = {
+    character_mode: isZh ? '角色模式' : 'CHARACTER MODE',
+    camera_view: isZh ? '视角' : 'CAMERA VIEW',
     version: isZh ? '版本' : 'VERSION',
     prompt: isZh ? '提示词' : 'PROMPT',
     pixel_size: isZh ? '像素尺寸' : 'PIXEL SIZE',
@@ -59,7 +66,9 @@ const ParameterPanel: React.FC<Props> = ({ parameters, lang }) => {
       {Object.entries(parameters).filter(([, value]) => value !== undefined).map(([key, value]) =>
         <div key={key} className="grid grid-cols-[minmax(90px,28%)_1fr] gap-3 border-t border-white/10 pt-2">
           <dt className="text-white/50 break-words" style={{ fontSize: isZh ? 12 : 10 }}>{labels[key] || key.replaceAll('_', ' ')}</dt>
-          <dd className="text-white/90 break-words whitespace-pre-wrap leading-relaxed font-normal" style={{ fontSize: isZh ? 13 : 12 }}>{formatValue(value)}</dd>
+          <dd className="text-white/90 break-words whitespace-pre-wrap leading-relaxed font-normal" style={{ fontSize: isZh ? 13 : 12 }}>{key === 'character_mode' && value === 'four_direction' ? (isZh ? '四方向' : 'Four directions')
+            : key === 'camera_view' ? (value === 'overhead' ? (isZh ? '俯视' : 'Overhead') : (isZh ? '平视' : 'Level'))
+            : formatValue(value)}</dd>
         </div>,
       )}
     </dl>

@@ -10,6 +10,7 @@ import { applyBackendCentroids } from '../utils/backendPalette.ts';
 import { extractCentroidsAsync } from '../utils/paletteWorker.ts';
 import { saveSpriteToCache, getSpriteFromCache, createSpriteCacheIfAbsent, recoverSpriteCache, CachedSprite } from '../utils/dbUtils.ts';
 import { ensureOriginalSpriteCache, animationSpec } from '../utils/originalSpriteCache.ts';
+import { FOUR_DIRECTION_TURN_ORDER, fourDirectionPlaybackOrder, fourDirectionGridFrames } from '../utils/fourDirectionPlayback.ts';
 import { decodeImage } from '../utils/imageLoader.ts';
 import { fitImageDimensions } from '../utils/animationDisplay.ts';
 import { lassoSelection, PixelPoint, rectangleSelection, selectionOutlinePath } from '../utils/selectionUtils.ts';
@@ -17,7 +18,7 @@ import { Heart, ArrowLeft, Move, Pipette, HelpCircle, SquareDashedMousePointer, 
 import ColorPickerPopover from '../components/ColorPickerPopover.tsx';
 import GalleryVisibility from '../components/GalleryVisibility.tsx';
 import AIImageEditModal from '../components/AIImageEditModal.tsx';
-import { canAIEditImage, isSingleImageJob, isAIImageEdit } from '../utils/jobTypes.ts';
+import { canAIEditImage, isSingleImageJob, isAIImageEdit, isFourDirectionCharacter } from '../utils/jobTypes.ts';
 // @ts-ignore
 import gifshot from 'gifshot';
 
@@ -159,7 +160,7 @@ const TaskPlayerPage: React.FC<TaskPlayerPageProps> = ({
 
   useEffect(() => {
     if (!currentJob || isSingleFrame) return;
-    setFps(12);
+    setFps(isFourDirectionCharacter(currentJob) ? 4 : 12);
   }, [currentJob?.gen_id, isSingleFrame]);
 
   useEffect(() => {
@@ -319,13 +320,14 @@ const TaskPlayerPage: React.FC<TaskPlayerPageProps> = ({
         gen_id: selectedJobId, spriteSheet, updatedAt: Date.now(),
         customData: {
           cacheVersion: 3, source: 'edited', columns: Math.min(4, savingFrames.length),
+          ...(isFourDirectionCharacter(currentJob) ? { fourDirectionOrderVersion: 1 } : {}),
           frameMetadata: savingFrames.map(frame => ({ id: frame.id, isOriginal: frame.isOriginal, isExcluded: frame.isExcluded })),
         },
       };
       await saveSpriteToCache(cacheData);
       if (generation === loadGenerationRef.current && latestFramesRef.current === savingFrames) setHasUnsavedEdits(false);
     } catch (error) { console.error('Edits could not be saved locally.', error); }
-  }, [selectedJobId, frames, isJobRunning, isCustomMode]);
+  }, [selectedJobId, frames, isJobRunning, isCustomMode, currentJob]);
 
   useEffect(() => {
     onRegisterSaveBeforeLeave?.(async () => {
@@ -461,6 +463,9 @@ const TaskPlayerPage: React.FC<TaskPlayerPageProps> = ({
           isOriginal: metadata?.[index]?.isOriginal ?? true,
           isExcluded: metadata?.[index]?.isExcluded ?? false,
         }));
+        const order = isFourDirectionCharacter(job)
+          ? fourDirectionPlaybackOrder(count, metadata, cached.customData?.source, cached.customData?.fourDirectionOrderVersion) : undefined;
+        if (order) mapped = order.map(index => mapped[index]);
       } else {
         const cached = await getSpriteFromCache(job.gen_id).catch(() => null);
         let processed: string | undefined;
@@ -533,7 +538,7 @@ const TaskPlayerPage: React.FC<TaskPlayerPageProps> = ({
       const fetchJob = async () => {
         try {
           if (firstAttempt && initialJob?.gen_id === selectedJobId && initialJob.status === 'succeeded'
-              && (initialJob.job_type === 'map' || !isSingleImageJob(initialJob) || hasProcessedSprite(initialJob))) {
+              && (initialJob.job_type === 'map' || (!isSingleImageJob(initialJob) && !isFourDirectionCharacter(initialJob)) || hasProcessedSprite(initialJob))) {
             firstAttempt = false;
             setCurrentJob(initialJob);
             if (await updateFramesFromJob(initialJob, isCurrent)) {
@@ -1041,15 +1046,16 @@ const TaskPlayerPage: React.FC<TaskPlayerPageProps> = ({
         pushToHistory([frame]);
       } else {
         const apiLength = currentJob.input_params?.length || 33;
-        const isV2 = currentJob.animation_version === 2 || currentJob.input_params?.animation_version === 2;
-        const original = await fetchAsDataUrl(outputUrl, { refresh: true });
-        const sliced = await sliceSpriteSheet(original, isV2 ? currentJob.input_params.output_frames : undefined,
-          apiLength, isV2 ? Math.min(6, currentJob.input_params.output_frames) : undefined);
-        const mappedFrames: FrameData[] = sliced.map((url, i) => ({
-          id: `f-${Date.now()}-${i}`,
+        const spec = animationSpec(currentJob);
+        const original = isFourDirectionCharacter(currentJob) ? await loadGeneratedSprite(currentJob)
+          : await fetchAsDataUrl(outputUrl, { refresh: true });
+        const sliced = await sliceSpriteSheet(original, spec.frameCount, apiLength, spec.columns);
+        let mappedFrames: FrameData[] = sliced.map((url, i) => ({
+          id: `original-${currentJob.gen_id}-${i}`,
           url,
           isOriginal: true
         }));
+        if (isFourDirectionCharacter(currentJob)) mappedFrames = FOUR_DIRECTION_TURN_ORDER.map(index => mappedFrames[index]);
         setIsPlaying(false);
         pushToHistory(mappedFrames);
       }
@@ -1114,7 +1120,10 @@ const TaskPlayerPage: React.FC<TaskPlayerPageProps> = ({
     if (frames.length === 0 || isEditorBlocked) return; setIsExporting(true);
     try {
       const activeFrames = frames.filter(f => !f.isExcluded); if (activeFrames.length === 0) return;
-      const spriteSheetData = await reconstructSpriteSheet(activeFrames.map(f => f.url)); const link = document.createElement('a'); link.href = spriteSheetData; link.download = `rika_${selectedJobId?.slice(0,8) || 'work'}.png`; link.click();
+      const fourDirections = isFourDirectionCharacter(currentJob) && activeFrames.length === 4;
+      const exportFrames = fourDirections ? fourDirectionGridFrames(activeFrames) : activeFrames;
+      const spriteSheetData = await reconstructSpriteSheet(exportFrames.map(f => f.url), fourDirections ? 2 : undefined);
+      const link = document.createElement('a'); link.href = spriteSheetData; link.download = `rika_${selectedJobId?.slice(0,8) || 'work'}.png`; link.click();
     } catch (err) {} finally { setIsExporting(false); }
   };
 

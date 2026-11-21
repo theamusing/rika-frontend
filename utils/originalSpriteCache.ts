@@ -1,3 +1,5 @@
+import { isFourDirectionCharacter } from './jobTypes.ts';
+import { loadGeneratedSprite } from './generatedSpritePixelizer.ts';
 import { Job } from '../types.ts';
 import { CachedSprite, createSpriteCacheIfAbsent, getSpriteFromCache, recoverSpriteCache } from './dbUtils.ts';
 import { fetchAsDataUrl, getSpriteSheetLayout } from './imageUtils.ts';
@@ -6,6 +8,7 @@ import { decodeImage } from './imageLoader.ts';
 const pending = new Map<string, Promise<CachedSprite>>();
 
 export const animationSpec = (job: Job) => {
+  if (isFourDirectionCharacter(job)) return { frameCount: 4, columns: 2 };
   const isV2 = Number(job.animation_version ?? job.input_params?.animation_version) === 2;
   const frameCount = isV2 ? Number(job.input_params?.output_frames)
     : Math.floor((Number(job.input_params?.length ?? 33) - 1) / 2);
@@ -22,6 +25,12 @@ export const ensureOriginalSpriteCache = (job: Job): Promise<CachedSprite> => {
     const originalLayout = async (sheet: string) => {
       const image = await decodeImage(sheet);
       const layout = getSpriteSheetLayout(image.naturalWidth, image.naturalHeight, spec.frameCount, 33, spec.columns);
+      if (isFourDirectionCharacter(job)) {
+        const size = Number(job.output_params?.pixel_size ?? job.input_params?.pixel_size);
+        if (image.naturalWidth !== size * 2 || image.naturalHeight !== size * 2) {
+          throw new Error('Four-direction sheet dimensions do not match this task');
+        }
+      }
       const size = job.input_params?.pixel_size;
       if (Number(job.animation_version ?? job.input_params?.animation_version) === 2 && size?.x && size?.y) {
         if (image.naturalWidth !== Number(size.x) * layout.columns || image.naturalHeight !== Number(size.y) * layout.rows) {
@@ -34,7 +43,7 @@ export const ensureOriginalSpriteCache = (job: Job): Promise<CachedSprite> => {
     const loadOriginal = () => original ||= (async () => {
       const outputUrl = job.output_images?.[0]?.url;
       if (job.status !== 'succeeded' || !outputUrl) throw new Error('No generated image is available');
-      let spriteSheet = await fetchAsDataUrl(outputUrl);
+      let spriteSheet = isFourDirectionCharacter(job) ? await loadGeneratedSprite(job) : await fetchAsDataUrl(outputUrl);
       try { await originalLayout(spriteSheet); }
       catch {
         spriteSheet = await fetchAsDataUrl(outputUrl, { refresh: true });
@@ -44,6 +53,7 @@ export const ensureOriginalSpriteCache = (job: Job): Promise<CachedSprite> => {
         gen_id: job.gen_id, spriteSheet, updatedAt: Date.now(),
         customData: {
           cacheVersion: 3, source: 'generated', sourceFrameCount: spec.frameCount,
+          backendOutputKey: job.output_images?.[0]?.key,
           columns: spec.columns,
           frameMetadata: Array.from({ length: spec.frameCount }, (_, index) => ({
             id: `original-${job.gen_id}-${index}`, isOriginal: true, isExcluded: false,
@@ -58,6 +68,8 @@ export const ensureOriginalSpriteCache = (job: Job): Promise<CachedSprite> => {
       const metadata = cached.customData?.frameMetadata;
       const count = Array.isArray(metadata) ? metadata.length : spec.frameCount;
       try {
+        if (isFourDirectionCharacter(job) && cached.customData?.source === 'generated'
+            && cached.customData?.backendOutputKey !== job.output_images?.[0]?.key) return false;
         image = await decodeImage(cached.spriteSheet);
         getSpriteSheetLayout(image.naturalWidth, image.naturalHeight, count, 33, cached.customData?.columns);
         if (cached.customData?.source === 'generated') await originalLayout(cached.spriteSheet);

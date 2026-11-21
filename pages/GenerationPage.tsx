@@ -13,6 +13,9 @@ import { extractCentroidsAsync } from '../utils/paletteWorker.ts';
 import { HelpCircle } from 'lucide-react';
 import ColorPickerPopover from '../components/ColorPickerPopover.tsx';
 import { getSpriteFromCache } from '../utils/dbUtils.ts';
+import { isFourDirectionCharacter } from '../utils/jobTypes.ts';
+import { hasProcessedSprite } from '../utils/generatedSpritePixelizer.ts';
+import { loadFourDirectionAnimationSheet } from '../utils/fourDirectionSheet.ts';
 
 interface GenerationPageProps {
   onJobCreated: (id: string) => void;
@@ -397,7 +400,10 @@ const GenerationPage: React.FC<GenerationPageProps> = ({
         const sourcePixelSize = parseInt(jobParams.pixel_size || "128");
         const version = parseInt(jobParams.version || "1");
         let targetPixelSize: PixelSize = "128";
-        if (version === 2) {
+        if (isFourDirectionCharacter(job)) {
+          // pixel_size describes one direction; the full 2x2 input is twice as wide.
+          targetPixelSize = String(sourcePixelSize * 2) as PixelSize;
+        } else if (version === 2) {
           targetPixelSize = String(sourcePixelSize) as PixelSize;
         } else {
           if (sourcePixelSize === 32) {
@@ -416,12 +422,20 @@ const GenerationPage: React.FC<GenerationPageProps> = ({
         
         let initialImageUrl = outputImgs.length > 0 ? outputImgs[0].url : null;
         try {
-          const cached = await getSpriteFromCache(job.gen_id);
-          if (cached && cached.spriteSheet) {
-            initialImageUrl = cached.spriteSheet;
+          if (isFourDirectionCharacter(job)) {
+            const processedJob = hasProcessedSprite(job) ? job : await apiService.getJobInfo(job.gen_id);
+            initialImageUrl = await loadFourDirectionAnimationSheet(processedJob);
+          } else {
+            const cached = await getSpriteFromCache(job.gen_id);
+            if (cached && cached.spriteSheet) initialImageUrl = cached.spriteSheet;
           }
         } catch (err) {
           console.error("Failed to fetch cached sprite for animation", err);
+          if (isFourDirectionCharacter(job)) {
+            setError(isZh ? '无法读取四方向角色，请重新打开预览后重试。' : 'Could not load the four-direction character. Open its preview and try again.');
+            onConsumed?.();
+            return;
+          }
         }
 
         if (initialImageUrl) {

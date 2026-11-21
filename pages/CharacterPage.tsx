@@ -5,6 +5,8 @@ import { apiService } from '../services/apiService.ts';
 import { processCharacterImage } from '../utils/imageUtils.ts';
 import { Plus, Shuffle, Loader2, X, HelpCircle } from 'lucide-react';
 import ColorPickerPopover from '../components/ColorPickerPopover.tsx';
+import AnimatedSpritePreview from '../components/AnimatedSpritePreview.tsx';
+import { FOUR_DIRECTION_TURN_ORDER } from '../utils/fourDirectionPlayback.ts';
 
 interface CharacterPageProps {
   onJobCreated: (id: string) => void;
@@ -113,6 +115,8 @@ const CharacterPage: React.FC<CharacterPageProps> = ({
   const [refPreview, setRefPreview] = useState<string | null>(null);
   const [domainColors, setDomainColors] = useState<string[]>(['#FFD700', '#F7D51D', '#B8860B', '#453200']);
   const [pixelSize, setPixelSize] = useState('128');
+  const [characterMode, setCharacterMode] = useState<'side_view' | 'four_direction'>('side_view');
+  const [cameraView, setCameraView] = useState<'level' | 'overhead'>('level');
   const [artStyle, setArtStyle] = useState('None');
   const [bodyType, setBodyType] = useState('None');
   const [useDomainColor, setUseDomainColor] = useState(false);
@@ -135,11 +139,21 @@ const CharacterPage: React.FC<CharacterPageProps> = ({
   const zhScale = (enSize: number) => `${isZh ? enSize + 3 : enSize}px`;
 
   const currentExample = React.useMemo(() => {
+    if (characterMode === 'four_direction') {
+      const suffix = cameraView === 'overhead' ? '_overhead' : '';
+      return {
+        en: pixelSize === '64' ? 'A silver-haired medieval adventurer in gray armor, navy clothing and brown boots'
+          : 'A bald humanoid character wearing a gray-white sleeveless top and shorts, barefoot',
+        zh: pixelSize === '64' ? '银发中世纪冒险者，身穿灰色护甲、深蓝衣服和棕色靴子'
+          : '光头人形角色，穿灰白色无袖上衣和短裤，赤脚',
+        image: `https://cdn.rika-ai.com/assets/references/character_ref_${pixelSize}_2_rpg4${suffix}.png`,
+      };
+    }
     const lookupKey = pixelSize === '256' ? '128' : (pixelSize === '128' ? '64' : '32');
     const examples = CHARACTER_EXAMPLES[lookupKey] || CHARACTER_EXAMPLES['64'];
     const idx = exampleIndex >= examples.length ? 0 : exampleIndex;
     return examples[idx];
-  }, [pixelSize, exampleIndex]);
+  }, [pixelSize, exampleIndex, characterMode, cameraView]);
 
   React.useEffect(() => {
     const lookupKey = pixelSize === '256' ? '128' : (pixelSize === '128' ? '64' : '32');
@@ -152,7 +166,11 @@ const CharacterPage: React.FC<CharacterPageProps> = ({
       const { input_params, input_images } = initialParams;
       if (input_params) {
         setPrompt(input_params.prompt || '');
-        setPixelSize(input_params.pixel_size || '128');
+        const fourDirection = input_params.character_mode === 'four_direction';
+        setCharacterMode(fourDirection ? 'four_direction' : 'side_view');
+        const size = String(input_params.pixel_size || '128');
+        setPixelSize(fourDirection && !['64', '128'].includes(size) ? '128' : size);
+        setCameraView(input_params.camera_view === 'overhead' ? 'overhead' : 'level');
         if (input_params.domain_color) {
           try {
             const colors = JSON.parse(input_params.domain_color.replace(/'/g, '"'));
@@ -236,6 +254,10 @@ const CharacterPage: React.FC<CharacterPageProps> = ({
         style: artStyle,
         version: '2'
       };
+      if (characterMode === 'four_direction') {
+        params.character_mode = characterMode;
+        params.camera_view = cameraView;
+      }
 
       if (bodyType !== 'None') {
         params.body_type = bodyType;
@@ -258,6 +280,24 @@ const CharacterPage: React.FC<CharacterPageProps> = ({
 
   return (
     <div className="ui-page max-w-6xl mx-auto py-6 md:py-8 px-1 md:px-4">
+      <PixelCard title={isZh ? '角色模式' : 'CHARACTER MODE'} titleStyle={{ fontSize: zhScale(10) }} className="model-selection-card mb-6">
+        <div className="animation-version-switch" role="group" aria-label={isZh ? '角色模式' : 'Character mode'}>
+          <button type="button" disabled={loading} aria-pressed={characterMode === 'side_view'}
+            className={characterMode === 'side_view' ? 'is-active' : ''}
+            onClick={() => { setCharacterMode('side_view'); setError(null); }}>
+            <span className="version-button-label">{isZh ? '横板' : 'SIDE VIEW'}</span>
+          </button>
+          <button type="button" disabled={loading} aria-pressed={characterMode === 'four_direction'}
+            className={characterMode === 'four_direction' ? 'is-active' : ''}
+            onClick={() => {
+              setCharacterMode('four_direction');
+              if (!['64', '128'].includes(pixelSize)) setPixelSize('128');
+              setError(null);
+            }}>
+            <span className="version-button-label">{isZh ? '四方向' : 'FOUR DIRECTIONS'}</span>
+          </button>
+        </div>
+      </PixelCard>
       <div className="flex flex-col md:flex-row gap-6">
         {/* Left Column */}
         <div className="flex-1 space-y-6">
@@ -286,12 +326,15 @@ const CharacterPage: React.FC<CharacterPageProps> = ({
               <PixelCard title="EXAMPLE" titleStyle={{ fontSize: zhScale(10) }} className="w-full flex flex-col cursor-pointer hover:bg-[#2d1b4e]/70 transition-colors" onClick={() => setPrompt(isZh ? currentExample.zh : currentExample.en)}>
                 <div className="pt-2 flex-1 flex flex-col gap-3">
                   <div className="aspect-square w-full bg-black/20 pixel-border border-[#5a2d9c]/30 flex items-center justify-center overflow-hidden">
-                    <PixelImage 
+                    {characterMode === 'four_direction' ? <AnimatedSpritePreview
+                      lang={lang} animationSrc={currentExample.image} frameCount={4} columns={2}
+                      fps={4} playbackOrder={FOUR_DIRECTION_TURN_ORDER} alt="Four-direction character example"
+                      className="h-full" maxHeight={512} /> : <PixelImage
                       src={currentExample.image} 
                       className="w-full h-full object-contain"
                       style={{ imageRendering: 'pixelated' }}
                       alt="Example"
-                    />
+                    />}
                   </div>
                   <p className="text-white/60 leading-relaxed text-[9px] uppercase">
                     {isZh ? currentExample.zh : currentExample.en}
@@ -363,10 +406,23 @@ const CharacterPage: React.FC<CharacterPageProps> = ({
                   >
                     <option value="64">64</option>
                     <option value="128">128</option>
-                    <option value="256">256</option>
+                    {characterMode === 'side_view' && <option value="256">256</option>}
                   </select>
                 </div>
               </div>
+
+              {characterMode === 'four_direction' && <div className="space-y-2">
+                <label htmlFor="character-camera-view" className="font-bold text-white/60 uppercase" style={{ fontSize: zhScale(10) }}>
+                  {isZh ? '视角' : 'CAMERA VIEW'}
+                </label>
+                <select id="character-camera-view" value={cameraView}
+                  onChange={event => setCameraView(event.target.value as 'level' | 'overhead')}
+                  className="w-full bg-black/40 pixel-border border-[#5a2d9c] p-2 text-white outline-none appearance-none cursor-pointer"
+                  style={{ fontSize: zhScale(10) }}>
+                  <option value="level">{isZh ? '平视' : 'LEVEL'}</option>
+                  <option value="overhead">{isZh ? '俯视' : 'OVERHEAD'}</option>
+                </select>
+              </div>}
 
               {/* Art Style */}
               <div className="space-y-2">

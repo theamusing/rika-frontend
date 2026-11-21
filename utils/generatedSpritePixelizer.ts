@@ -1,3 +1,4 @@
+import { isFourDirectionCharacter } from './jobTypes.ts';
 import { Job } from '../types.ts';
 import { fetchAsDataUrl } from './imageUtils.ts';
 import { decodeImage } from './imageLoader.ts';
@@ -17,7 +18,8 @@ export const loadGeneratedSprite = async (job: Job): Promise<string> => {
   }
   const source = await fetchAsDataUrl(url);
   const image = await decodeImage(source);
-  if (image.naturalWidth !== size || image.naturalHeight !== size) {
+  const dimension = isFourDirectionCharacter(job) ? size * 2 : size;
+  if (image.naturalWidth !== dimension || image.naturalHeight !== dimension) {
     throw new Error('The image dimensions do not match this task. Please reload the image.');
   }
   return source;
