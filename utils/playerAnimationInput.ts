@@ -1,6 +1,6 @@
 import { AnimationVersion, PaddingOffsets, PixelDimensions, PixelSize } from '../types.ts';
 import { decodeImage } from './imageLoader.ts';
-import { EMPTY_PADDING, paddedDimensions, processImageV2, v2CanvasLimit } from './animationV2.ts';
+import { EMPTY_PADDING, paddedDimensions, processImageV2 } from './animationV2.ts';
 import { RGB } from './editorUtils.ts';
 
 const PRESETS = [32, 64, 128, 256];
@@ -24,7 +24,8 @@ export async function readPlayerFrameInput(image: string, sourceParams: any = {}
     Number.isInteger(stored[side]) && stored[side] >= 0 && stored[side] % 32 === 0)
     ? { x: img.naturalWidth - stored.left - stored.right, y: img.naturalHeight - stored.top - stored.bottom }
     : null;
-  const canvasLimit = version === 'v2' && storedContent ? v2CanvasLimit(storedContent) : 256;
+  // Previously generated V2 frames can still have a 384px padded canvas.
+  const canvasLimit = version === 'v2' && storedContent?.x === 256 && storedContent.y === 256 ? 384 : 256;
   const fitsCanvas = Math.max(img.naturalWidth, img.naturalHeight) <= canvasLimit;
   if (!fitsCanvas) {
     // Uploaded/custom frames can exceed the generator's native 256px limit.

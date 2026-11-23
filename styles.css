@@ -647,22 +647,12 @@ input[type="range"] {
   letter-spacing: 0.04em;
 }
 
-.v2-launch-promo {
-  color: var(--rika-gold);
-  font-size: 8px;
-  letter-spacing: 0.08em;
-}
-
 .lang-zh .v2-launch-copy {
   font-size: 12px;
 }
 
 .lang-zh .v2-launch-banner {
   font-family: "Fusion Pixel 12px Monospaced SC", "Microsoft YaHei", monospace;
-}
-
-.lang-zh .v2-launch-promo {
-  font-size: 11px;
 }
 
 .v2-launch-arrow {

@@ -84,7 +84,6 @@ const GenerationPage: React.FC<GenerationPageProps> = ({
   const [usePadding, setUsePadding] = useState(false);
   const [paddingPosition, setPaddingPosition] = useState<'tl' | 'tc' | 'tr' | 'ml' | 'mc' | 'mr' | 'bl' | 'bc' | 'br'>('mc');
   const [showCreditModal, setShowCreditModal] = useState(false);
-  const [forcedScaleFactor, setForcedScaleFactor] = useState<number | null>(null);
   const [colorInputKey, setColorInputKey] = useState(0);
   const [showBgColorPicker, setShowBgColorPicker] = useState(false);
   const bgColorAnchorRef = useRef<HTMLDivElement>(null);
@@ -149,8 +148,11 @@ const GenerationPage: React.FC<GenerationPageProps> = ({
     return () => window.clearTimeout(timer);
   }, [isV2, exampleSrc, loadedExampleSrc]);
 
-  const originalCreditsCost = isV2 ? 8 : 5;
-  const creditsCost = isV2 ? 6 : 4;
+  const creditsCost = isV2 ? (Math.max(v2Size.x, v2Size.y) === 256 ? 8 : 6) : 5;
+  const v1PixelSize = Number(params.pixel_size);
+  const v1ScaleFactor = usePadding
+    ? (v1PixelSize === 256 ? 3 : 384 / v1PixelSize)
+    : (v1PixelSize === 256 ? 4 : (v1PixelSize <= 64 ? 512 : 768) / v1PixelSize);
   const actualPadding = usePadding ? constrainPadding(v2Size, v2Padding) : EMPTY_PADDING;
   const v2CanvasSize = paddedDimensions(v2Size, actualPadding);
   const paddingPositions = ['tl', 'tc', 'tr', 'ml', 'mc', 'mr', 'bl', 'bc', 'br'] as const;
@@ -172,7 +174,6 @@ const GenerationPage: React.FC<GenerationPageProps> = ({
     setV2Size(frame.contentSize);
     setV2Padding(frame.padding);
     setUsePadding(version === 'v2' && Object.values(frame.padding).some(value => value > 0));
-    setForcedScaleFactor(null);
     setPaddingPosition('mc');
     setParams(current => ({ ...current,
       pixel_size: version === 'v1' ? frame.squareSize : String(frame.contentSize.x) as PixelSize,
@@ -281,7 +282,7 @@ const GenerationPage: React.FC<GenerationPageProps> = ({
               params.quantization_colors,
               centroids,
               true,
-              forcedScaleFactor || undefined,
+              v1ScaleFactor,
               paddingPosition
             );
             
@@ -296,7 +297,7 @@ const GenerationPage: React.FC<GenerationPageProps> = ({
               params.quantization_colors,
               centroids,
               false,
-              forcedScaleFactor || undefined,
+              v1ScaleFactor,
               paddingPosition
             );
 
@@ -339,7 +340,7 @@ const GenerationPage: React.FC<GenerationPageProps> = ({
     };
     reprocessAll();
     return () => { cancelled = true; };
-  }, [usePadding, paddingPosition, sourceFiles, flipStates, params.pixel_size, params.bg_color, params.use_quantization, params.quantization_colors, centroids, forcedScaleFactor, isV2, v2Size, v2Padding, playerFrame]);
+  }, [usePadding, paddingPosition, sourceFiles, flipStates, params.pixel_size, params.bg_color, params.use_quantization, params.quantization_colors, centroids, v1ScaleFactor, isV2, v2Size, v2Padding, playerFrame]);
 
   // Update palette source when start image changes
   useEffect(() => {
@@ -476,7 +477,7 @@ const GenerationPage: React.FC<GenerationPageProps> = ({
         const files: (File | string | null)[] = [null, null, null];
         try {
           const urls = await Promise.all(inputImgs.map((entry: { url: string }) => (jobParams.use_padding === true || Object.values(padding).some(value => value > 0))
-            ? removePaddingV2(entry.url, size, padding) : Promise.resolve(entry.url)));
+            ? removePaddingV2(entry.url, size, storedPadding) : Promise.resolve(entry.url)));
           files[0] = urls[0] || null;
           if (urls.length === 3) { files[1] = urls[legacyReferenceOrder ? 2 : 1]; files[2] = urls[legacyReferenceOrder ? 1 : 2]; }
           else if (urls.length === 2) files[jobParams.use_mid_image && !jobParams.use_end_image ? 1 : 2] = urls[1];
@@ -500,12 +501,6 @@ const GenerationPage: React.FC<GenerationPageProps> = ({
       const loadedPixelSize = String(parseInt(jobParams.pixel_size || "128")) as PixelSize;
       const loadedScaleFactor = jobParams.scale_factor;
       
-      if (wasPadded && loadedPixelSize === "256") {
-        setForcedScaleFactor(loadedScaleFactor);
-      } else {
-        setForcedScaleFactor(null);
-      }
-
       setParams({ 
         ...params, 
         ...jobParams, 
@@ -606,24 +601,7 @@ const GenerationPage: React.FC<GenerationPageProps> = ({
       finalParams.length = 2 * uiLength + 1;
       finalParams.use_padding = usePadding;
       finalParams.padding_position = paddingPosition;
-      const pixelInt = parseInt(params.pixel_size);
-      if (usePadding) {
-        if (forcedScaleFactor) {
-          finalParams.scale_factor = forcedScaleFactor;
-        } else if (pixelInt === 256) {
-          finalParams.scale_factor = 2;
-        } else if (pixelInt === 32) {
-          finalParams.scale_factor = 12; // 32 * 12 = 384
-        } else {
-          finalParams.scale_factor = 384 / pixelInt;
-        }
-      } else {
-        if (pixelInt === 32 || pixelInt === 64) {
-          finalParams.scale_factor = 512 / pixelInt;
-        } else {
-          finalParams.scale_factor = 768 / pixelInt;
-        }
-      }
+      finalParams.scale_factor = v1ScaleFactor;
       if (!params.fix_seed) finalParams.seed = Math.floor(Math.random() * 1000000);
       payloadImages.push(fullProcessedImages[0] as string);
       if (expandImages) {
@@ -832,7 +810,6 @@ const GenerationPage: React.FC<GenerationPageProps> = ({
                           if (isV2 && e.target.checked && Object.values(v2Padding).every(value => value === 0)) {
                             setV2Padding(constrainPadding(v2Size, { left: 32, right: 32, top: 32, bottom: 32 }));
                           }
-                          setForcedScaleFactor(null); // Reset forced scale factor on manual change
                         }} 
                       />
                       {isZh ? '扩展图像' : 'PADDING'}
@@ -992,7 +969,6 @@ const GenerationPage: React.FC<GenerationPageProps> = ({
                         setParams({...params, pixel_size: choice});
                         setV2PixelChoice(choice);
                         changeV2Size({ x: Number(choice), y: Number(choice) });
-                        setForcedScaleFactor(null); // Reset forced scale factor on manual change
                       }}
                     >
                         {PIXEL_SIZES.map(s => <option key={s} value={s}>{s}x{s}</option>)}
@@ -1132,12 +1108,7 @@ const GenerationPage: React.FC<GenerationPageProps> = ({
             : (
               <>
                 <span>{isZh ? '开始生成' : 'GENERATE'}</span>
-                <span className="flex items-center gap-2 whitespace-nowrap">
-                  <span className="line-through opacity-50">
-                    {originalCreditsCost}
-                  </span>
-                  <span>{creditsCost} {isZh ? '积分' : 'CREDITS'}</span>
-                </span>
+                <span className="whitespace-nowrap">{creditsCost} {isZh ? '积分' : 'CREDITS'}</span>
               </>
             )}
         </PixelButton>

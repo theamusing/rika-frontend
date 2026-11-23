@@ -43,7 +43,7 @@ export const processImage = async (
         let contentDim = 512;
 
         if (padding) {
-          canvasDim = 768;
+          canvasDim = pixelInt === 256 && forcedScaleFactor === 3 ? 960 : 768;
           if (forcedScaleFactor) {
             contentDim = pixelInt * forcedScaleFactor;
           } else {
@@ -60,8 +60,8 @@ export const processImage = async (
             canvasDim = 512;
             contentDim = 512;
           } else {
-            canvasDim = 768;
-            contentDim = 768;
+            canvasDim = pixelInt === 256 && forcedScaleFactor === 4 ? 1024 : 768;
+            contentDim = canvasDim;
           }
         }
 
@@ -354,11 +354,14 @@ export const unprocessImage = async (url: string, pixelSize: string = '128', for
         
         ctx.imageSmoothingEnabled = false;
         
-        if (img.width === 768) {
+        const pixelInt = parseInt(pixelSize);
+        const isExtendedCanvas = pixelInt === 256 && img.width === 960 && img.height === 960;
+        if (img.width === 768 || isExtendedCanvas) {
             let contentDim = 384;
-            const pixelInt = parseInt(pixelSize);
             
-            if (forcedScaleFactor) {
+            if (isExtendedCanvas) {
+                contentDim = pixelInt * 3;
+            } else if (forcedScaleFactor) {
                 contentDim = pixelInt * forcedScaleFactor;
             } else if (pixelInt === 256) {
                 // Default to new logic if not forced
@@ -367,9 +370,9 @@ export const unprocessImage = async (url: string, pixelSize: string = '128', for
                 contentDim = 384;
             }
             
-            let ox = (768 - contentDim) / 2;
-            let oy = (768 - contentDim) / 2;
-            const remain = 768 - contentDim;
+            const remain = img.width - contentDim;
+            let ox = remain / 2;
+            let oy = remain / 2;
 
             switch (paddingPosition) {
               case 'tl':
