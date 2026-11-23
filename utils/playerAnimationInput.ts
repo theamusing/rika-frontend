@@ -1,6 +1,6 @@
 import { AnimationVersion, PaddingOffsets, PixelDimensions, PixelSize } from '../types.ts';
 import { decodeImage } from './imageLoader.ts';
-import { EMPTY_PADDING, paddedDimensions, processImageV2 } from './animationV2.ts';
+import { EMPTY_PADDING, paddedDimensions, processImageV2, v2CanvasLimit } from './animationV2.ts';
 import { RGB } from './editorUtils.ts';
 
 const PRESETS = [32, 64, 128, 256];
@@ -19,7 +19,14 @@ export interface PlayerFrameInput {
 export async function readPlayerFrameInput(image: string, sourceParams: any = {}, version: AnimationVersion = 'v1'): Promise<PlayerFrameInput> {
   sourceParams = sourceParams || {};
   let img = await decodeImage(image);
-  if (Math.max(img.naturalWidth, img.naturalHeight) > 256) {
+  const stored = sourceParams.padding;
+  const storedContent = stored && Object.keys(EMPTY_PADDING).every(side =>
+    Number.isInteger(stored[side]) && stored[side] >= 0 && stored[side] % 32 === 0)
+    ? { x: img.naturalWidth - stored.left - stored.right, y: img.naturalHeight - stored.top - stored.bottom }
+    : null;
+  const canvasLimit = version === 'v2' && storedContent ? v2CanvasLimit(storedContent) : 256;
+  const fitsCanvas = Math.max(img.naturalWidth, img.naturalHeight) <= canvasLimit;
+  if (!fitsCanvas) {
     // Uploaded/custom frames can exceed the generator's native 256px limit.
     const scale = 256 / Math.max(img.naturalWidth, img.naturalHeight);
     const fitted = document.createElement('canvas');
@@ -30,25 +37,21 @@ export async function readPlayerFrameInput(image: string, sourceParams: any = {}
     context.drawImage(img, 0, 0, fitted.width, fitted.height);
     image = fitted.toDataURL('image/png');
     img = await decodeImage(image);
-    sourceParams = { ...sourceParams, padding: undefined };
   }
   const width = img.naturalWidth, height = img.naturalHeight;
   const squareSize = String(PRESETS.find(side => side >= Math.max(width, height)) || 256) as PixelSize;
-  const gridWidth = Math.min(256, Math.max(32, Math.ceil(width / 32) * 32));
-  const gridHeight = Math.min(256, Math.max(32, Math.ceil(height / 32) * 32));
+  const gridWidth = Math.max(32, Math.ceil(width / 32) * 32);
+  const gridHeight = Math.max(32, Math.ceil(height / 32) * 32);
   const base = PRESETS.filter(side => side <= Math.min(gridWidth, gridHeight)).pop()!;
   let contentSize = { x: base, y: base };
   // Without source metadata, distribute added space on the existing 32px grid.
   const left = Math.floor((gridWidth - base) / 64) * 32;
   const top = Math.floor((gridHeight - base) / 64) * 32;
   let padding = { left, top, right: gridWidth - base - left, bottom: gridHeight - base - top };
-  const stored = sourceParams.padding;
-  if (stored && ['left', 'right', 'top', 'bottom'].every(side => Number.isInteger(stored[side]) && stored[side] >= 0 && stored[side] % 32 === 0)) {
-    const x = width - stored.left - stored.right, y = height - stored.top - stored.bottom;
-    if (x === y && PRESETS.includes(x) && width === gridWidth && height === gridHeight) {
-      contentSize = { x, y };
-      padding = { left: stored.left, right: stored.right, top: stored.top, bottom: stored.bottom };
-    }
+  if (fitsCanvas && storedContent && storedContent.x === storedContent.y && PRESETS.includes(storedContent.x)
+      && width === gridWidth && height === gridHeight) {
+    contentSize = storedContent;
+    padding = { left: stored.left, right: stored.right, top: stored.top, bottom: stored.bottom };
   }
   const canvas = document.createElement('canvas');
   canvas.width = width; canvas.height = height;

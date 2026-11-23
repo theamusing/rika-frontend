@@ -1,6 +1,6 @@
 import React, { useRef } from 'react';
 import { PaddingOffsets, PixelDimensions } from '../types.ts';
-import { paddedDimensions } from '../utils/animationV2.ts';
+import { paddedDimensions, v2CanvasLimit } from '../utils/animationV2.ts';
 
 interface Props {
   size: PixelDimensions;
@@ -16,19 +16,23 @@ const PaddingEditorV2: React.FC<Props> = ({ size, padding, image, onChange, lang
   const drag = useRef<{ side: keyof PaddingOffsets; pointer: number; start: number; value: number; unit: number } | null>(null);
   const zh = lang === 'zh';
   const total = paddedDimensions(size, padding);
-  const x = (256 - total.x) / 2 + padding.left;
-  const y = (256 - total.y) / 2 + padding.top;
+  const canvasLimit = v2CanvasLimit(size);
+  const center = canvasLimit / 2;
+  const percent = (pixels: number) => `${pixels / canvasLimit * 100}%`;
+  const gridStep = percent(32);
+  const x = (canvasLimit - total.x) / 2 + padding.left;
+  const y = (canvasLimit - total.y) / 2 + padding.top;
   const labels = { left: zh ? '左侧留白' : 'Left padding', right: zh ? '右侧留白' : 'Right padding',
     top: zh ? '上方留白' : 'Top padding', bottom: zh ? '下方留白' : 'Bottom padding' };
   const position = {
-    left: { left: x - padding.left, top: 128 },
-    right: { left: x + size.x + padding.right, top: 128 },
-    top: { left: 128, top: y - padding.top },
-    bottom: { left: 128, top: y + size.y + padding.bottom },
+    left: { left: x - padding.left, top: center },
+    right: { left: x + size.x + padding.right, top: center },
+    top: { left: center, top: y - padding.top },
+    bottom: { left: center, top: y + size.y + padding.bottom },
   };
   const limit = (side: keyof PaddingOffsets) => {
     const opposite = { left: 'right', right: 'left', top: 'bottom', bottom: 'top' } as const;
-    return 256 - (side === 'left' || side === 'right' ? size.x : size.y) - padding[opposite[side]];
+    return canvasLimit - (side === 'left' || side === 'right' ? size.x : size.y) - padding[opposite[side]];
   };
   const update = (side: keyof PaddingOffsets, value: number) => {
     onChange({ ...padding, [side]: Math.max(0, Math.min(limit(side), Math.round(value / 32) * 32)) });
@@ -42,14 +46,14 @@ const PaddingEditorV2: React.FC<Props> = ({ size, padding, image, onChange, lang
       <div ref={stage} className="relative mx-auto w-[240px] max-w-full aspect-square select-none touch-none">
         <div className="absolute inset-0 border border-white/10" style={{
           backgroundImage: 'linear-gradient(to right, #ffffff0d 1px, transparent 1px), linear-gradient(to bottom, #ffffff0d 1px, transparent 1px)',
-          backgroundSize: '12.5% 12.5%',
+          backgroundSize: `${gridStep} ${gridStep}`,
         }} />
         <div className="absolute border-2 border-dashed border-[#f7d51d] bg-[#5a2d9c]/30" style={{
-          left: `${(x - padding.left) / 256 * 100}%`, top: `${(y - padding.top) / 256 * 100}%`,
-          width: `${total.x / 256 * 100}%`, height: `${total.y / 256 * 100}%`,
+          left: percent(x - padding.left), top: percent(y - padding.top),
+          width: percent(total.x), height: percent(total.y),
         }} />
         <div className="absolute border border-white/40 bg-[#0d0221] flex items-center justify-center overflow-hidden" style={{
-          left: `${x / 256 * 100}%`, top: `${y / 256 * 100}%`, width: `${size.x / 256 * 100}%`, height: `${size.y / 256 * 100}%`,
+          left: percent(x), top: percent(y), width: percent(size.x), height: percent(size.y),
         }}>
           {image ? <img src={image} alt={zh ? '原图内容' : 'Image content'} className="w-full h-full" style={{ imageRendering: 'pixelated' }} draggable={false} />
             : <span className="text-[9px] text-white/50">{size.x}×{size.y}</span>}
@@ -60,14 +64,14 @@ const PaddingEditorV2: React.FC<Props> = ({ size, padding, image, onChange, lang
             aria-orientation={side === 'left' || side === 'right' ? 'horizontal' : 'vertical'}
             title={`${labels[side]}: ${padding[side]}px`} disabled={disabled || limit(side) === 0}
             className="absolute z-10 w-7 h-7 -translate-x-1/2 -translate-y-1/2 bg-[#f7d51d] text-[#2d1b4e] border-2 border-[#0d0221] text-base leading-none disabled:opacity-40 focus:outline-2 focus:outline-white shadow-[2px_2px_0_#080116]"
-            style={{ left: `${position[side].left / 256 * 100}%`, top: `${position[side].top / 256 * 100}%`,
+            style={{ left: percent(position[side].left), top: percent(position[side].top),
               cursor: side === 'left' || side === 'right' ? 'ew-resize' : 'ns-resize', touchAction: 'none' }}
             onPointerDown={event => {
               event.preventDefault();
               event.currentTarget.setPointerCapture(event.pointerId);
               drag.current = { side, pointer: event.pointerId, value: padding[side],
                 start: side === 'left' || side === 'right' ? event.clientX : event.clientY,
-                unit: (stage.current?.getBoundingClientRect().width || 240) / 256 };
+                unit: (stage.current?.getBoundingClientRect().width || 240) / canvasLimit };
             }}
             onPointerMove={event => {
               const active = drag.current;

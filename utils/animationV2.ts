@@ -6,12 +6,17 @@ import { fetchAsDataUrl, processImage } from './imageUtils.ts';
 export const EMPTY_PADDING: PaddingOffsets = { left: 0, right: 0, top: 0, bottom: 0 };
 export const snapPixelSize = (value: number) => Math.max(32, Math.min(256, Math.round((Number.isFinite(value) ? value : 128) / 32) * 32));
 
+export const v2CanvasLimit = (size: PixelDimensions): number => size.x === 256 && size.y === 256 ? 384 : 256;
+
 export const constrainPadding = (size: PixelDimensions, padding: PaddingOffsets): PaddingOffsets => {
   const snap = (value: number) => Math.max(0, Math.round((Number.isFinite(value) ? value : 0) / 32) * 32);
-  const left = Math.min(256 - size.x, snap(padding.left));
-  const right = Math.min(256 - size.x - left, snap(padding.right));
-  const top = Math.min(256 - size.y, snap(padding.top));
-  const bottom = Math.min(256 - size.y - top, snap(padding.bottom));
+  const limit = v2CanvasLimit(size);
+  const widthBudget = Math.max(0, limit - size.x);
+  const heightBudget = Math.max(0, limit - size.y);
+  const left = Math.min(widthBudget, snap(padding.left));
+  const right = Math.min(widthBudget - left, snap(padding.right));
+  const top = Math.min(heightBudget, snap(padding.top));
+  const bottom = Math.min(heightBudget - top, snap(padding.bottom));
   return { left, right, top, bottom };
 };
 
@@ -19,17 +24,6 @@ export const paddedDimensions = (size: PixelDimensions, padding: PaddingOffsets)
   x: size.x + padding.left + padding.right,
   y: size.y + padding.top + padding.bottom,
 });
-
-export const scaleForV2 = (size: PixelDimensions): number => {
-  const longSide = Math.max(size.x, size.y);
-  if (longSide === 256) return 2;
-  const target = 768;
-  const candidates = Array.from({ length: 32 }, (_, index) => index + 1)
-    .filter(scale => longSide * scale >= 768 && longSide * scale <= 1024);
-  return candidates.reduce((best, scale) =>
-    Math.abs(longSide * scale - target) <= Math.abs(longSide * best - target) ? scale : best,
-  candidates[0]);
-};
 
 const loadImage = async (source: File | string): Promise<HTMLImageElement> => {
   const revocable = source instanceof File;
@@ -112,10 +106,7 @@ export const processImageV2 = async (
   // Use an integer nearest-neighbour preview scale so the upload card renders
   // the same crisp grid as V1, while `image` remains the native upload asset.
   const previewTarget = Math.max(size.x, size.y) <= 64 ? 512 : 768;
-  const previewScale = Math.min(
-    scaleForV2(dimensions),
-    Math.max(1, Math.floor(previewTarget / Math.max(canvas.width, canvas.height))),
-  );
+  const previewScale = Math.max(1, Math.floor(previewTarget / Math.max(canvas.width, canvas.height)));
   const preview = document.createElement('canvas');
   preview.width = canvas.width * previewScale;
   preview.height = canvas.height * previewScale;
