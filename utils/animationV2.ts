@@ -22,7 +22,8 @@ export const paddedDimensions = (size: PixelDimensions, padding: PaddingOffsets)
 
 export const scaleForV2 = (size: PixelDimensions): number => {
   const longSide = Math.max(size.x, size.y);
-  const target = longSide <= 192 ? 768 : 1024;
+  if (longSide === 256) return 2;
+  const target = 768;
   const candidates = Array.from({ length: 32 }, (_, index) => index + 1)
     .filter(scale => longSide * scale >= 768 && longSide * scale <= 1024);
   return candidates.reduce((best, scale) =>
@@ -111,7 +112,10 @@ export const processImageV2 = async (
   // Use an integer nearest-neighbour preview scale so the upload card renders
   // the same crisp grid as V1, while `image` remains the native upload asset.
   const previewTarget = Math.max(size.x, size.y) <= 64 ? 512 : 768;
-  const previewScale = Math.max(1, Math.floor(previewTarget / Math.max(canvas.width, canvas.height)));
+  const previewScale = Math.min(
+    scaleForV2(dimensions),
+    Math.max(1, Math.floor(previewTarget / Math.max(canvas.width, canvas.height))),
+  );
   const preview = document.createElement('canvas');
   preview.width = canvas.width * previewScale;
   preview.height = canvas.height * previewScale;
